@@ -79,7 +79,7 @@ def inline_json_links(doc: str) -> str:
     return doc
 
 
-def data_uri(path: Path) -> str:
+def data_uri(path: Path):  # -> (data_uri: str, new_size: int, orig_size: int)
     is_pano = "tour" in path.parts
     max_w = PANO_MAX_W if is_pano else SHOW_MAX_W
     q = PANO_Q if is_pano else SHOW_Q

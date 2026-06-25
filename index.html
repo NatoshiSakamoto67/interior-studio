@@ -19,7 +19,7 @@
     </div>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
-      <button class="tab is-active" data-tab="studio"><span class="ic" data-icon="palette"></span> KI-Studio</button>
+      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
       <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
@@ -61,9 +61,9 @@
         <aside class="controls">
           <h2 class="eyebrow">Was möchtest du machen?</h2>
           <div class="seg" id="studioMode">
-            <button class="seg-b is-active" data-mode="generate">Bild erzeugen</button>
-            <button class="seg-b" data-mode="redesign">Raum redesignen</button>
-            <button class="seg-b" data-mode="apartment">Wohnung aus Grundriss</button>
+            <button class="seg-b is-active" data-mode="generate" aria-pressed="true">Bild erzeugen</button>
+            <button class="seg-b" data-mode="redesign" aria-pressed="false">Raum redesignen</button>
+            <button class="seg-b" data-mode="apartment" aria-pressed="false">Wohnung aus Grundriss</button>
           </div>
 
           <label class="fld" id="uploadFld" hidden>
@@ -171,9 +171,9 @@
         <aside class="walk-side">
           <span class="eyebrow">Standort erzeugen</span>
           <div class="seg" id="tourMode">
-            <button class="seg-b is-active" data-src="text">Aus Text</button>
-            <button class="seg-b" data-src="photo">Aus Foto</button>
-            <button class="seg-b" data-src="studio">KI-Studio</button>
+            <button class="seg-b is-active" data-src="text" aria-pressed="true">Aus Text</button>
+            <button class="seg-b" data-src="photo" aria-pressed="false">Aus Foto</button>
+            <button class="seg-b" data-src="studio" aria-pressed="false">KI-Studio</button>
           </div>
 
           <label class="fld" id="tourPhotoFld" hidden>
@@ -240,9 +240,9 @@
 
   <!-- Key-Modal -->
   <div class="modal" id="keyModal" hidden>
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
       <button class="modal-x" id="keyClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
-      <h3>Gemini-API-Key (Nano Banana)</h3>
+      <h3 id="keyModalTitle">Gemini-API-Key (Nano Banana)</h3>
       <p class="muted">Trag deinen Key von <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> ein. Er wird <b>nur lokal in deinem Browser</b> gespeichert (localStorage) und geht ausschließlich an Googles API. Die Bildgenerierung läuft über ein Google-Cloud-Projekt mit aktiviertem Billing.</p>
       <label class="fld"><span>API-Key</span>
         <input type="password" id="keyInput" placeholder="API-Key einfügen" autocomplete="off" />
@@ -274,9 +274,9 @@
 
   <!-- Produkt-Picker fürs Pin-Setzen -->
   <div class="modal" id="pickModal" hidden>
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pickModalTitle">
       <button class="modal-x" id="pickClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
-      <h3>Möbel an diese Stelle</h3>
+      <h3 id="pickModalTitle">Möbel an diese Stelle</h3>
       <p class="muted">Wähle ein Produkt aus den geladenen Katalogen — es landet als Pin im Panorama und in der Einkaufsliste.</p>
       <div class="pick-filter">
         <input type="search" id="pickSearch" placeholder="Suche (Name, Hersteller …)" />
@@ -286,7 +286,7 @@
     </div>
   </div>
 
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="true"></div>
 
   <script src="vendor/marzipano.js"></script>
   <script src="catalog.js"></script>

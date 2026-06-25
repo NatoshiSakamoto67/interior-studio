@@ -22,7 +22,7 @@
   }
 
   function normalizeItem(raw, cat, i) {
-    const id = raw.id || slug(raw.name) || ("item-" + i);
+    const id = slug(raw.id || raw.name) || ("item-" + i);
     const dm = dims(raw["maße"] || raw.masse || raw.dim);
     const brand = raw.hersteller || raw.brand || "";
     const props = Array.isArray(raw.props) ? raw.props : (raw.props ? String(raw.props).split(/\s*[;|]\s*/).filter(Boolean) : []);
@@ -53,7 +53,7 @@
     if (!env || env.schema !== "interior-studio.catalog/v1" || !Array.isArray(env.items))
       throw new Error("Ungültiges Katalog-Format (schema/items fehlt).");
     const cat = {
-      id: env.id || slug(env.name) || ("kat-" + Date.now()),
+      id: slug(env.id || env.name) || ("kat-" + Date.now()),
       name: env.name || "Katalog", publisher: env.publisher || "", license: env.license || "—",
       source: env.source || "", currency: env.currency || "EUR", enabled: true, builtin: !!builtin
     };

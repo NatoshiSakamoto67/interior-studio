@@ -63,6 +63,9 @@ textarea,input[type=text],input[type=password],select{
   background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-sm);
   padding:10px 12px;font:inherit;font-size:14px;outline:none;transition:.15s}
 textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+/* Sichtbarer Tastatur-Fokus (WCAG 2.4.7/2.4.11) */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea{resize:vertical;min-height:74px}
 input[type=range]{accent-color:var(--accent)}
 input[type=file]{font-size:12px;color:var(--muted)}
@@ -79,7 +82,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
 
 /* ---- Icons (Lucide inline-SVG; Registry/Helfer in icons.js) ---- */
 .ic{display:inline-flex;align-items:center;justify-content:center;vertical-align:-.14em;line-height:0}
-.icon{width:1em;height:1em;flex:none}
+.icon{width:1em;height:1em;flex:none;pointer-events:none}
 .tab .icon{opacity:.92}
 .ic-ok{color:var(--accent2)}
 .cart-list .rm .icon{width:.92em;height:.92em}
@@ -133,7 +136,8 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .cart-total{font-weight:800;color:var(--accent)}
 .cart-list{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:6px}
 .cart-list li{display:flex;justify-content:space-between;gap:10px}
-.cart-list .rm{color:var(--faint);cursor:pointer}
+.cart-list .rm{color:var(--faint);cursor:pointer;background:none;border:none;padding:2px;font:inherit;display:inline-flex;align-items:center;border-radius:5px}
+.cart-list .rm:hover{color:var(--accent)}
 .bud{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12px;color:var(--muted)}
 .bud input{flex:1;padding:7px 10px}
 .ampel{margin-bottom:10px}
@@ -306,7 +310,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
     </div>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
-      <button class="tab is-active" data-tab="studio"><span class="ic" data-icon="palette"></span> KI-Studio</button>
+      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
       <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
@@ -348,9 +352,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
         <aside class="controls">
           <h2 class="eyebrow">Was möchtest du machen?</h2>
           <div class="seg" id="studioMode">
-            <button class="seg-b is-active" data-mode="generate">Bild erzeugen</button>
-            <button class="seg-b" data-mode="redesign">Raum redesignen</button>
-            <button class="seg-b" data-mode="apartment">Wohnung aus Grundriss</button>
+            <button class="seg-b is-active" data-mode="generate" aria-pressed="true">Bild erzeugen</button>
+            <button class="seg-b" data-mode="redesign" aria-pressed="false">Raum redesignen</button>
+            <button class="seg-b" data-mode="apartment" aria-pressed="false">Wohnung aus Grundriss</button>
           </div>
 
           <label class="fld" id="uploadFld" hidden>
@@ -458,9 +462,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
         <aside class="walk-side">
           <span class="eyebrow">Standort erzeugen</span>
           <div class="seg" id="tourMode">
-            <button class="seg-b is-active" data-src="text">Aus Text</button>
-            <button class="seg-b" data-src="photo">Aus Foto</button>
-            <button class="seg-b" data-src="studio">KI-Studio</button>
+            <button class="seg-b is-active" data-src="text" aria-pressed="true">Aus Text</button>
+            <button class="seg-b" data-src="photo" aria-pressed="false">Aus Foto</button>
+            <button class="seg-b" data-src="studio" aria-pressed="false">KI-Studio</button>
           </div>
 
           <label class="fld" id="tourPhotoFld" hidden>
@@ -527,9 +531,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
 
   <!-- Key-Modal -->
   <div class="modal" id="keyModal" hidden>
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
       <button class="modal-x" id="keyClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
-      <h3>Gemini-API-Key (Nano Banana)</h3>
+      <h3 id="keyModalTitle">Gemini-API-Key (Nano Banana)</h3>
       <p class="muted">Trag deinen Key von <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> ein. Er wird <b>nur lokal in deinem Browser</b> gespeichert (localStorage) und geht ausschließlich an Googles API. Die Bildgenerierung läuft über ein Google-Cloud-Projekt mit aktiviertem Billing.</p>
       <label class="fld"><span>API-Key</span>
         <input type="password" id="keyInput" placeholder="API-Key einfügen" autocomplete="off" />
@@ -561,9 +565,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
 
   <!-- Produkt-Picker fürs Pin-Setzen -->
   <div class="modal" id="pickModal" hidden>
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pickModalTitle">
       <button class="modal-x" id="pickClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
-      <h3>Möbel an diese Stelle</h3>
+      <h3 id="pickModalTitle">Möbel an diese Stelle</h3>
       <p class="muted">Wähle ein Produkt aus den geladenen Katalogen — es landet als Pin im Panorama und in der Einkaufsliste.</p>
       <div class="pick-filter">
         <input type="search" id="pickSearch" placeholder="Suche (Name, Hersteller …)" />
@@ -573,7 +577,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
     </div>
   </div>
 
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="true"></div>
 
   <script>
 // Marzipano - a 360° media viewer for the modern web (v0.10.2)
@@ -686,7 +690,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   }
 
   function normalizeItem(raw, cat, i) {
-    const id = raw.id || slug(raw.name) || ("item-" + i);
+    const id = slug(raw.id || raw.name) || ("item-" + i);
     const dm = dims(raw["maße"] || raw.masse || raw.dim);
     const brand = raw.hersteller || raw.brand || "";
     const props = Array.isArray(raw.props) ? raw.props : (raw.props ? String(raw.props).split(/\s*[;|]\s*/).filter(Boolean) : []);
@@ -717,7 +721,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     if (!env || env.schema !== "interior-studio.catalog/v1" || !Array.isArray(env.items))
       throw new Error("Ungültiges Katalog-Format (schema/items fehlt).");
     const cat = {
-      id: env.id || slug(env.name) || ("kat-" + Date.now()),
+      id: slug(env.id || env.name) || ("kat-" + Date.now()),
       name: env.name || "Katalog", publisher: env.publisher || "", license: env.license || "—",
       source: env.source || "", currency: env.currency || "EUR", enabled: true, builtin: !!builtin
     };
@@ -1284,6 +1288,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  // icons.js lädt vor app.js (index.html + Einzeldatei-Build). Fallback, falls es doch fehlt → kein Crash der ganzen App.
+  const Icons = window.Icons || { svg: () => "", el: () => document.createElement("span"), hydrate() {}, has: () => false, names: () => [] };
   // Safari sperrt localStorage auf file:// → defensiv kapseln (App läuft auch ohne Persistenz weiter).
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1307,6 +1313,32 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     setTimeout(() => t.remove(), 4200);
   }
 
+  /* ---------- Modal (a11y: Fokus setzen, Escape, Fokus-Falle, Fokus zurück) ---------- */
+  let lastFocus = null;
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    const m = $("#" + id); m.hidden = false;
+    const first = m.querySelector(FOCUSABLE);
+    if (first) first.focus();
+  }
+  function closeModal(id) {
+    $("#" + id).hidden = true;
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch {} }
+  }
+  document.addEventListener("keydown", e => {
+    const m = !$("#keyModal").hidden ? $("#keyModal") : (!$("#pickModal").hidden ? $("#pickModal") : null);
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); closeModal(m.id); return; }
+    if (e.key === "Tab") {
+      const f = $$(FOCUSABLE, m).filter(el => el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
   /* ---------- Key ---------- */
   function refreshKeyState() {
     const ok = !!IS.key;
@@ -1317,26 +1349,30 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   function openKey() {
     $("#keyInput").value = IS.key; $("#modelInput").value = IS.model;
     $("#ckeyInput").value = IS.ckey; $("#cmodelInput").value = IS.cmodel;
-    $("#keyModal").hidden = false;
+    openModal("keyModal");
   }
   $("#openKey").onclick = openKey; $("#needkeyBtn").onclick = openKey;
-  $("#keyClose").onclick = () => $("#keyModal").hidden = true;
-  $("#keyModal").onclick = e => { if (e.target.id === "keyModal") $("#keyModal").hidden = true; };
+  $("#keyClose").onclick = () => closeModal("keyModal");
+  $("#keyModal").onclick = e => { if (e.target.id === "keyModal") closeModal("keyModal"); };
   $("#keySave").onclick = () => {
     IS.key = $("#keyInput").value.trim(); IS.model = $("#modelInput").value.trim() || IS.model;
     IS.ckey = $("#ckeyInput").value.trim(); IS.cmodel = $("#cmodelInput").value || IS.cmodel;
     store.set("is_key", IS.key); store.set("is_model", IS.model);
     store.set("is_ckey", IS.ckey); store.set("is_cmodel", IS.cmodel);
-    $("#keyModal").hidden = true; refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
+    closeModal("keyModal"); refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
   };
   $("#keyForget").onclick = () => {
     IS.key = ""; IS.ckey = ""; store.del("is_key"); store.del("is_ckey");
-    refreshKeyState(); $("#keyModal").hidden = true; toast("Keys entfernt.");
+    refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
   };
 
   /* ---------- Tabs ---------- */
   function showTab(name) {
-    $$(".tab").forEach(t => t.classList.toggle("is-active", t.dataset.tab === name));
+    $$(".tab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("is-active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
   }
@@ -1344,7 +1380,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
-    $$("#studioMode .seg-b").forEach(x => x.classList.remove("is-active")); b.classList.add("is-active");
+    $$("#studioMode .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
     mode = b.dataset.mode;
     const isApt = mode === "apartment";
     $("#uploadFld").hidden = !(mode === "redesign" || isApt);
@@ -1405,7 +1442,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     card.className = "card";
     card.innerHTML = `<img src="${url}" alt="Ergebnis"/>
       <div class="card-acts">
-        <a class="btn" download="interior.png" href="${url}" title="Herunterladen">${Icons.svg("download")}</a>
+        <a class="btn" download="interior.png" href="${/^(https?:|data:image\/)/.test(url) ? url : "#"}">${Icons.svg("download", { title: "Bild herunterladen" })}</a>
         <button class="btn btn-accent" data-act="tour">${Icons.svg("compass")} Als Begehung</button>
       </div>`;
     card.querySelector('[data-act="tour"]').onclick = () => startTourFromImage(url, prompt);
@@ -1451,7 +1488,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 
   // Quelle (Text / Foto / KI-Studio)
   $$("#tourMode .seg-b").forEach(b => b.onclick = () => {
-    $$("#tourMode .seg-b").forEach(x => x.classList.remove("is-active")); b.classList.add("is-active");
+    $$("#tourMode .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
     tourSrc = b.dataset.src;
     $("#tourPhotoFld").hidden = tourSrc !== "photo";
     $("#tourStudioFld").hidden = tourSrc !== "studio";
@@ -1615,12 +1653,12 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     if (!items.length) { grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Keine Treffer. Lade/aktiviere Kataloge im Tab ' + Icons.svg("library") + ' Kataloge.</div>'; return; }
     items.forEach(item => {
       const c = document.createElement("button"); c.className = "pick";
-      c.innerHTML = `<span class="pick-sw" style="background:${esc(item.color)}"></span>
+      c.innerHTML = `<span class="pick-sw" style="background:${safeColor(item.color)}"></span>
         <b>${esc(item.name)}</b>
         <span class="muted">${esc(item.cat)} · ${(item.price || 0).toLocaleString("de-DE")} €${item.catalogName ? " · " + esc(item.catalogName) : ""}</span>`;
       c.onclick = () => {
         window.Tour.addPin(window.Tour.index(), { yaw: pendingLL.yaw, pitch: pendingLL.pitch, item });
-        $("#pickModal").hidden = true; showSpec(item);
+        closeModal("pickModal"); showSpec(item);
         toast(item.name.replace(/„|"/g, "") + " verortet.", "ok");
       };
       grid.appendChild(c);
@@ -1632,16 +1670,17 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     const cats = window.Catalogs ? window.Catalogs.categories() : [];
     sel.innerHTML = '<option value="">Alle Kategorien</option>' + cats.map(c => `<option${c === cur ? " selected" : ""}>${esc(c)}</option>`).join("");
     renderPickGrid();
-    $("#pickModal").hidden = false;
+    openModal("pickModal");
   }
   $("#pickSearch").oninput = renderPickGrid;
   $("#pickCat").onchange = renderPickGrid;
-  $("#pickClose").onclick = () => $("#pickModal").hidden = true;
-  $("#pickModal").onclick = e => { if (e.target.id === "pickModal") $("#pickModal").hidden = true; };
+  $("#pickClose").onclick = () => closeModal("pickModal");
+  $("#pickModal").onclick = e => { if (e.target.id === "pickModal") closeModal("pickModal"); };
 
   /* ================= ARCHITEKT (Claude = Gehirn) ================= */
   let planImg = null;
-  const esc = s => String(s == null ? "" : s).replace(/</g, "&lt;");
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const safeColor = c => /^[#a-zA-Z0-9(),.%\s-]+$/.test(String(c || "")) ? c : "transparent";
   function chatPush(html, who) {
     const m = document.createElement("div"); m.className = "chat-msg " + (who || "bot");
     m.innerHTML = html; $("#chatLog").appendChild(m); $("#chatLog").scrollTop = $("#chatLog").scrollHeight;
@@ -1724,7 +1763,7 @@ Regeln:
       renderStationNav();
       $("#pinTools").hidden = false; $("#tourNext").hidden = false; $("#tourEmpty").hidden = true;
       renderPlanView(plan, plan.rooms.length);
-      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
+      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok", title: "Fertig" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
       showTab("walk");
       toast("Wohnung gebaut — viel Spaß beim Begehen!", "ok");
     } catch (e) {
@@ -1836,19 +1875,20 @@ Regeln:
   /* ---------- Spec-Card + Einkaufsliste ---------- */
   const cart = [];
   function showSpec(item) {
-    const sw = `<span class="swatch" style="background:${item.color}"></span>`;
+    // Katalogdaten sind nutzer-importiert (untrusted) → jedes Feld escapen, Farbe auf sichere Zeichen begrenzen.
+    const sw = `<span class="swatch" style="background:${safeColor(item.color)}"></span>`;
     $("#specCard").className = "spec";
     $("#specCard").innerHTML = `
-      <h4>${item.name}<span class="pos-tag">${item.tag}</span></h4><div class="spec-sub">${item.cat} · ${item.brand} · Status: ${item.status}</div>
+      <h4>${esc(item.name)}<span class="pos-tag">${esc(item.tag)}</span></h4><div class="spec-sub">${esc(item.cat)} · ${esc(item.brand)} · Status: ${esc(item.status)}</div>
       <dl>
-        <dt>Maße</dt><dd>${item.w} × ${item.d} × ${item.h} cm</dd>
-        <dt>Material</dt><dd>${item.material}</dd>
-        <dt>Farbe</dt><dd>${sw}${item.color}</dd>
-        <dt>Lieferant</dt><dd>${item.supplier}</dd>
-        <dt>Lieferzeit</dt><dd>${item.lead}</dd>
-        <dt>Preis</dt><dd><b>${item.price.toLocaleString("de-DE")} €</b></dd>
+        <dt>Maße</dt><dd>${esc(item.w)} × ${esc(item.d)} × ${esc(item.h)} cm</dd>
+        <dt>Material</dt><dd>${esc(item.material)}</dd>
+        <dt>Farbe</dt><dd>${sw}${esc(item.color)}</dd>
+        <dt>Lieferant</dt><dd>${esc(item.supplier)}</dd>
+        <dt>Lieferzeit</dt><dd>${esc(item.lead)}</dd>
+        <dt>Preis</dt><dd><b>${(Number(item.price) || 0).toLocaleString("de-DE")} €</b></dd>
       </dl>
-      <div class="muted small" style="margin-bottom:10px">${item.props.join(" · ")}</div>
+      <div class="muted small" style="margin-bottom:10px">${(item.props || []).map(esc).join(" · ")}</div>
       <button class="btn btn-accent" id="addCart" style="width:100%">+ Zur Einkaufsliste</button>`;
     $("#addCart").onclick = () => addCart(item);
   }
@@ -1864,7 +1904,7 @@ Regeln:
     if (!cart.length) { ul.innerHTML = '<li class="muted">noch leer</li>'; }
     else {
       ul.innerHTML = "";
-      cart.forEach(it => { const li = document.createElement("li"); li.innerHTML = `<span>${it.name.replace(/„|"/g, "")}</span><span>${it.price.toLocaleString("de-DE")} € <span class="rm" title="entfernen">${Icons.svg("x")}</span></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
+      cart.forEach(it => { const nm = String(it.name || "").replace(/„|"/g, ""); const li = document.createElement("li"); li.innerHTML = `<span>${esc(nm)}</span><span>${(Number(it.price) || 0).toLocaleString("de-DE")} € <button type="button" class="rm" aria-label="${esc(nm)} entfernen">${Icons.svg("x")}</button></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
     }
     $("#cartTotal").textContent = sum.toLocaleString("de-DE") + " €";
     updateAmpel(sum);

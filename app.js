@@ -2,6 +2,8 @@
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  // icons.js lädt vor app.js (index.html + Einzeldatei-Build). Fallback, falls es doch fehlt → kein Crash der ganzen App.
+  const Icons = window.Icons || { svg: () => "", el: () => document.createElement("span"), hydrate() {}, has: () => false, names: () => [] };
   // Safari sperrt localStorage auf file:// → defensiv kapseln (App läuft auch ohne Persistenz weiter).
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -25,6 +27,32 @@
     setTimeout(() => t.remove(), 4200);
   }
 
+  /* ---------- Modal (a11y: Fokus setzen, Escape, Fokus-Falle, Fokus zurück) ---------- */
+  let lastFocus = null;
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    const m = $("#" + id); m.hidden = false;
+    const first = m.querySelector(FOCUSABLE);
+    if (first) first.focus();
+  }
+  function closeModal(id) {
+    $("#" + id).hidden = true;
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch {} }
+  }
+  document.addEventListener("keydown", e => {
+    const m = !$("#keyModal").hidden ? $("#keyModal") : (!$("#pickModal").hidden ? $("#pickModal") : null);
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); closeModal(m.id); return; }
+    if (e.key === "Tab") {
+      const f = $$(FOCUSABLE, m).filter(el => el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
   /* ---------- Key ---------- */
   function refreshKeyState() {
     const ok = !!IS.key;
@@ -35,26 +63,30 @@
   function openKey() {
     $("#keyInput").value = IS.key; $("#modelInput").value = IS.model;
     $("#ckeyInput").value = IS.ckey; $("#cmodelInput").value = IS.cmodel;
-    $("#keyModal").hidden = false;
+    openModal("keyModal");
   }
   $("#openKey").onclick = openKey; $("#needkeyBtn").onclick = openKey;
-  $("#keyClose").onclick = () => $("#keyModal").hidden = true;
-  $("#keyModal").onclick = e => { if (e.target.id === "keyModal") $("#keyModal").hidden = true; };
+  $("#keyClose").onclick = () => closeModal("keyModal");
+  $("#keyModal").onclick = e => { if (e.target.id === "keyModal") closeModal("keyModal"); };
   $("#keySave").onclick = () => {
     IS.key = $("#keyInput").value.trim(); IS.model = $("#modelInput").value.trim() || IS.model;
     IS.ckey = $("#ckeyInput").value.trim(); IS.cmodel = $("#cmodelInput").value || IS.cmodel;
     store.set("is_key", IS.key); store.set("is_model", IS.model);
     store.set("is_ckey", IS.ckey); store.set("is_cmodel", IS.cmodel);
-    $("#keyModal").hidden = true; refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
+    closeModal("keyModal"); refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
   };
   $("#keyForget").onclick = () => {
     IS.key = ""; IS.ckey = ""; store.del("is_key"); store.del("is_ckey");
-    refreshKeyState(); $("#keyModal").hidden = true; toast("Keys entfernt.");
+    refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
   };
 
   /* ---------- Tabs ---------- */
   function showTab(name) {
-    $$(".tab").forEach(t => t.classList.toggle("is-active", t.dataset.tab === name));
+    $$(".tab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("is-active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
   }
@@ -62,7 +94,8 @@
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
-    $$("#studioMode .seg-b").forEach(x => x.classList.remove("is-active")); b.classList.add("is-active");
+    $$("#studioMode .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
     mode = b.dataset.mode;
     const isApt = mode === "apartment";
     $("#uploadFld").hidden = !(mode === "redesign" || isApt);
@@ -123,7 +156,7 @@
     card.className = "card";
     card.innerHTML = `<img src="${url}" alt="Ergebnis"/>
       <div class="card-acts">
-        <a class="btn" download="interior.png" href="${url}" title="Herunterladen">${Icons.svg("download")}</a>
+        <a class="btn" download="interior.png" href="${/^(https?:|data:image\/)/.test(url) ? url : "#"}">${Icons.svg("download", { title: "Bild herunterladen" })}</a>
         <button class="btn btn-accent" data-act="tour">${Icons.svg("compass")} Als Begehung</button>
       </div>`;
     card.querySelector('[data-act="tour"]').onclick = () => startTourFromImage(url, prompt);
@@ -169,7 +202,8 @@
 
   // Quelle (Text / Foto / KI-Studio)
   $$("#tourMode .seg-b").forEach(b => b.onclick = () => {
-    $$("#tourMode .seg-b").forEach(x => x.classList.remove("is-active")); b.classList.add("is-active");
+    $$("#tourMode .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
     tourSrc = b.dataset.src;
     $("#tourPhotoFld").hidden = tourSrc !== "photo";
     $("#tourStudioFld").hidden = tourSrc !== "studio";
@@ -333,12 +367,12 @@
     if (!items.length) { grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Keine Treffer. Lade/aktiviere Kataloge im Tab ' + Icons.svg("library") + ' Kataloge.</div>'; return; }
     items.forEach(item => {
       const c = document.createElement("button"); c.className = "pick";
-      c.innerHTML = `<span class="pick-sw" style="background:${esc(item.color)}"></span>
+      c.innerHTML = `<span class="pick-sw" style="background:${safeColor(item.color)}"></span>
         <b>${esc(item.name)}</b>
         <span class="muted">${esc(item.cat)} · ${(item.price || 0).toLocaleString("de-DE")} €${item.catalogName ? " · " + esc(item.catalogName) : ""}</span>`;
       c.onclick = () => {
         window.Tour.addPin(window.Tour.index(), { yaw: pendingLL.yaw, pitch: pendingLL.pitch, item });
-        $("#pickModal").hidden = true; showSpec(item);
+        closeModal("pickModal"); showSpec(item);
         toast(item.name.replace(/„|"/g, "") + " verortet.", "ok");
       };
       grid.appendChild(c);
@@ -350,16 +384,17 @@
     const cats = window.Catalogs ? window.Catalogs.categories() : [];
     sel.innerHTML = '<option value="">Alle Kategorien</option>' + cats.map(c => `<option${c === cur ? " selected" : ""}>${esc(c)}</option>`).join("");
     renderPickGrid();
-    $("#pickModal").hidden = false;
+    openModal("pickModal");
   }
   $("#pickSearch").oninput = renderPickGrid;
   $("#pickCat").onchange = renderPickGrid;
-  $("#pickClose").onclick = () => $("#pickModal").hidden = true;
-  $("#pickModal").onclick = e => { if (e.target.id === "pickModal") $("#pickModal").hidden = true; };
+  $("#pickClose").onclick = () => closeModal("pickModal");
+  $("#pickModal").onclick = e => { if (e.target.id === "pickModal") closeModal("pickModal"); };
 
   /* ================= ARCHITEKT (Claude = Gehirn) ================= */
   let planImg = null;
-  const esc = s => String(s == null ? "" : s).replace(/</g, "&lt;");
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const safeColor = c => /^[#a-zA-Z0-9(),.%\s-]+$/.test(String(c || "")) ? c : "transparent";
   function chatPush(html, who) {
     const m = document.createElement("div"); m.className = "chat-msg " + (who || "bot");
     m.innerHTML = html; $("#chatLog").appendChild(m); $("#chatLog").scrollTop = $("#chatLog").scrollHeight;
@@ -442,7 +477,7 @@ Regeln:
       renderStationNav();
       $("#pinTools").hidden = false; $("#tourNext").hidden = false; $("#tourEmpty").hidden = true;
       renderPlanView(plan, plan.rooms.length);
-      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
+      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok", title: "Fertig" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
       showTab("walk");
       toast("Wohnung gebaut — viel Spaß beim Begehen!", "ok");
     } catch (e) {
@@ -554,19 +589,20 @@ Regeln:
   /* ---------- Spec-Card + Einkaufsliste ---------- */
   const cart = [];
   function showSpec(item) {
-    const sw = `<span class="swatch" style="background:${item.color}"></span>`;
+    // Katalogdaten sind nutzer-importiert (untrusted) → jedes Feld escapen, Farbe auf sichere Zeichen begrenzen.
+    const sw = `<span class="swatch" style="background:${safeColor(item.color)}"></span>`;
     $("#specCard").className = "spec";
     $("#specCard").innerHTML = `
-      <h4>${item.name}<span class="pos-tag">${item.tag}</span></h4><div class="spec-sub">${item.cat} · ${item.brand} · Status: ${item.status}</div>
+      <h4>${esc(item.name)}<span class="pos-tag">${esc(item.tag)}</span></h4><div class="spec-sub">${esc(item.cat)} · ${esc(item.brand)} · Status: ${esc(item.status)}</div>
       <dl>
-        <dt>Maße</dt><dd>${item.w} × ${item.d} × ${item.h} cm</dd>
-        <dt>Material</dt><dd>${item.material}</dd>
-        <dt>Farbe</dt><dd>${sw}${item.color}</dd>
-        <dt>Lieferant</dt><dd>${item.supplier}</dd>
-        <dt>Lieferzeit</dt><dd>${item.lead}</dd>
-        <dt>Preis</dt><dd><b>${item.price.toLocaleString("de-DE")} €</b></dd>
+        <dt>Maße</dt><dd>${esc(item.w)} × ${esc(item.d)} × ${esc(item.h)} cm</dd>
+        <dt>Material</dt><dd>${esc(item.material)}</dd>
+        <dt>Farbe</dt><dd>${sw}${esc(item.color)}</dd>
+        <dt>Lieferant</dt><dd>${esc(item.supplier)}</dd>
+        <dt>Lieferzeit</dt><dd>${esc(item.lead)}</dd>
+        <dt>Preis</dt><dd><b>${(Number(item.price) || 0).toLocaleString("de-DE")} €</b></dd>
       </dl>
-      <div class="muted small" style="margin-bottom:10px">${item.props.join(" · ")}</div>
+      <div class="muted small" style="margin-bottom:10px">${(item.props || []).map(esc).join(" · ")}</div>
       <button class="btn btn-accent" id="addCart" style="width:100%">+ Zur Einkaufsliste</button>`;
     $("#addCart").onclick = () => addCart(item);
   }
@@ -582,7 +618,7 @@ Regeln:
     if (!cart.length) { ul.innerHTML = '<li class="muted">noch leer</li>'; }
     else {
       ul.innerHTML = "";
-      cart.forEach(it => { const li = document.createElement("li"); li.innerHTML = `<span>${it.name.replace(/„|"/g, "")}</span><span>${it.price.toLocaleString("de-DE")} € <span class="rm" title="entfernen">${Icons.svg("x")}</span></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
+      cart.forEach(it => { const nm = String(it.name || "").replace(/„|"/g, ""); const li = document.createElement("li"); li.innerHTML = `<span>${esc(nm)}</span><span>${(Number(it.price) || 0).toLocaleString("de-DE")} € <button type="button" class="rm" aria-label="${esc(nm)} entfernen">${Icons.svg("x")}</button></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
     }
     $("#cartTotal").textContent = sum.toLocaleString("de-DE") + " €";
     updateAmpel(sum);
