@@ -21,6 +21,7 @@
   let lastPlan = null, projectTitle = "Unbenanntes Projekt";   // Projekt-State
   let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
   const openFolders = new Set();   // aufgeklappte Ordner im Projektbaum (UI-State)
+  let curFloor = 0;   // aktuell in der Mini-Karte gezeigte Etage (folgt der Navigation, manuell umschaltbar)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -342,7 +343,7 @@
   }
 
   /* ---------- Mini-Karte (Grundriss, „du bist hier") ---------- */
-  function onTourChange() { renderStationNav(); renderMiniMap(); updateNextBtn(); }
+  function onTourChange() { curFloor = (tourPos[window.Tour.index()] && tourPos[window.Tour.index()].floor) || 0; renderStationNav(); renderMiniMap(); updateNextBtn(); }
   function updateNextBtn() {
     const b = $("#tourNext"); if (!b) return;
     const cur = window.Tour.stations()[window.Tour.index()];
@@ -352,9 +353,10 @@
     b.title = linked ? "In den nächsten gebauten Raum gehen" : "Einen neuen angrenzenden Standort erzeugen (KI)";
   }
   function setTourPos(rooms) {
-    tourPos = (rooms || []).map(r => (r && r.map && isFinite(r.map.x) && isFinite(r.map.y)) ? { x: +r.map.x, y: +r.map.y } : null);
+    tourPos = (rooms || []).map(r => (r && r.map && isFinite(r.map.x) && isFinite(r.map.y)) ? { x: +r.map.x, y: +r.map.y, floor: Math.round(+r.floor || 0) } : null);
     if (tourPos.some(p => !p)) tourPos = [];   // nur verwenden, wenn ALLE Räume echte Grundriss-Positionen haben
   }
+  function floorLabel(f) { return f === 0 ? "EG" : f < 0 ? (Math.abs(f) + ".UG") : (f + ".OG"); }
   function renderMiniMap() {
     const box = $("#miniMap"); if (!box) return;
     const st = (window.Tour && window.Tour.stations && window.Tour.stations()) || [];
@@ -363,18 +365,27 @@
     box.hidden = false;
     const cur = window.Tour.index();
     let pts;
-    if (tourPos.length === n) pts = tourPos.slice();
-    else { const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols); pts = st.map((_, i) => ({ x: cols > 1 ? (i % cols) / (cols - 1) : 0.5, y: rows > 1 ? Math.floor(i / cols) / (rows - 1) : 0.5 })); }
-    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    if (tourPos.length === n) pts = tourPos.map(p => ({ x: p.x, y: p.y, floor: p.floor || 0 }));
+    else { const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols); pts = st.map((_, i) => ({ x: cols > 1 ? (i % cols) / (cols - 1) : 0.5, y: rows > 1 ? Math.floor(i / cols) / (rows - 1) : 0.5, floor: 0 })); }
+    const floors = [...new Set(pts.map(p => p.floor))].sort((a, b) => a - b);
+    if (!floors.includes(curFloor)) curFloor = (pts[cur] && pts[cur].floor) || floors[0];
+    const here = pts.map((p, i) => ({ x: p.x, y: p.y, floor: p.floor, i })).filter(p => p.floor === curFloor);
+    const xs = here.map(p => p.x), ys = here.map(p => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
     const sx = x => maxX > minX ? 12 + (x - minX) / (maxX - minX) * 76 : 50;
     const sy = y => maxY > minY ? 12 + (y - minY) / (maxY - minY) * 76 : 50;
-    const P = pts.map(p => ({ x: sx(p.x), y: sy(p.y) }));
+    const pos = {}; here.forEach(p => pos[p.i] = { x: sx(p.x), y: sy(p.y) });
     let lines = "";
-    st.forEach((node, i) => (node.links || []).forEach(l => { if (l.to > i && P[l.to]) lines += `<line x1="${P[i].x.toFixed(1)}" y1="${P[i].y.toFixed(1)}" x2="${P[l.to].x.toFixed(1)}" y2="${P[l.to].y.toFixed(1)}"/>`; }));
-    const dots = P.map((p, i) => `<g class="mm-room${i === cur ? " is-cur" : ""}" data-i="${i}"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i === cur ? 5 : 3.6}"/><title>${esc((st[i] && st[i].label) || ("Raum " + (i + 1)))}</title></g>`).join("");
-    box.innerHTML = `<svg viewBox="0 0 100 100" role="img" aria-label="Grundriss-Karte — du bist in: ${esc((st[cur] && st[cur].label) || "")}"><g class="mm-lines">${lines}</g>${dots}</svg>`;
-    $$(".mm-room", box).forEach(g => g.onclick = () => { const i = parseInt(g.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i); });
+    here.forEach(p => (st[p.i].links || []).forEach(l => { if (l.to > p.i && pos[l.to]) lines += `<line x1="${pos[p.i].x.toFixed(1)}" y1="${pos[p.i].y.toFixed(1)}" x2="${pos[l.to].x.toFixed(1)}" y2="${pos[l.to].y.toFixed(1)}"/>`; }));
+    let stairs = "";   // Räume mit Verbindung auf eine andere Etage = Treppe
+    here.forEach(p => { if ((st[p.i].links || []).some(l => pts[l.to] && pts[l.to].floor !== p.floor)) stairs += `<circle class="mm-stair" cx="${pos[p.i].x.toFixed(1)}" cy="${pos[p.i].y.toFixed(1)}" r="7"></circle>`; });
+    const dots = here.map(p => `<g class="mm-room${p.i === cur ? " is-cur" : ""}" data-i="${p.i}"><circle cx="${pos[p.i].x.toFixed(1)}" cy="${pos[p.i].y.toFixed(1)}" r="${p.i === cur ? 5 : 3.6}"></circle><title>${esc(st[p.i].label || ("Raum " + (p.i + 1)))}</title></g>`).join("");
+    const svg = `<svg viewBox="0 0 100 100" role="img" aria-label="Etagen-Karte ${esc(floorLabel(curFloor))} — du bist in: ${esc((st[cur] && st[cur].label) || "")}"><g class="mm-lines">${lines}</g><g class="mm-stairs">${stairs}</g>${dots}</svg>`;
+    let switcher = "";
+    if (floors.length > 1) switcher = `<div class="mm-floors">${floors.slice().reverse().map(f => `<button class="mm-floor${f === curFloor ? " on" : ""}" data-floor="${f}" title="${esc(floorLabel(f))}">${esc(floorLabel(f))}</button>`).join("")}</div>`;
+    box.innerHTML = switcher + svg;
+    $$(".mm-room", box).forEach(g => g.onclick = () => { const i = parseInt(g.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i, { dolly: true }); });
+    $$(".mm-floor", box).forEach(b => b.onclick = () => { curFloor = parseInt(b.dataset.floor, 10); renderMiniMap(); });
   }
   $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.currentTarget.classList.toggle("on", on); };
   $("#resetView").onclick = () => window.Tour.resetView();
@@ -488,8 +499,9 @@
   const PLAN_SYS = `Du bist der Orchestrierungs-Architekt von "Interior Studio". Aus Beschreibung und/oder GRUNDRISSBILD planst du eine begehbare Wohnung oder Büroetage.
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text drumherum. Schema:
 {"title":"kurzer Titel","intro":"1-2 Sätze Deutsch, was du gebaut hast","style":"gemeinsamer Einrichtungsstil",
- "rooms":[{"id":"kurz_eindeutig","name":"Anzeigename Deutsch","prompt":"Englischer Prompt für ein fotorealistisches EQUIRECTANGULAR 360 Panorama dieses Raums; Fenster und Türen passend zum Grundriss; IDENTISCHER Boden, Stil und Lichtstimmung über ALLE Räume","neighbors":["id"],"map":{"x":0.0,"y":0.0}}]}
+ "rooms":[{"id":"kurz_eindeutig","name":"Anzeigename Deutsch","prompt":"Englischer Prompt für ein fotorealistisches EQUIRECTANGULAR 360 Panorama dieses Raums; Fenster und Türen passend zum Grundriss; IDENTISCHER Boden, Stil und Lichtstimmung über ALLE Räume","neighbors":["id"],"map":{"x":0.0,"y":0.0},"floor":0}]}
 Regeln:
+- MEHRERE ETAGEN: vergib "floor" je Raum (0 = Erdgeschoss, 1 = 1.OG, 2 = 2.OG, -1 = Keller/UG). Eine TREPPE verbindet einen Raum unten mit dem Treppenraum oben → trage diese Verbindung GEGENSEITIG in neighbors ein (über die Etagen hinweg), damit man hoch-/runtergehen kann.
 - WENN ein Grundriss-Bild vorliegt: lies es GENAU. Verwende die TATSÄCHLICH eingezeichneten Räume — exakte Anzahl und Namen aus der Zeichnung (z. B. "Wohnküche","Schlafzimmer","Bad","Flur","Diele","Balkon"). Erfinde KEINE zusätzlichen Räume und lasse keinen weg. neighbors = Räume, die laut Plan durch Tür/Durchgang verbunden sind. map.x/map.y = Position des Raums im Grundriss (0..1, 0,0 = oben links), maßstäblich zur Zeichnung.
 - OHNE Grundriss: plane 4 bis 7 sinnvolle, verbundene Räume.
 - neighbors müssen GEGENSEITIG konsistent sein (hat A B als Nachbar, hat B auch A).
@@ -531,7 +543,7 @@ Regeln:
           });
           const img = await padTo2to1(res.url);
           prevInline = window.Banana.dataUrlToInline(img) || prevInline;
-          built.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, map: r.map, neighbors: r.neighbors || [], pins: [] });
+          built.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, map: r.map, floor: r.floor, neighbors: r.neighbors || [], pins: [] });
         } catch (err) {
           toast(`Raum „${r.name || (i + 1)}" übersprungen: ${err.message || "Fehler"}`, "err");   // Teilausfall killt nicht mehr alles
         }
