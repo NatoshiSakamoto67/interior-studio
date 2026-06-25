@@ -167,12 +167,19 @@
   function stopRot() { viewer.stopMovement(); viewer.setIdleMovement(Infinity); }
   function autoRotate(on) { rotating = on == null ? !rotating : on; if (rotating) startRot(); else stopRot(); return rotating; }
   function resetView() { const v = nodes[idx] && nodes[idx]._view; if (!v) return; v.setYaw(0); v.setPitch(0); v.setFov(FOV_DEF); }
+  // Tastatur-Begehung (a11y, WCAG 2.1.1): Blick/Zoom per Pfeiltasten verschieben. Limiter klemmt Pitch/FOV.
+  function nudge(dYaw, dPitch, dFov) {
+    const v = nodes[idx] && nodes[idx]._view; if (!v) return;
+    if (dYaw) v.setYaw(v.yaw() + dYaw);
+    if (dPitch) v.setPitch(v.pitch() + dPitch);
+    if (dFov) v.setFov(v.fov() + dFov);
+  }
   function setPlaceMode(on) { placeMode = on; host.classList.toggle("placing", on); }
   function resize() { if (viewer) viewer.updateSize(); }
 
   window.Tour = {
     init, load, addNode, go, link, addPin, removePin,
-    resetView, autoRotate, setPlaceMode, resize, setLoading,
+    resetView, nudge, autoRotate, setPlaceMode, resize, setLoading,
     count: () => nodes.length, index: () => idx, stations: () => nodes
   };
 })();

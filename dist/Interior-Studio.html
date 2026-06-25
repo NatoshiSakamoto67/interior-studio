@@ -444,7 +444,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
     <section class="panel" data-panel="walk">
       <div class="walk-grid">
         <div class="viewport">
-          <div id="tourHost" class="canvas3d tour-host">
+          <div id="tourHost" class="canvas3d tour-host" tabindex="0" role="application" aria-label="Panorama-Begehung. Pfeiltasten: umsehen. Plus/Minus: zoomen.">
             <div class="tour-empty" id="tourEmpty">
               <div class="empty-ic" data-icon="compass"></div>
               Noch keine Begehung. Erzeuge rechts einen <b>Panorama-Standort</b> — aus Text, einem Raumfoto oder einem KI-Studio-Ergebnis.
@@ -1167,12 +1167,19 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   function stopRot() { viewer.stopMovement(); viewer.setIdleMovement(Infinity); }
   function autoRotate(on) { rotating = on == null ? !rotating : on; if (rotating) startRot(); else stopRot(); return rotating; }
   function resetView() { const v = nodes[idx] && nodes[idx]._view; if (!v) return; v.setYaw(0); v.setPitch(0); v.setFov(FOV_DEF); }
+  // Tastatur-Begehung (a11y, WCAG 2.1.1): Blick/Zoom per Pfeiltasten verschieben. Limiter klemmt Pitch/FOV.
+  function nudge(dYaw, dPitch, dFov) {
+    const v = nodes[idx] && nodes[idx]._view; if (!v) return;
+    if (dYaw) v.setYaw(v.yaw() + dYaw);
+    if (dPitch) v.setPitch(v.pitch() + dPitch);
+    if (dFov) v.setFov(v.fov() + dFov);
+  }
   function setPlaceMode(on) { placeMode = on; host.classList.toggle("placing", on); }
   function resize() { if (viewer) viewer.updateSize(); }
 
   window.Tour = {
     init, load, addNode, go, link, addPin, removePin,
-    resetView, autoRotate, setPlaceMode, resize, setLoading,
+    resetView, nudge, autoRotate, setPlaceMode, resize, setLoading,
     count: () => nodes.length, index: () => idx, stations: () => nodes
   };
 })();
@@ -1602,14 +1609,22 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   function renderStationNav() {
     const nav = $("#stationNav"); nav.innerHTML = "";
     window.Tour.stations().forEach((st, i) => {
-      const b = document.createElement("button"); b.className = "room-chip" + (i === window.Tour.index() ? " on" : "");
-      b.textContent = st.label || ("Raum " + (i + 1)); b.title = st.label;
+      const cur = i === window.Tour.index();
+      const b = document.createElement("button"); b.className = "room-chip" + (cur ? " on" : "");
+      if (cur) b.setAttribute("aria-current", "true");
+      b.textContent = st.label || ("Raum " + (i + 1)); b.title = st.label || "";
       b.onclick = () => { window.Tour.go(i); setTimeout(renderStationNav, 40); };
       nav.appendChild(b);
     });
   }
-  $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.target.classList.toggle("on", on); };
+  $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.currentTarget.classList.toggle("on", on); };
   $("#resetView").onclick = () => window.Tour.resetView();
+  // Tastatur-Begehung (a11y, WCAG 2.1.1): #tourHost ist fokussierbar — Pfeile = umsehen, +/− = zoomen.
+  const TOUR_KEYS = { ArrowLeft: [-0.12, 0, 0], ArrowRight: [0.12, 0, 0], ArrowUp: [0, -0.1, 0], ArrowDown: [0, 0.1, 0], "+": [0, 0, -0.1], "=": [0, 0, -0.1], "-": [0, 0, 0.1], "_": [0, 0, 0.1] };
+  $("#tourHost").addEventListener("keydown", e => {
+    const m = TOUR_KEYS[e.key]; if (!m || !window.Tour || !window.Tour.nudge) return;
+    e.preventDefault(); window.Tour.nudge(m[0], m[1], m[2]);
+  });
 
   // Offline-Demo (ohne Key): echtes Panorama + vorplatzierte Pins
   function byId(id) { return (window.CATALOG || []).find(c => c.id === id); }

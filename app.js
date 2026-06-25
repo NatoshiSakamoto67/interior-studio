@@ -316,14 +316,22 @@
   function renderStationNav() {
     const nav = $("#stationNav"); nav.innerHTML = "";
     window.Tour.stations().forEach((st, i) => {
-      const b = document.createElement("button"); b.className = "room-chip" + (i === window.Tour.index() ? " on" : "");
-      b.textContent = st.label || ("Raum " + (i + 1)); b.title = st.label;
+      const cur = i === window.Tour.index();
+      const b = document.createElement("button"); b.className = "room-chip" + (cur ? " on" : "");
+      if (cur) b.setAttribute("aria-current", "true");
+      b.textContent = st.label || ("Raum " + (i + 1)); b.title = st.label || "";
       b.onclick = () => { window.Tour.go(i); setTimeout(renderStationNav, 40); };
       nav.appendChild(b);
     });
   }
-  $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.target.classList.toggle("on", on); };
+  $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.currentTarget.classList.toggle("on", on); };
   $("#resetView").onclick = () => window.Tour.resetView();
+  // Tastatur-Begehung (a11y, WCAG 2.1.1): #tourHost ist fokussierbar — Pfeile = umsehen, +/− = zoomen.
+  const TOUR_KEYS = { ArrowLeft: [-0.12, 0, 0], ArrowRight: [0.12, 0, 0], ArrowUp: [0, -0.1, 0], ArrowDown: [0, 0.1, 0], "+": [0, 0, -0.1], "=": [0, 0, -0.1], "-": [0, 0, 0.1], "_": [0, 0, 0.1] };
+  $("#tourHost").addEventListener("keydown", e => {
+    const m = TOUR_KEYS[e.key]; if (!m || !window.Tour || !window.Tour.nudge) return;
+    e.preventDefault(); window.Tour.nudge(m[0], m[1], m[2]);
+  });
 
   // Offline-Demo (ohne Key): echtes Panorama + vorplatzierte Pins
   function byId(id) { return (window.CATALOG || []).find(c => c.id === id); }
