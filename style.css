@@ -126,6 +126,30 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .tree-empty{color:var(--faint);font-size:12px;padding:5px 0}
 @media(max-width:680px){.tree-acts{display:inline-flex}}
 
+/* ---- Galerie ---- */
+.gal-wrap{padding:18px;max-width:1140px;margin:0 auto;width:100%}
+.gal-head{margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+.gal-head .seg{max-width:420px;margin-top:4px}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.gal-card{position:relative;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--panel2);transition:.15s var(--ease)}
+.gal-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.gal-card img{width:100%;aspect-ratio:16/10;object-fit:cover;background:#000;display:block}
+.gal-card figcaption{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;gap:6px}
+.gal-kind{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent2)}
+.gal-acts{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:.15s}
+.gal-card:hover .gal-acts{opacity:1}
+.gal-acts .btn{padding:6px;background:rgba(18,17,22,.74)}
+.gal-acts .btn .icon{width:1em;height:1em}
+@media(max-width:680px){.gal-acts{opacity:1}}
+
+/* ---- UX-Politur: greifbare Tasten-States + roter Faden ---- */
+.btn:active:not(:disabled),.seg-b:active,.chip:active,.room-chip:active,.tree-act:active{transform:translateY(1px)}
+.btn-accent{box-shadow:0 4px 14px rgba(213,154,106,.22)}
+.btn-accent:hover{box-shadow:0 6px 18px rgba(213,154,106,.3)}
+.btn-accent:active:not(:disabled){box-shadow:0 2px 8px rgba(213,154,106,.2)}
+.tab.is-active::after{content:"";position:absolute;left:12px;right:12px;bottom:3px;height:2px;border-radius:2px;background:var(--accent)}
+.tab{position:relative}
+
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--text)}

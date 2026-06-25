@@ -22,6 +22,7 @@
       <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
       <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
+      <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="help"><span class="ic" data-icon="book-open"></span> Beispiele &amp; Hilfe</button>
     </nav>
@@ -221,6 +222,24 @@
       </div>
     </section>
 
+    <!-- ===================== TAB: GALERIE ===================== -->
+    <section class="panel" data-panel="gallery">
+      <div class="gal-wrap">
+        <div class="gal-head">
+          <span class="eyebrow">Galerie</span>
+          <h2>Erzeugte Bilder &amp; Panoramen</h2>
+          <p class="muted small">Jedes im KI-Studio erzeugte Bild und jedes Panorama landet hier — automatisch gespeichert. Wiederverwenden, herunterladen oder löschen.</p>
+          <div class="seg" id="galFilter">
+            <button class="seg-b is-active" data-gf="all" aria-pressed="true">Alle</button>
+            <button class="seg-b" data-gf="bild" aria-pressed="false">Bilder</button>
+            <button class="seg-b" data-gf="redesign" aria-pressed="false">Redesigns</button>
+            <button class="seg-b" data-gf="panorama" aria-pressed="false">Panoramen</button>
+          </div>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+      </div>
+    </section>
+
     <!-- ===================== TAB: KATALOGE ===================== -->
     <section class="panel" data-panel="katalog">
       <div class="katalog-wrap">
@@ -301,6 +320,7 @@
   <script src="project.js"></script>
   <script src="store.js"></script>
   <script src="projects.js"></script>
+  <script src="gallery.js"></script>
   <script src="tour.js"></script>
   <script src="icons.js"></script>
   <script src="app.js"></script>

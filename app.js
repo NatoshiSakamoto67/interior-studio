@@ -22,6 +22,7 @@
   let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
   const openFolders = new Set();   // aufgeklappte Ordner im Projektbaum (UI-State)
   let curFloor = 0;   // aktuell in der Mini-Karte gezeigte Etage (folgt der Navigation, manuell umschaltbar)
+  let galFilter = "all";   // Galerie-Filter (all|bild|redesign|panorama)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -97,6 +98,7 @@
     });
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
+    if (name === "gallery") renderGallery();
   }
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
 
@@ -148,6 +150,7 @@
       });
       fillCard(card, res.url, prompt);
       IS.gallery.unshift({ url: res.url, prompt });
+      addToGallery(res.url, mode === "redesign" ? "redesign" : "bild", prompt);   // persistent in die Mediengalerie
       refreshStudioSrc();
       toast("Bild erzeugt.", "ok");
     } catch (e) { card.remove(); toast(e.message || "Fehler", "err"); }
@@ -273,6 +276,7 @@
         images: refImg ? [refImg] : []
       });
       const img = await padTo2to1(res.url);
+      addToGallery(img, "panorama", prompt);   // Panorama persistent in die Mediengalerie
       $("#tourEmpty").hidden = true;
       const opts = (linkFrom != null) ? { linkFrom, linkYaw: 0, linkPitch: 0.55 } : {};
       const i = window.Tour.addNode({ img, label: label || ("Raum " + (window.Tour.count() + 1)) }, opts);
@@ -748,6 +752,37 @@ Regeln:
   $("#projNew").onclick = newProject;
   $("#projFolder").onclick = () => { const name = prompt("Name des neuen Ordners:"); if (name && window.Projects) window.Projects.addFolder(name.trim()); };
 
+  /* ================= GALERIE ================= */
+  async function addToGallery(url, kind, prompt) {
+    if (!window.Gallery || !url) return;
+    try {
+      const thumb = await window.Project.thumb(url);
+      const full = await window.Project.compressImg(url, 1600, 0.82);
+      await window.Gallery.add({ kind: kind || "bild", prompt: prompt || "", thumb, full, projectId: (window.Projects && window.Projects.current()) || null });
+    } catch (e) { /* Galerie ist optional — Erzeugung läuft auch ohne Persistenz weiter */ }
+  }
+  async function renderGallery() {
+    const box = $("#galleryGrid"); if (!box || !window.Gallery) return;
+    const items = (await window.Gallery.list()).filter(it => galFilter === "all" || it.kind === galFilter);
+    if (!items.length) { box.innerHTML = '<div class="empty">Noch keine Bilder. Erzeuge im <b>KI-Studio</b> ein Bild oder ein Panorama — es landet automatisch hier.</div>'; return; }
+    box.innerHTML = items.map(it => `<figure class="gal-card" title="${esc(it.prompt)}">
+        <img loading="lazy" src="${esc(it.thumb)}" alt="${esc((it.prompt || "").slice(0, 60))}"/>
+        <figcaption><span class="gal-kind">${esc(it.kind)}</span><span class="muted small">${esc(new Date(it.createdAt).toLocaleDateString("de-DE"))}</span></figcaption>
+        <div class="gal-acts">
+          <button class="btn btn-ghost" data-use="${esc(it.id)}" title="Als Begehung verwenden">${Icons.svg("compass")}</button>
+          <button class="btn btn-ghost" data-dl="${esc(it.id)}" title="Herunterladen">${Icons.svg("download")}</button>
+          <button class="btn btn-ghost" data-del="${esc(it.id)}" title="Löschen">${Icons.svg("trash-2")}</button>
+        </div></figure>`).join("");
+    $$("[data-use]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.use); if (it) startTourFromImage(it.full, it.prompt); });
+    $$("[data-dl]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.dl); if (it) { const a = document.createElement("a"); a.href = it.full; a.download = "interior-" + it.id + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); } });
+    $$("[data-del]", box).forEach(b => b.onclick = () => { if (confirm("Bild löschen?")) window.Gallery.remove(b.dataset.del); });
+  }
+  $$("#galFilter .seg-b").forEach(b => b.onclick = () => {
+    $$("#galFilter .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
+    galFilter = b.dataset.gf; renderGallery();
+  });
+
   /* ---------- Spec-Card + Einkaufsliste ---------- */
   const cart = [];
   function showSpec(item) {
@@ -895,4 +930,5 @@ Regeln:
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
   if (window.Projects) { window.Projects.onChange(renderProjects); window.Projects.init(); } else { renderProjects(); }
+  if (window.Gallery) window.Gallery.onChange(renderGallery);
 })();

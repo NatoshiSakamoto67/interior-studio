@@ -135,6 +135,30 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .tree-empty{color:var(--faint);font-size:12px;padding:5px 0}
 @media(max-width:680px){.tree-acts{display:inline-flex}}
 
+/* ---- Galerie ---- */
+.gal-wrap{padding:18px;max-width:1140px;margin:0 auto;width:100%}
+.gal-head{margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+.gal-head .seg{max-width:420px;margin-top:4px}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.gal-card{position:relative;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--panel2);transition:.15s var(--ease)}
+.gal-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.gal-card img{width:100%;aspect-ratio:16/10;object-fit:cover;background:#000;display:block}
+.gal-card figcaption{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;gap:6px}
+.gal-kind{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent2)}
+.gal-acts{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:.15s}
+.gal-card:hover .gal-acts{opacity:1}
+.gal-acts .btn{padding:6px;background:rgba(18,17,22,.74)}
+.gal-acts .btn .icon{width:1em;height:1em}
+@media(max-width:680px){.gal-acts{opacity:1}}
+
+/* ---- UX-Politur: greifbare Tasten-States + roter Faden ---- */
+.btn:active:not(:disabled),.seg-b:active,.chip:active,.room-chip:active,.tree-act:active{transform:translateY(1px)}
+.btn-accent{box-shadow:0 4px 14px rgba(213,154,106,.22)}
+.btn-accent:hover{box-shadow:0 6px 18px rgba(213,154,106,.3)}
+.btn-accent:active:not(:disabled){box-shadow:0 2px 8px rgba(213,154,106,.2)}
+.tab.is-active::after{content:"";position:absolute;left:12px;right:12px;bottom:3px;height:2px;border-radius:2px;background:var(--accent)}
+.tab{position:relative}
+
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--text)}
@@ -358,6 +382,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
       <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
       <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
+      <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="help"><span class="ic" data-icon="book-open"></span> Beispiele &amp; Hilfe</button>
     </nav>
@@ -554,6 +579,24 @@ input[type=file]{font-size:12px;color:var(--muted)}
             <ul id="cartList" class="cart-list"><li class="muted">noch leer</li></ul>
           </div>
         </aside>
+      </div>
+    </section>
+
+    <!-- ===================== TAB: GALERIE ===================== -->
+    <section class="panel" data-panel="gallery">
+      <div class="gal-wrap">
+        <div class="gal-head">
+          <span class="eyebrow">Galerie</span>
+          <h2>Erzeugte Bilder &amp; Panoramen</h2>
+          <p class="muted small">Jedes im KI-Studio erzeugte Bild und jedes Panorama landet hier — automatisch gespeichert. Wiederverwenden, herunterladen oder löschen.</p>
+          <div class="seg" id="galFilter">
+            <button class="seg-b is-active" data-gf="all" aria-pressed="true">Alle</button>
+            <button class="seg-b" data-gf="bild" aria-pressed="false">Bilder</button>
+            <button class="seg-b" data-gf="redesign" aria-pressed="false">Redesigns</button>
+            <button class="seg-b" data-gf="panorama" aria-pressed="false">Panoramen</button>
+          </div>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
       </div>
     </section>
 
@@ -1222,6 +1265,34 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 
 </script>
   <script>
+/* Mediengalerie über window.Store — jedes erzeugte Bild persistent (Thumbnail + komprimiertes Vollbild).
+   localhost: bleibt erhalten. file:// (Einzeldatei): Session-Fallback.
+   Record: {id, kind:"bild"|"redesign"|"panorama", prompt, thumb, full, projectId, createdAt}. */
+(function () {
+  const listeners = [];
+  const emit = () => listeners.forEach(f => { try { f(); } catch (e) {} });
+  const uid = () => "img_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1e6).toString(36);
+
+  async function add(rec) {
+    if (!rec || !rec.full) return null;
+    rec.id = rec.id || uid();
+    rec.createdAt = rec.createdAt || new Date().toISOString();
+    await window.Store.put("gallery", rec.id, rec);
+    emit();
+    return rec.id;
+  }
+  async function list() {
+    const all = (await window.Store.getAll("gallery")) || [];
+    return all.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  }
+  async function get(id) { return window.Store.get("gallery", id); }
+  async function remove(id) { await window.Store.del("gallery", id); emit(); }
+
+  window.Gallery = { add, list, get, remove, onChange: fn => { if (typeof fn === "function") listeners.push(fn); } };
+})();
+
+</script>
+  <script>
 /* Interior Studio — Begehung auf Marzipano (Matterport-Stil, offline/USB).
    Mehrere Raum-Nodes (360°-Equirect von Nano Banana), frei umsehen + tief zoomen,
    per Boden-Pfeil von Raum zu Raum gehen, Möbel-Pins → Spec-Card.
@@ -1572,6 +1643,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
   const openFolders = new Set();   // aufgeklappte Ordner im Projektbaum (UI-State)
   let curFloor = 0;   // aktuell in der Mini-Karte gezeigte Etage (folgt der Navigation, manuell umschaltbar)
+  let galFilter = "all";   // Galerie-Filter (all|bild|redesign|panorama)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -1647,6 +1719,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     });
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
+    if (name === "gallery") renderGallery();
   }
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
 
@@ -1698,6 +1771,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
       });
       fillCard(card, res.url, prompt);
       IS.gallery.unshift({ url: res.url, prompt });
+      addToGallery(res.url, mode === "redesign" ? "redesign" : "bild", prompt);   // persistent in die Mediengalerie
       refreshStudioSrc();
       toast("Bild erzeugt.", "ok");
     } catch (e) { card.remove(); toast(e.message || "Fehler", "err"); }
@@ -1823,6 +1897,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
         images: refImg ? [refImg] : []
       });
       const img = await padTo2to1(res.url);
+      addToGallery(img, "panorama", prompt);   // Panorama persistent in die Mediengalerie
       $("#tourEmpty").hidden = true;
       const opts = (linkFrom != null) ? { linkFrom, linkYaw: 0, linkPitch: 0.55 } : {};
       const i = window.Tour.addNode({ img, label: label || ("Raum " + (window.Tour.count() + 1)) }, opts);
@@ -2298,6 +2373,37 @@ Regeln:
   $("#projNew").onclick = newProject;
   $("#projFolder").onclick = () => { const name = prompt("Name des neuen Ordners:"); if (name && window.Projects) window.Projects.addFolder(name.trim()); };
 
+  /* ================= GALERIE ================= */
+  async function addToGallery(url, kind, prompt) {
+    if (!window.Gallery || !url) return;
+    try {
+      const thumb = await window.Project.thumb(url);
+      const full = await window.Project.compressImg(url, 1600, 0.82);
+      await window.Gallery.add({ kind: kind || "bild", prompt: prompt || "", thumb, full, projectId: (window.Projects && window.Projects.current()) || null });
+    } catch (e) { /* Galerie ist optional — Erzeugung läuft auch ohne Persistenz weiter */ }
+  }
+  async function renderGallery() {
+    const box = $("#galleryGrid"); if (!box || !window.Gallery) return;
+    const items = (await window.Gallery.list()).filter(it => galFilter === "all" || it.kind === galFilter);
+    if (!items.length) { box.innerHTML = '<div class="empty">Noch keine Bilder. Erzeuge im <b>KI-Studio</b> ein Bild oder ein Panorama — es landet automatisch hier.</div>'; return; }
+    box.innerHTML = items.map(it => `<figure class="gal-card" title="${esc(it.prompt)}">
+        <img loading="lazy" src="${esc(it.thumb)}" alt="${esc((it.prompt || "").slice(0, 60))}"/>
+        <figcaption><span class="gal-kind">${esc(it.kind)}</span><span class="muted small">${esc(new Date(it.createdAt).toLocaleDateString("de-DE"))}</span></figcaption>
+        <div class="gal-acts">
+          <button class="btn btn-ghost" data-use="${esc(it.id)}" title="Als Begehung verwenden">${Icons.svg("compass")}</button>
+          <button class="btn btn-ghost" data-dl="${esc(it.id)}" title="Herunterladen">${Icons.svg("download")}</button>
+          <button class="btn btn-ghost" data-del="${esc(it.id)}" title="Löschen">${Icons.svg("trash-2")}</button>
+        </div></figure>`).join("");
+    $$("[data-use]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.use); if (it) startTourFromImage(it.full, it.prompt); });
+    $$("[data-dl]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.dl); if (it) { const a = document.createElement("a"); a.href = it.full; a.download = "interior-" + it.id + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); } });
+    $$("[data-del]", box).forEach(b => b.onclick = () => { if (confirm("Bild löschen?")) window.Gallery.remove(b.dataset.del); });
+  }
+  $$("#galFilter .seg-b").forEach(b => b.onclick = () => {
+    $$("#galFilter .seg-b").forEach(x => { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+    b.classList.add("is-active"); b.setAttribute("aria-pressed", "true");
+    galFilter = b.dataset.gf; renderGallery();
+  });
+
   /* ---------- Spec-Card + Einkaufsliste ---------- */
   const cart = [];
   function showSpec(item) {
@@ -2445,6 +2551,7 @@ Regeln:
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
   if (window.Projects) { window.Projects.onChange(renderProjects); window.Projects.init(); } else { renderProjects(); }
+  if (window.Gallery) window.Gallery.onChange(renderGallery);
 })();
 
 </script>
