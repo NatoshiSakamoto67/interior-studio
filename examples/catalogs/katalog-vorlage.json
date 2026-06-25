@@ -1,0 +1,28 @@
+{
+  "schema": "interior-studio.catalog/v1",
+  "id": "mein-katalog",
+  "name": "Mein Katalog",
+  "publisher": "Dein Name / Firma",
+  "license": "proprietär (nur intern)",
+  "source": "eigene Daten / Hersteller-Links",
+  "currency": "EUR",
+  "version": "1.0",
+  "items": [
+    {
+      "id": "artikel-1",
+      "name": "Produktname",
+      "kategorie": "Sitzmöbel",
+      "hersteller": "Hersteller",
+      "lieferant": "haendler.de",
+      "preis": 0,
+      "maße": "B x T x H in cm, z. B. 200 x 90 x 80",
+      "material": "z. B. Stoff, Eiche",
+      "farbe": "#cccccc",
+      "lieferzeit": "z. B. 4 Wo.",
+      "produkt_url": "https://…",
+      "bild": "https://… (optional)",
+      "tags": ["beispiel"],
+      "props": ["Merkmal 1", "Merkmal 2"]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "interior-studio.catalog/v1",
+  "id": "aquaristik-basis",
+  "name": "Aquaristik Basis (Demo)",
+  "publisher": "Interior Studio",
+  "license": "CC0",
+  "source": "frei erfunden — generische Aquaristik, keine realen Marken",
+  "currency": "EUR",
+  "version": "1.0",
+  "items": [
+    { "id": "becken-240", "name": "Aquarium 240 L Rimless", "kategorie": "Becken", "hersteller": "AquaForm", "lieferant": "aquaform.de", "preis": 459, "maße": "120 x 50 x 45", "material": "Weißglas, Unterschrank Eiche", "farbe": "#7fa9b8", "lieferzeit": "2 Wo.", "tags": ["aquarium","becken"], "props": ["rimless","Schrank inkl."] },
+    { "id": "filter-ext", "name": "Außenfilter 1200", "kategorie": "Technik", "hersteller": "AquaForm", "lieferant": "aquaform.de", "preis": 139, "maße": "Ø22 x 38", "material": "Kunststoff", "farbe": "#2f3a3f", "lieferzeit": "1 Wo.", "tags": ["filter","technik"], "props": ["1200 l/h","leise"] },
+    { "id": "fisch-neon", "name": "Neonsalmler (10er)", "kategorie": "Besatz", "hersteller": "Zierfisch Hof", "lieferant": "zierfischhof.de", "preis": 22, "maße": "ca. 3,5 cm", "material": "Süßwasserfisch", "farbe": "#3aa6d6", "lieferzeit": "1 Wo.", "tags": ["fisch","schwarm"], "props": ["Schwarmfisch","friedlich"] },
+    { "id": "fisch-skalar", "name": "Skalar (Paar)", "kategorie": "Besatz", "hersteller": "Zierfisch Hof", "lieferant": "zierfischhof.de", "preis": 36, "maße": "ca. 12 cm", "material": "Süßwasserfisch", "farbe": "#c9c2a8", "lieferzeit": "1 Wo.", "tags": ["fisch"], "props": ["Buntbarsch","majestätisch"] },
+    { "id": "pflanze-vallisnerie", "name": "Vallisnerie (5 Bund)", "kategorie": "Aquapflanze", "hersteller": "WasserGrün", "lieferant": "wassergruen.de", "preis": 18, "maße": "30–60 cm", "material": "Wasserpflanze", "farbe": "#3f7d4f", "lieferzeit": "1 Wo.", "tags": ["pflanze"], "props": ["schnellwüchsig","Hintergrund"] },
+    { "id": "wurzel-mangrove", "name": "Mangrovenwurzel", "kategorie": "Dekoration", "hersteller": "WasserGrün", "lieferant": "wassergruen.de", "preis": 29, "maße": "ca. 40 cm", "material": "Hartholz", "farbe": "#5a3d2b", "lieferzeit": "1 Wo.", "tags": ["deko","hardscape"], "props": ["wasserfest","Naturoptik"] }
+  ]
+}

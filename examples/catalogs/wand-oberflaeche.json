@@ -1,0 +1,17 @@
+{
+  "schema": "interior-studio.catalog/v1",
+  "id": "wand-oberflaeche",
+  "name": "Wand & Oberfläche (Demo)",
+  "publisher": "Interior Studio",
+  "license": "CC0",
+  "source": "frei erfunden — generische Wandmaterialien, keine realen Marken",
+  "currency": "EUR",
+  "version": "1.0",
+  "items": [
+    { "id": "kalkputz", "name": "Kalkputz fein", "kategorie": "Wandmaterial", "hersteller": "TerraFinish", "lieferant": "terrafinish.de", "preis": 9.5, "preisEinheit": "m2", "maße": "Auftrag 2 mm", "material": "Sumpfkalk", "farbe": "#efe9df", "lieferzeit": "1 Wo.", "tags": ["wand","putz"], "props": ["diffusionsoffen","feuchteregulierend"] },
+    { "id": "kalkfarbe-warmweiss", "name": "Kalkfarbe Warmweiß", "kategorie": "Wandfarbe", "hersteller": "TerraFinish", "lieferant": "terrafinish.de", "preis": 6.0, "preisEinheit": "m2", "maße": "2 Anstriche", "material": "Kalkfarbe", "farbe": "#f4efe6", "lieferzeit": "1 Wo.", "tags": ["wand","farbe"], "props": ["matt","ökologisch"] },
+    { "id": "lehmputz-sand", "name": "Lehmputz Sandton", "kategorie": "Wandmaterial", "hersteller": "TerraFinish", "lieferant": "terrafinish.de", "preis": 12.0, "preisEinheit": "m2", "maße": "Auftrag 3 mm", "material": "Lehm", "farbe": "#d8c3a3", "lieferzeit": "2 Wo.", "tags": ["wand","lehm"], "props": ["klimaregulierend","samtmatt"] },
+    { "id": "mikrozement-greige", "name": "Mikrozement Greige", "kategorie": "Boden/Wand", "hersteller": "BetonLab", "lieferant": "betonlab.eu", "preis": 48.0, "preisEinheit": "m2", "maße": "fugenlos", "material": "Mikrozement", "farbe": "#b6aea3", "lieferzeit": "3 Wo.", "tags": ["bad","fugenlos"], "props": ["wasserfest","fugenlos"] },
+    { "id": "eiche-landhaus", "name": "Eichendiele Landhaus", "kategorie": "Bodenbelag", "hersteller": "HolzWerk", "lieferant": "holzwerk.de", "preis": 79.0, "preisEinheit": "m2", "maße": "1900 x 190 x 15", "material": "Eiche, geölt", "farbe": "#c9a06a", "lieferzeit": "4 Wo.", "tags": ["boden","parkett"], "props": ["Landhausdiele","geölt"] }
+  ]
+}

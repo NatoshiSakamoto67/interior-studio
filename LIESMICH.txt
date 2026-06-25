@@ -1,0 +1,6 @@
+Interior Studio — Start:
+1) Doppelklick auf START.command (macOS) oder START-Windows.bat (Windows)
+   — oder einfach index.html in Chrome/Edge öffnen.
+2) Oben rechts auf das Schlüssel-Symbol klicken und den Google-Gemini-API-Key eintragen
+   (nur für die KI-Bildgenerierung; bleibt nur lokal im Browser).
+Alles läuft lokal vom Ordner/USB. Internet ist nur für die KI-Bilder nötig.

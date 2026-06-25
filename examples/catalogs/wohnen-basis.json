@@ -1,0 +1,19 @@
+{
+  "schema": "interior-studio.catalog/v1",
+  "id": "wohnen-basis",
+  "name": "Wohnen Basis (Demo)",
+  "publisher": "Interior Studio",
+  "license": "CC0",
+  "source": "frei erfunden — Demo/Vorlage, keine realen Marken",
+  "currency": "EUR",
+  "version": "1.0",
+  "items": [
+    { "id": "sofa", "name": "3-Sitzer Sofa Lund", "kategorie": "Sitzmöbel", "hersteller": "Nordhaus", "lieferant": "nordhaus.de", "preis": 1290, "maße": "210 x 92 x 78", "material": "Bouclé-Stoff, Eiche", "farbe": "#c9c2b4", "lieferzeit": "4–6 Wo.", "tags": ["wohnzimmer","sofa"], "props": ["abziehbare Bezüge","FSC-Eiche"] },
+    { "id": "table", "name": "Couchtisch Disc", "kategorie": "Tische", "hersteller": "Nordhaus", "lieferant": "nordhaus.de", "preis": 480, "maße": "90 x 90 x 38", "material": "Eiche massiv", "farbe": "#a9794b", "lieferzeit": "3 Wo.", "tags": ["wohnzimmer"], "props": ["Massivholz geölt","runde Platte Ø90"] },
+    { "id": "chair", "name": "Lounge-Sessel Pebble", "kategorie": "Sitzmöbel", "hersteller": "Atelier Vire", "lieferant": "vire-furniture.eu", "preis": 690, "maße": "78 x 80 x 74", "material": "Leder cognac, Stahl", "farbe": "#8a4f2e", "lieferzeit": "6–8 Wo.", "tags": ["sessel"], "props": ["Anilinleder","drehbar"] },
+    { "id": "lamp", "name": "Stehleuchte Arc", "kategorie": "Leuchten", "hersteller": "Lumen&Co", "lieferant": "lumenco.de", "preis": 340, "maße": "40 x 40 x 180", "material": "Messing, Marmorfuß", "farbe": "#caa15a", "lieferzeit": "2 Wo.", "tags": ["licht"], "props": ["dimmbar","2700 K warmweiß"] },
+    { "id": "rug", "name": "Teppich Dune", "kategorie": "Textil", "hersteller": "Soft Earth", "lieferant": "softearth.eu", "preis": 560, "maße": "300 x 200 x 2", "material": "Wolle, handgetuftet", "farbe": "#b8a892", "lieferzeit": "5 Wo.", "tags": ["teppich"], "props": ["reine Wolle","schallabsorbierend"] },
+    { "id": "side", "name": "Sideboard Linn", "kategorie": "Stauraum", "hersteller": "Nordhaus", "lieferant": "nordhaus.de", "preis": 870, "maße": "160 x 42 x 64", "material": "Eichenfurnier", "farbe": "#9c7950", "lieferzeit": "4 Wo.", "tags": ["stauraum"], "props": ["Soft-Close","Kabeldurchführung"] },
+    { "id": "plant", "name": "Zimmerpflanze Ficus", "kategorie": "Deko", "hersteller": "GrünRaum", "lieferant": "gruenraum.de", "preis": 120, "maße": "60 x 60 x 160", "material": "Pflanze + Keramiktopf", "farbe": "#3f7d4f", "lieferzeit": "1 Wo.", "tags": ["deko","pflanze"], "props": ["pflegeleicht","Topf Ø34"] }
+  ]
+}
