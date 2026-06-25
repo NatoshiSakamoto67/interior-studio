@@ -208,7 +208,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .plan-rooms li{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .plan-rooms li.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .plan-rooms li.done{opacity:.7}
-.plan-rooms li.done b::before{content:"✓ ";color:var(--accent2)}
+.plan-rooms li.done b::before{content:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMyIgaGVpZ2h0PSIxMyIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM4ZmIzOWIiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgNiA5IDE3bC01LTUiLz48L3N2Zz4=');margin-right:5px;vertical-align:-1px}
 .modal-sep{border:none;border-top:1px solid var(--line);margin:8px 0 2px}
 @media(max-width:820px){.arch-grid{grid-template-columns:1fr;height:auto}.arch-plan{border-top:1px solid var(--line)}}
 
@@ -840,7 +840,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 
   async function generate({ prompt, aspect = "1:1", resolution = "1K", images = [] }) {
     const key = (window.IS && window.IS.key || "").trim();
-    if (!key) throw new Error("Kein API-Key. Trag ihn oben unter 🔑 ein.");
+    if (!key) throw new Error("Kein API-Key. Trag ihn oben unter dem Schlüssel-Symbol ein.");
     const model = (window.IS && window.IS.model) || "gemini-3.1-flash-image-preview";
 
     const parts = [{ text: prompt }];
@@ -869,8 +869,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     if (!resp.ok) {
       let detail = "";
       try { const j = await resp.json(); detail = j.error && j.error.message || ""; } catch {}
-      if (resp.status === 400 && /API key|API_KEY/i.test(detail)) throw new Error("Key ungültig. Prüfe ihn unter 🔑.");
-      if (resp.status === 404) throw new Error(`Modell „${model}\" nicht gefunden. Probiere gemini-3.1-flash-image-preview (unter 🔑).`);
+      if (resp.status === 400 && /API key|API_KEY/i.test(detail)) throw new Error("Key ungültig. Prüfe ihn unter dem Schlüssel-Symbol.");
+      if (resp.status === 404) throw new Error(`Modell „${model}\" nicht gefunden. Probiere gemini-3.1-flash-image-preview (unter dem Schlüssel-Symbol).`);
       if (resp.status === 429) throw new Error("Rate-Limit erreicht — kurz warten und erneut.");
       throw new Error(`API ${resp.status}: ${detail || "unbekannter Fehler"}`);
     }
@@ -904,7 +904,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
 
   async function call({ system, content, maxTokens = 4096 }) {
     const key = (window.IS && window.IS.ckey || "").trim();
-    if (!key) throw new Error("Kein Claude-Key. Trag ihn oben unter 🔑 ein.");
+    if (!key) throw new Error("Kein Claude-Key. Trag ihn oben unter dem Schlüssel-Symbol ein.");
     const model = (window.IS && window.IS.cmodel) || "claude-opus-4-8";
     const body = { model, max_tokens: maxTokens, messages: [{ role: "user", content }] };
     if (system) body.system = system;
@@ -923,7 +923,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     } catch (e) { throw new Error("Netzwerkfehler zu Claude — Verbindung prüfen."); }
     if (!resp.ok) {
       let detail = ""; try { const j = await resp.json(); detail = j.error && j.error.message || ""; } catch {}
-      if (resp.status === 401) throw new Error("Claude-Key ungültig. Prüfe ihn unter 🔑.");
+      if (resp.status === 401) throw new Error("Claude-Key ungültig. Prüfe ihn unter dem Schlüssel-Symbol.");
       if (resp.status === 429) throw new Error("Claude-Rate-Limit — kurz warten.");
       throw new Error("Claude " + resp.status + ": " + (detail || "Fehler"));
     }

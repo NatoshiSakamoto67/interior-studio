@@ -18,7 +18,7 @@
 
   async function generate({ prompt, aspect = "1:1", resolution = "1K", images = [] }) {
     const key = (window.IS && window.IS.key || "").trim();
-    if (!key) throw new Error("Kein API-Key. Trag ihn oben unter 🔑 ein.");
+    if (!key) throw new Error("Kein API-Key. Trag ihn oben unter dem Schlüssel-Symbol ein.");
     const model = (window.IS && window.IS.model) || "gemini-3.1-flash-image-preview";
 
     const parts = [{ text: prompt }];
@@ -47,8 +47,8 @@
     if (!resp.ok) {
       let detail = "";
       try { const j = await resp.json(); detail = j.error && j.error.message || ""; } catch {}
-      if (resp.status === 400 && /API key|API_KEY/i.test(detail)) throw new Error("Key ungültig. Prüfe ihn unter 🔑.");
-      if (resp.status === 404) throw new Error(`Modell „${model}\" nicht gefunden. Probiere gemini-3.1-flash-image-preview (unter 🔑).`);
+      if (resp.status === 400 && /API key|API_KEY/i.test(detail)) throw new Error("Key ungültig. Prüfe ihn unter dem Schlüssel-Symbol.");
+      if (resp.status === 404) throw new Error(`Modell „${model}\" nicht gefunden. Probiere gemini-3.1-flash-image-preview (unter dem Schlüssel-Symbol).`);
       if (resp.status === 429) throw new Error("Rate-Limit erreicht — kurz warten und erneut.");
       throw new Error(`API ${resp.status}: ${detail || "unbekannter Fehler"}`);
     }

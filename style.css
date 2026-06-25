@@ -199,7 +199,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .plan-rooms li{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .plan-rooms li.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .plan-rooms li.done{opacity:.7}
-.plan-rooms li.done b::before{content:"✓ ";color:var(--accent2)}
+.plan-rooms li.done b::before{content:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMyIgaGVpZ2h0PSIxMyIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM4ZmIzOWIiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgNiA5IDE3bC01LTUiLz48L3N2Zz4=');margin-right:5px;vertical-align:-1px}
 .modal-sep{border:none;border-top:1px solid var(--line);margin:8px 0 2px}
 @media(max-width:820px){.arch-grid{grid-template-columns:1fr;height:auto}.arch-plan{border-top:1px solid var(--line)}}
 

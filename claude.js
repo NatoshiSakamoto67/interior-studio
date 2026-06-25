@@ -8,7 +8,7 @@
 
   async function call({ system, content, maxTokens = 4096 }) {
     const key = (window.IS && window.IS.ckey || "").trim();
-    if (!key) throw new Error("Kein Claude-Key. Trag ihn oben unter 🔑 ein.");
+    if (!key) throw new Error("Kein Claude-Key. Trag ihn oben unter dem Schlüssel-Symbol ein.");
     const model = (window.IS && window.IS.cmodel) || "claude-opus-4-8";
     const body = { model, max_tokens: maxTokens, messages: [{ role: "user", content }] };
     if (system) body.system = system;
@@ -27,7 +27,7 @@
     } catch (e) { throw new Error("Netzwerkfehler zu Claude — Verbindung prüfen."); }
     if (!resp.ok) {
       let detail = ""; try { const j = await resp.json(); detail = j.error && j.error.message || ""; } catch {}
-      if (resp.status === 401) throw new Error("Claude-Key ungültig. Prüfe ihn unter 🔑.");
+      if (resp.status === 401) throw new Error("Claude-Key ungültig. Prüfe ihn unter dem Schlüssel-Symbol.");
       if (resp.status === 429) throw new Error("Claude-Rate-Limit — kurz warten.");
       throw new Error("Claude " + resp.status + ": " + (detail || "Fehler"));
     }
