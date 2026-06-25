@@ -388,6 +388,7 @@
   function byId(id) { return (window.CATALOG || []).find(c => c.id === id); }
   $("#loadDemo").onclick = () => {
     ensureTour();
+    if (window.Projects) window.Projects.startNew();   // Demo-Interaktionen überschreiben kein echtes Projekt
     const P = (id, yaw, pitch) => ({ yaw, pitch, item: byId(id) });
     const demo = [
       { id: "wohn", label: "Wohnzimmer", img: "examples/tour/node1.png",
@@ -432,7 +433,7 @@
         <span class="muted">${esc(item.cat)} · ${(item.price || 0).toLocaleString("de-DE")} €${item.catalogName ? " · " + esc(item.catalogName) : ""}</span>`;
       c.onclick = () => {
         window.Tour.addPin(window.Tour.index(), { yaw: pendingLL.yaw, pitch: pendingLL.pitch, item });
-        closeModal("pickModal"); showSpec(item);
+        closeModal("pickModal"); showSpec(item); scheduleSave();
         toast(item.name.replace(/„|"/g, "") + " verortet.", "ok");
       };
       grid.appendChild(c);
@@ -503,6 +504,7 @@ Regeln:
     if (!IS.ckey) { toast("Claude-Key fehlt (Schlüssel-Symbol oben rechts)."); return openKey(); }
     if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
     const text = briefText;
+    if (window.Projects) window.Projects.startNew();   // jeder Bau = neues Projekt im Baum
     setBuildBusy(true);
     buildBar("Claude plant deine Wohnung …");   // SOFORT sichtbar (egal welcher Tab) — kein „passiert nichts" mehr
     const status = chatPush(Icons.svg("brain") + " Claude liest den Plan …", "bot");
@@ -549,6 +551,7 @@ Regeln:
       status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok", title: "Fertig" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar${skipped ? ` (${skipped} übersprungen)` : ""}. ${esc(plan.intro || "")}`;
       showTab("walk");                            // erst JETZT wechseln — es gibt etwas zu sehen
       hideBuildBar();
+      autoSaveFull();                             // sofort persistent — geht beim Neuladen nicht verloren
       toast(skipped ? `Wohnung gebaut — ${skipped} Raum/Räume übersprungen.` : "Wohnung gebaut — durch die Boden-Pfeile gehst du von Raum zu Raum.", "ok");
     } catch (e) {
       status.className = "chat-msg err"; status.textContent = "Fehler: " + (e.message || "unbekannt");
@@ -600,10 +603,11 @@ Regeln:
     }
     return {
       schema: "interior-studio.project/v1",
-      id: "prj_" + Date.now(),
+      id: (window.Projects && window.Projects.current()) || ("prj_" + Date.now()),
       meta: { title: projectTitle, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), rooms: outNodes.length },
       plan: lastPlan,
       budget: $("#budgetIn").value || "",
+      mapPos: tourPos.slice(),   // Grundriss-Positionen für die Mini-Karte
       cart: cart.slice(),
       nodes: outNodes
     };
@@ -617,45 +621,84 @@ Regeln:
       window.Project.download(fn, JSON.stringify(snap));
       toast("Projekt gespeichert: " + fn, "ok");
     } catch (e) { toast("Speichern fehlgeschlagen: " + (e.message || ""), "err"); }
-    finally { btn.disabled = false; btn.innerHTML = Icons.svg("save") + " Projekt speichern"; }
+    finally { btn.disabled = false; btn.innerHTML = Icons.svg("download") + " Exportieren"; }
   }
   function restoreProject(obj) {
     if (!obj || obj.schema !== "interior-studio.project/v1" || !Array.isArray(obj.nodes) || !obj.nodes.length)
       throw new Error("Keine gültige Projekt-Datei.");
     ensureTour();
+    tourPos = Array.isArray(obj.mapPos) ? obj.mapPos.slice() : [];
     window.Tour.load(obj.nodes.map(n => ({ id: n.id, label: n.label, img: n.img, links: n.links || [], pins: n.pins || [] })), 0);
     lastPlan = obj.plan || null;
     projectTitle = (obj.meta && obj.meta.title) || "Projekt";
     cart.length = 0; (obj.cart || []).forEach(it => cart.push(it));
     $("#budgetIn").value = obj.budget || "";
-    renderCart(); renderStationNav();
+    renderCart(); renderStationNav(); renderMiniMap();
     $("#tourEmpty").hidden = true; $("#pinTools").hidden = false; $("#tourNext").hidden = false;
     renderProjects(); showTab("walk");
     toast("Projekt „" + projectTitle + "“ geladen.", "ok");
   }
   async function openProject() {
-    try { restoreProject(JSON.parse(await window.Project.pickFile())); }
-    catch (e) { toast("Laden fehlgeschlagen: " + (e.message || ""), "err"); }
+    try {
+      if (window.Projects) window.Projects.startNew();   // importierte Datei = neues Projekt im Baum
+      restoreProject(JSON.parse(await window.Project.pickFile()));
+      scheduleSave();
+    } catch (e) { toast("Laden fehlgeschlagen: " + (e.message || ""), "err"); }
   }
   function newProject() {
-    projectTitle = "Neues Projekt"; lastPlan = null; cart.length = 0; renderCart(); renderProjects();
+    if (window.Projects) window.Projects.startNew();
+    projectTitle = "Neues Projekt"; lastPlan = null; tourPos = []; cart.length = 0; renderCart(); renderProjects();
     toast("Neues Projekt — baue eine Wohnung im Studio oder Architekt.");
   }
+  let saveTimer = null;
+  function scheduleSave() { if (!window.Projects || !window.Tour || !window.Tour.count()) return; clearTimeout(saveTimer); saveTimer = setTimeout(autoSaveFull, 2500); }
+  async function autoSaveFull() {
+    if (!window.Projects || !window.Tour || !window.Tour.count()) return;
+    try {
+      const bundle = await projectSnapshot();
+      bundle.meta.title = projectTitle;
+      bundle.meta.thumbnail = bundle.nodes[0] ? await window.Project.thumb(bundle.nodes[0].img) : "";
+      await window.Projects.save(bundle);   // legt neu an oder aktualisiert das aktuelle Projekt
+    } catch (e) { /* App läuft in der Sitzung weiter; dauerhaft sichern via Export */ }
+  }
+  async function loadAndWalk(id) {
+    const b = await window.Projects.load(id);
+    if (!b) return toast("Projekt nicht gefunden.", "err");
+    try { restoreProject(b); } catch (e) { toast("Laden fehlgeschlagen: " + (e.message || ""), "err"); }
+  }
   function renderProjects() {
-    const box = $("#projCurrent"); if (!box) return;
-    const rooms = window.Tour ? window.Tour.count() : 0;
-    const sum = cart.reduce((s, it) => s + (it.price || 0), 0);
-    box.innerHTML = `<div class="proj-card">
-      <div class="proj-meta">
-        <b>${esc(projectTitle)}</b>
-        <span class="muted small">${rooms} ${rooms === 1 ? "Raum" : "Räume"} · ${cart.length} Artikel · ${sum.toLocaleString("de-DE")} €</span>
-      </div>
-      ${rooms ? '<span class="proj-badge">aktiv</span>' : '<span class="muted small">noch leer</span>'}
-    </div>`;
+    const box = $("#projTree"); if (!box || !window.Projects) return;
+    const { folders, projects } = window.Projects.tree();
+    const curId = window.Projects.current();
+    const hint = $("#projHint");
+    if (hint) hint.textContent = (window.Store && window.Store.persistent())
+      ? "Automatisch im Browser gespeichert. Tipp: für Backup/Weitergabe zusätzlich exportieren."
+      : "Achtung: dauerhaftes Speichern hier nicht möglich (file://) — bitte exportieren.";
+    if (!projects.length && !folders.length) {
+      box.innerHTML = '<div class="empty">Noch keine Projekte. Bau im <b>KI-Studio → „Wohnung aus Grundriss"</b> eine Wohnung — sie erscheint dann automatisch hier und ist jederzeit wieder begehbar.</div>';
+      return;
+    }
+    const folderOpts = sel => '<option value="">— ohne Ordner —</option>' + folders.map(f => `<option value="${esc(f.id)}"${sel === f.id ? " selected" : ""}>${esc(f.name)}</option>`).join("");
+    const card = p => `<div class="prj-card${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}">
+        ${p.thumbnail ? `<img src="${esc(p.thumbnail)}" alt=""/>` : `<span class="prj-ph">${Icons.svg("building-2")}</span>`}
+        <div class="prj-meta"><b>${esc(p.title)}</b><span class="muted small">${p.rooms || 0} Räume · ${esc(new Date(p.updatedAt).toLocaleDateString("de-DE"))}</span></div>
+        <select class="prj-move" data-mv="${esc(p.id)}" aria-label="In Ordner verschieben">${folderOpts(p.folderId)}</select>
+        <button class="prj-del" data-del="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("x")}</button>
+      </div>`;
+    const grid = list => `<div class="prj-grid">${list.map(card).join("") || '<div class="muted small" style="grid-column:1/-1;padding:4px">leer</div>'}</div>`;
+    let html = folders.map(f => `<details class="prj-folder" open><summary>${Icons.svg("folder")} <b>${esc(f.name)}</b><button class="link fld-del" data-fdel="${esc(f.id)}" aria-label="Ordner entfernen">${Icons.svg("x")}</button></summary>${grid(projects.filter(p => p.folderId === f.id))}</details>`).join("");
+    const loose = projects.filter(p => !p.folderId);
+    if (loose.length) html += grid(loose);
+    box.innerHTML = html;
+    $$(".prj-card[data-open]", box).forEach(c => c.onclick = e => { if (e.target.closest(".prj-del") || e.target.closest(".prj-move")) return; loadAndWalk(c.dataset.open); });
+    $$(".prj-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); if (confirm("Dieses Projekt löschen?")) window.Projects.remove(b.dataset.del); });
+    $$(".fld-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); e.preventDefault(); window.Projects.removeFolder(b.dataset.fdel); });
+    $$(".prj-move", box).forEach(s => { s.onclick = e => e.stopPropagation(); s.onchange = e => { e.stopPropagation(); window.Projects.moveProject(s.dataset.mv, s.value); }; });
   }
   $("#projSave").onclick = saveProject;
   $("#projOpen").onclick = openProject;
   $("#projNew").onclick = newProject;
+  $("#projFolder").onclick = () => { const name = prompt("Name des neuen Ordners:"); if (name && window.Projects) window.Projects.addFolder(name.trim()); };
 
   /* ---------- Spec-Card + Einkaufsliste ---------- */
   const cart = [];
@@ -680,7 +723,7 @@ Regeln:
   function addCart(item) {
     const key = item.gid || item.id;
     if (!cart.find(c => (c.gid || c.id) === key)) cart.push(item);
-    renderCart();
+    renderCart(); scheduleSave();
     toast(item.name.replace(/„|"/g, "") + " hinzugefügt.", "ok");
   }
   function renderCart() {
@@ -689,7 +732,7 @@ Regeln:
     if (!cart.length) { ul.innerHTML = '<li class="muted">noch leer</li>'; }
     else {
       ul.innerHTML = "";
-      cart.forEach(it => { const nm = String(it.name || "").replace(/„|"/g, ""); const li = document.createElement("li"); li.innerHTML = `<span>${esc(nm)}</span><span>${(Number(it.price) || 0).toLocaleString("de-DE")} € <button type="button" class="rm" aria-label="${esc(nm)} entfernen">${Icons.svg("x")}</button></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
+      cart.forEach(it => { const nm = String(it.name || "").replace(/„|"/g, ""); const li = document.createElement("li"); li.innerHTML = `<span>${esc(nm)}</span><span>${(Number(it.price) || 0).toLocaleString("de-DE")} € <button type="button" class="rm" aria-label="${esc(nm)} entfernen">${Icons.svg("x")}</button></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); scheduleSave(); }; ul.appendChild(li); });
     }
     $("#cartTotal").textContent = sum.toLocaleString("de-DE") + " €";
     updateAmpel(sum);
@@ -796,11 +839,12 @@ Regeln:
 
   /* ---------- Init ---------- */
   if (window.Icons) Icons.hydrate(document);
-  $("#budgetIn").oninput = renderCart;
+  $("#budgetIn").oninput = () => { renderCart(); scheduleSave(); };
   if (window.Catalogs) {
     window.Catalogs.setQuotaHandler(() => toast("Speicher voll — Katalog nur für diese Sitzung gehalten.", "err"));
     window.Catalogs.onChange(renderCatList);
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
-  refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc(); renderProjects();
+  refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
+  if (window.Projects) { window.Projects.onChange(renderProjects); window.Projects.init(); } else { renderProjects(); }
 })();

@@ -46,15 +46,16 @@
         <div class="proj-head">
           <span class="eyebrow">Projekte</span>
           <h2>Deine Wohnungen &amp; Projekte</h2>
-          <p class="muted small">Speichere eine fertige Begehung als <b>.studio.json</b>-Datei (selbsttragend, mit Räumen, Pins, Einkaufsliste &amp; Budget) und öffne sie jederzeit wieder — auch auf einem anderen Rechner. Bilder werden beim Export komprimiert eingebettet.</p>
+          <p class="muted small">Alles wird <b>automatisch im Browser gespeichert</b> — deine Wohnungen bleiben erhalten und sind per Klick wieder begehbar. Lege Ordner an, um sie zu strukturieren. Für Backup/Weitergabe zusätzlich als <b>.studio.json</b> exportieren.</p>
           <div class="proj-actions">
-            <button class="btn btn-accent" id="projSave"><span class="ic" data-icon="save"></span> Projekt speichern</button>
-            <button class="btn" id="projOpen"><span class="ic" data-icon="folder-open"></span> Projekt öffnen</button>
-            <button class="btn btn-ghost" id="projNew"><span class="ic" data-icon="plus"></span> Neues Projekt</button>
+            <button class="btn btn-accent" id="projFolder"><span class="ic" data-icon="folder"></span> Neuer Ordner</button>
+            <button class="btn" id="projSave"><span class="ic" data-icon="download"></span> Exportieren</button>
+            <button class="btn" id="projOpen"><span class="ic" data-icon="upload"></span> Importieren</button>
+            <button class="btn btn-ghost" id="projNew"><span class="ic" data-icon="plus"></span> Neu / leeren</button>
           </div>
         </div>
-        <div class="proj-current" id="projCurrent"></div>
-        <p class="hint">Hinweis: Innerhalb der Sitzung bleibt alles erhalten. Für dauerhaftes Sichern bitte <b>speichern</b> (Export) — so überlebt das Projekt auch einen Neustart.</p>
+        <div class="proj-tree" id="projTree"></div>
+        <p class="hint" id="projHint"></p>
       </div>
     </section>
 
@@ -298,6 +299,8 @@
   <script src="banana.js"></script>
   <script src="claude.js"></script>
   <script src="project.js"></script>
+  <script src="store.js"></script>
+  <script src="projects.js"></script>
   <script src="tour.js"></script>
   <script src="icons.js"></script>
   <script src="app.js"></script>

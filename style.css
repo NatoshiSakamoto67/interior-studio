@@ -99,6 +99,24 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .minimap .mm-room.is-cur circle{fill:#ff5252;stroke:#fff;stroke-width:1.5}
 @media(max-width:680px){.minimap{width:104px;height:104px;top:8px;right:8px}}
 
+/* ---- Projektbaum (Ordner + Projekte, persistent) ---- */
+.proj-tree{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.prj-folder{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel)}
+.prj-folder>summary{cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;list-style:none;font-size:14px}
+.prj-folder>summary::-webkit-details-marker{display:none}
+.prj-folder .fld-del{margin-left:auto;color:var(--faint);display:inline-flex}
+.prj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:0 12px 12px}
+.prj-card{position:relative;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--panel2);cursor:pointer;transition:.15s var(--ease)}
+.prj-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.prj-card.is-cur{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2)}
+.prj-card img{width:100%;aspect-ratio:2/1;object-fit:cover;background:#000;display:block}
+.prj-card .prj-ph{display:grid;place-items:center;aspect-ratio:2/1;background:var(--panel);color:var(--faint)}
+.prj-card .prj-ph .icon{width:34px;height:34px}
+.prj-meta{padding:9px 11px;display:flex;flex-direction:column;gap:2px}
+.prj-del{position:absolute;top:6px;right:6px;background:rgba(18,17,22,.72);border:none;border-radius:6px;color:#fff;padding:3px;cursor:pointer;display:inline-flex}
+.prj-del .icon{width:.9em;height:.9em}
+.prj-move{margin:0 11px 10px;font-size:12px;padding:5px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--text)}
