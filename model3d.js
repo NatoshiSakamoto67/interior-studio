@@ -162,5 +162,5 @@
   function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
   function resize() { if (!ready || !host) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }
 
-  window.Model3D = { init, build, start, stop, resize, ready: () => ready };
+  window.Model3D = { init, build, start, stop, resize, ready: () => ready, active: () => running, yaw: () => look.yaw };
 })();

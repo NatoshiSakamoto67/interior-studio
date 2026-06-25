@@ -206,12 +206,13 @@
     if (dPitch) v.setPitch(v.pitch() + dPitch);
     if (dFov) v.setFov(v.fov() + dFov);
   }
+  function currentYaw() { const v = nodes[idx] && nodes[idx]._view; return v ? v.yaw() : 0; }   // für Kompass-Pfeil der Mini-Karte
   function setPlaceMode(on) { placeMode = on; host.classList.toggle("placing", on); }
   function resize() { if (viewer) viewer.updateSize(); }
 
   window.Tour = {
     init, load, addNode, go, link, addPin, removePin,
-    resetView, nudge, autoRotate, setPlaceMode, resize, setLoading,
+    resetView, nudge, currentYaw, autoRotate, setPlaceMode, resize, setLoading,
     count: () => nodes.length, index: () => idx, stations: () => nodes
   };
 })();

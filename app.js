@@ -347,7 +347,7 @@
   }
 
   /* ---------- Mini-Karte (Grundriss, „du bist hier") ---------- */
-  function onTourChange() { curFloor = (tourPos[window.Tour.index()] && tourPos[window.Tour.index()].floor) || 0; renderStationNav(); renderMiniMap(); updateNextBtn(); }
+  function onTourChange() { curFloor = (tourPos[window.Tour.index()] && tourPos[window.Tour.index()].floor) || 0; renderStationNav(); renderMiniMap(); updateNextBtn(); const vt = $("#viewToggle"); if (vt) vt.hidden = window.Tour.count() < 1; }
   function updateNextBtn() {
     const b = $("#tourNext"); if (!b) return;
     const cur = window.Tour.stations()[window.Tour.index()];
@@ -357,9 +357,15 @@
     b.title = linked ? "In den nächsten gebauten Raum gehen" : "Einen neuen angrenzenden Standort erzeugen (KI)";
   }
   function setTourPos(rooms) {
-    tourPos = (rooms || []).map(r => (r && r.map && isFinite(r.map.x) && isFinite(r.map.y)) ? { x: +r.map.x, y: +r.map.y, floor: Math.round(+r.floor || 0) } : null);
+    tourPos = (rooms || []).map(r => {
+      const f = Math.round(+(r && r.floor) || 0), b = r && r.box;
+      if (b && [b.x, b.y, b.w, b.h].every(v => isFinite(v)) && b.w > 0 && b.h > 0) return { x: +b.x, y: +b.y, w: +b.w, h: +b.h, floor: f };
+      if (r && r.map && isFinite(r.map.x) && isFinite(r.map.y)) return { x: +r.map.x - 0.07, y: +r.map.y - 0.07, w: 0.14, h: 0.14, floor: f };  // Fallback: kleines Rechteck um die map-Position
+      return null;
+    });
     if (tourPos.some(p => !p)) tourPos = [];   // nur verwenden, wenn ALLE Räume echte Grundriss-Positionen haben
   }
+  let mmDirCx = 50, mmDirCy = 50;
   function floorLabel(f) { return f === 0 ? "EG" : f < 0 ? (Math.abs(f) + ".UG") : (f + ".OG"); }
   function renderMiniMap() {
     const box = $("#miniMap"); if (!box) return;
@@ -368,29 +374,45 @@
     if (n < 1) { box.hidden = true; return; }
     box.hidden = false;
     const cur = window.Tour.index();
-    let pts;
-    if (tourPos.length === n) pts = tourPos.map(p => ({ x: p.x, y: p.y, floor: p.floor || 0 }));
-    else { const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols); pts = st.map((_, i) => ({ x: cols > 1 ? (i % cols) / (cols - 1) : 0.5, y: rows > 1 ? Math.floor(i / cols) / (rows - 1) : 0.5, floor: 0 })); }
-    const floors = [...new Set(pts.map(p => p.floor))].sort((a, b) => a - b);
-    if (!floors.includes(curFloor)) curFloor = (pts[cur] && pts[cur].floor) || floors[0];
-    const here = pts.map((p, i) => ({ x: p.x, y: p.y, floor: p.floor, i })).filter(p => p.floor === curFloor);
-    const xs = here.map(p => p.x), ys = here.map(p => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-    const sx = x => maxX > minX ? 12 + (x - minX) / (maxX - minX) * 76 : 50;
-    const sy = y => maxY > minY ? 12 + (y - minY) / (maxY - minY) * 76 : 50;
-    const pos = {}; here.forEach(p => pos[p.i] = { x: sx(p.x), y: sy(p.y) });
-    let lines = "";
-    here.forEach(p => (st[p.i].links || []).forEach(l => { if (l.to > p.i && pos[l.to]) lines += `<line x1="${pos[p.i].x.toFixed(1)}" y1="${pos[p.i].y.toFixed(1)}" x2="${pos[l.to].x.toFixed(1)}" y2="${pos[l.to].y.toFixed(1)}"/>`; }));
-    let stairs = "";   // Räume mit Verbindung auf eine andere Etage = Treppe
-    here.forEach(p => { if ((st[p.i].links || []).some(l => pts[l.to] && pts[l.to].floor !== p.floor)) stairs += `<circle class="mm-stair" cx="${pos[p.i].x.toFixed(1)}" cy="${pos[p.i].y.toFixed(1)}" r="7"></circle>`; });
-    const dots = here.map(p => `<g class="mm-room${p.i === cur ? " is-cur" : ""}" data-i="${p.i}"><circle cx="${pos[p.i].x.toFixed(1)}" cy="${pos[p.i].y.toFixed(1)}" r="${p.i === cur ? 5 : 3.6}"></circle><title>${esc(st[p.i].label || ("Raum " + (p.i + 1)))}</title></g>`).join("");
-    const svg = `<svg viewBox="0 0 100 100" role="img" aria-label="Etagen-Karte ${esc(floorLabel(curFloor))} — du bist in: ${esc((st[cur] && st[cur].label) || "")}"><g class="mm-lines">${lines}</g><g class="mm-stairs">${stairs}</g>${dots}</svg>`;
+    // echte Raum-Rechtecke aus dem Grundriss; Fallback: Grid
+    let boxes;
+    if (tourPos.length === n) boxes = tourPos.map(p => ({ x: p.x, y: p.y, w: p.w || 0.12, h: p.h || 0.12, floor: p.floor || 0 }));
+    else { const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), cw = 1 / cols, ch = 1 / rows; boxes = st.map((_, i) => ({ x: (i % cols) * cw + 0.03, y: Math.floor(i / cols) * ch + 0.03, w: cw - 0.06, h: ch - 0.06, floor: 0 })); }
+    const floors = [...new Set(boxes.map(b => b.floor))].sort((a, b) => a - b);
+    if (!floors.includes(curFloor)) curFloor = (boxes[cur] && boxes[cur].floor) || floors[0];
+    const here = boxes.map((b, i) => ({ x: b.x, y: b.y, w: b.w, h: b.h, floor: b.floor, i })).filter(b => b.floor === curFloor);
+    const bx0 = Math.min(...here.map(b => b.x)), by0 = Math.min(...here.map(b => b.y));
+    const bx1 = Math.max(...here.map(b => b.x + b.w)), by1 = Math.max(...here.map(b => b.y + b.h));
+    const pad = 7, span = 100 - 2 * pad, bw = Math.max(1e-3, bx1 - bx0), bh = Math.max(1e-3, by1 - by0);
+    const sc = Math.min(span / bw, span / bh), ox = pad + (span - bw * sc) / 2, oy = pad + (span - bh * sc) / 2;
+    const MX = x => ox + (x - bx0) * sc, MY = y => oy + (y - by0) * sc;
+    let rects = "", labels = "", stairs = "";
+    here.forEach(b => {
+      const x = MX(b.x), y = MY(b.y), w = b.w * sc, h = b.h * sc, ccx = x + w / 2, ccy = y + h / 2;
+      rects += `<rect class="mm-room${b.i === cur ? " is-cur" : ""}" data-i="${b.i}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1.2"><title>${esc(st[b.i].label || "")}</title></rect>`;
+      if (w > 13 && h > 8) labels += `<text class="mm-lbl" x="${ccx.toFixed(1)}" y="${ccy.toFixed(1)}">${esc(String(st[b.i].label || "").slice(0, 12))}</text>`;
+      if ((st[b.i].links || []).some(l => boxes[l.to] && boxes[l.to].floor !== b.floor)) stairs += `<circle class="mm-stair" cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="4.5"></circle>`;
+      if (b.i === cur) { mmDirCx = ccx; mmDirCy = ccy; }
+    });
+    const arrow = `<g id="mmDir" transform="rotate(0 ${mmDirCx.toFixed(1)} ${mmDirCy.toFixed(1)})"><polygon class="mm-arrow" points="${mmDirCx.toFixed(1)},${(mmDirCy - 5.4).toFixed(1)} ${(mmDirCx - 3.1).toFixed(1)},${(mmDirCy + 3).toFixed(1)} ${(mmDirCx + 3.1).toFixed(1)},${(mmDirCy + 3).toFixed(1)}"></polygon></g>`;
+    const svg = `<svg viewBox="0 0 100 100" role="img" aria-label="Grundriss ${esc(floorLabel(curFloor))} — du bist in ${esc((st[cur] && st[cur].label) || "")}">${rects}<g class="mm-stairs">${stairs}</g>${labels}${arrow}</svg>`;
     let switcher = "";
     if (floors.length > 1) switcher = `<div class="mm-floors">${floors.slice().reverse().map(f => `<button class="mm-floor${f === curFloor ? " on" : ""}" data-floor="${f}" aria-pressed="${f === curFloor}" title="Etage ${esc(floorLabel(f))}">${esc(floorLabel(f))}</button>`).join("")}</div>`;
     box.innerHTML = switcher + svg;
-    $$(".mm-room", box).forEach(g => g.onclick = () => { const i = parseInt(g.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i, { dolly: true }); });
+    $$(".mm-room", box).forEach(r => r.onclick = () => { const i = parseInt(r.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i, { dolly: true }); });
     $$(".mm-floor", box).forEach(b => b.onclick = () => { curFloor = parseInt(b.dataset.floor, 10); renderMiniMap(); });
+    updateMiniDir();
   }
+  function miniYaw() {
+    if (window.Model3D && window.Model3D.active && window.Model3D.active()) return window.Model3D.yaw ? window.Model3D.yaw() : 0;
+    return (window.Tour && window.Tour.currentYaw) ? window.Tour.currentYaw() : 0;
+  }
+  function updateMiniDir() {
+    const g = document.getElementById("mmDir"); if (!g) return;
+    const deg = -miniYaw() * 180 / Math.PI;   // Kompass-Pfeil dreht mit dem Blick (Nord-Feinjustierung später möglich)
+    g.setAttribute("transform", `rotate(${deg.toFixed(1)} ${mmDirCx.toFixed(1)} ${mmDirCy.toFixed(1)})`);
+  }
+  function miniDirLoop() { const mm = $("#miniMap"); if (mm && !mm.hidden) updateMiniDir(); requestAnimationFrame(miniDirLoop); }
   $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.currentTarget.classList.toggle("on", on); };
   $("#resetView").onclick = () => window.Tour.resetView();
   // Tastatur-Begehung (a11y, WCAG 2.1.1): #tourHost ist fokussierbar — Pfeile = umsehen, +/− = zoomen.
@@ -399,6 +421,34 @@
     const m = TOUR_KEYS[e.key]; if (!m || !window.Tour || !window.Tour.nudge) return;
     e.preventDefault(); window.Tour.nudge(m[0], m[1], m[2]);
   });
+
+  /* ---------- 3D-Modell (Phase 2: echtes Begehen aus dem Grundriss) ---------- */
+  function current3DPlan() {
+    if (lastPlan && lastPlan.rooms && lastPlan.rooms.length) return lastPlan;
+    const st = window.Tour ? window.Tour.stations() : [];
+    if (!st.length) return null;
+    return { rooms: st.map((nd, i) => ({ id: nd.id || ("r" + i), name: nd.label, neighbors: (nd.links || []).map(l => (st[l.to] && st[l.to].id) || ("r" + l.to)), box: tourPos[i] ? { x: tourPos[i].x, y: tourPos[i].y, w: tourPos[i].w, h: tourPos[i].h } : null, floor: tourPos[i] ? tourPos[i].floor : 0 })) };
+  }
+  function setView(v) {
+    const m3d = $("#model3dHost");
+    $$("#viewToggle .vt-b").forEach(x => { const on = x.dataset.view === v; x.classList.toggle("is-active", on); x.setAttribute("aria-pressed", on); });
+    if (v === "3d") {
+      const plan = current3DPlan();
+      if (!plan) { toast("Erst eine Wohnung bauen oder die Demo laden.", "err"); return setView("pano"); }
+      if (!window.Model3D) { toast("3D-Engine nicht verfügbar.", "err"); return setView("pano"); }
+      m3d.hidden = false;
+      if (!window.Model3D.ready()) window.Model3D.init(m3d);
+      window.Model3D.build(plan); window.Model3D.start();
+      const hint = $(".vp-hint"); if (hint) hint.textContent = "3D: ins Bild klicken für Maus-Blick · WASD/Pfeile = gehen · Esc löst die Maus";
+    } else {
+      if (window.Model3D) window.Model3D.stop();
+      m3d.hidden = true;
+      if (tourReady) window.Tour.resize();
+      const hint = $(".vp-hint"); if (hint) hint.textContent = "Ziehen: umsehen · Scroll: zoomen · Pin antippen = Möbel-Details";
+    }
+  }
+  $$("#viewToggle .vt-b").forEach(b => b.onclick = () => setView(b.dataset.view));
+  window.addEventListener("resize", () => { if (window.Model3D && window.Model3D.ready() && !$("#model3dHost").hidden) window.Model3D.resize(); });
 
   // Offline-Demo (ohne Key): echtes Panorama + vorplatzierte Pins
   function byId(id) { return (window.CATALOG || []).find(c => c.id === id); }
@@ -417,7 +467,7 @@
         pins: [P("chair", 0.1, 0.24)].filter(p => p.item),
         links: [{ to: 1, yaw: -2.6, pitch: 0.6, label: "Flur" }] }
     ];
-    tourPos = demo.map((d, i) => ({ x: demo.length > 1 ? 0.12 + i * (0.76 / (demo.length - 1)) : 0.5, y: 0.5 }));
+    tourPos = demo.map((d, i) => ({ x: 0.05 + i * (0.92 / demo.length), y: 0.3, w: (0.92 / demo.length) - 0.04, h: 0.4, floor: 0 }));
     window.Tour.load(demo, 0);
     lastPlan = { title: "Demo-Wohnung", style: "Skandinavisch", rooms: demo.map(d => ({ id: d.id, name: d.label, neighbors: (d.links || []).map(l => demo[l.to] && demo[l.to].id).filter(Boolean) })) };
     projectTitle = "Demo-Wohnung";
@@ -503,8 +553,9 @@
   const PLAN_SYS = `Du bist der Orchestrierungs-Architekt von "Interior Studio". Aus Beschreibung und/oder GRUNDRISSBILD planst du eine begehbare Wohnung oder Büroetage.
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text drumherum. Schema:
 {"title":"kurzer Titel","intro":"1-2 Sätze Deutsch, was du gebaut hast","style":"gemeinsamer Einrichtungsstil",
- "rooms":[{"id":"kurz_eindeutig","name":"Anzeigename Deutsch","prompt":"Englischer Prompt für ein fotorealistisches EQUIRECTANGULAR 360 Panorama dieses Raums; Fenster und Türen passend zum Grundriss; IDENTISCHER Boden, Stil und Lichtstimmung über ALLE Räume","neighbors":["id"],"map":{"x":0.0,"y":0.0},"floor":0}]}
+ "rooms":[{"id":"kurz_eindeutig","name":"Anzeigename Deutsch","prompt":"Englischer Prompt für ein fotorealistisches EQUIRECTANGULAR 360 Panorama dieses Raums; Fenster und Türen passend zum Grundriss; IDENTISCHER Boden, Stil und Lichtstimmung über ALLE Räume","neighbors":["id"],"map":{"x":0.0,"y":0.0},"box":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"floor":0}]}
 Regeln:
+- box = das RECHTECK des Raums im Grundriss: x,y = obere linke Ecke, w,h = Breite/Höhe (alle 0..1), möglichst maßstäblich und in den PROPORTIONEN wie in der Zeichnung. Räume dürfen sich NICHT überlappen und sollen zusammen den Grundriss füllen. map = Mittelpunkt des Raums (0..1).
 - MEHRERE ETAGEN: vergib "floor" je Raum (0 = Erdgeschoss, 1 = 1.OG, 2 = 2.OG, -1 = Keller/UG). Eine TREPPE verbindet einen Raum unten mit dem Treppenraum oben → trage diese Verbindung GEGENSEITIG in neighbors ein (über die Etagen hinweg), damit man hoch-/runtergehen kann.
 - WENN ein Grundriss-Bild vorliegt: lies es GENAU. Verwende die TATSÄCHLICH eingezeichneten Räume — exakte Anzahl und Namen aus der Zeichnung (z. B. "Wohnküche","Schlafzimmer","Bad","Flur","Diele","Balkon"). Erfinde KEINE zusätzlichen Räume und lasse keinen weg. neighbors = Räume, die laut Plan durch Tür/Durchgang verbunden sind. map.x/map.y = Position des Raums im Grundriss (0..1, 0,0 = oben links), maßstäblich zur Zeichnung.
 - OHNE Grundriss: plane 4 bis 7 sinnvolle, verbundene Räume.
@@ -547,7 +598,7 @@ Regeln:
           });
           const img = await padTo2to1(res.url);
           prevInline = window.Banana.dataUrlToInline(img) || prevInline;
-          built.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, map: r.map, floor: r.floor, neighbors: r.neighbors || [], pins: [] });
+          built.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, map: r.map, box: r.box, floor: r.floor, neighbors: r.neighbors || [], pins: [] });
         } catch (err) {
           toast(`Raum „${r.name || (i + 1)}" übersprungen: ${err.message || "Fehler"}`, "err");   // Teilausfall killt nicht mehr alles
         }
@@ -670,14 +721,29 @@ Regeln:
   let saveTimer = null;
   function scheduleSave() { if (!window.Projects || !window.Tour || !window.Tour.count()) return; clearTimeout(saveTimer); saveTimer = setTimeout(autoSaveFull, 2500); }
   function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } autoSaveFull(); }   // beim Verlassen sofort sichern
+  function setSaveState(kind, text) {
+    const el = $("#saveState"); if (!el) return;
+    el.hidden = false; el.className = "save-state " + (kind || "");
+    const ic = kind === "saving" ? Icons.svg("loader-circle", { cls: "spin" })
+      : kind === "ok" ? Icons.svg("check") : kind === "err" ? Icons.svg("triangle-alert") : "";
+    el.innerHTML = ic + " " + esc(text);
+  }
+  function nowHM() { const d = new Date(); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   async function autoSaveFull() {
     if (!window.Projects || !window.Tour || !window.Tour.count()) return;
+    setSaveState("saving", "Speichert …");
     try {
       const bundle = await projectSnapshot();
       bundle.meta.title = projectTitle;
       bundle.meta.thumbnail = bundle.nodes[0] ? await window.Project.thumb(bundle.nodes[0].img) : "";
       await window.Projects.save(bundle);   // legt neu an oder aktualisiert das aktuelle Projekt
-    } catch (e) { /* App läuft in der Sitzung weiter; dauerhaft sichern via Export */ }
+      const ok = !window.Store || window.Store.persistent();
+      setSaveState(ok ? "ok" : "err", ok ? "Gespeichert " + nowHM() : "Nur Sitzung — exportieren!");
+    } catch (e) {
+      if (window.console) console.error("Speichern fehlgeschlagen:", e);
+      setSaveState("err", "Nicht gespeichert");
+      toast("Speichern fehlgeschlagen: " + (e && e.message || e), "err");
+    }
   }
   async function loadAndWalk(id) {
     const b = await window.Projects.load(id);
@@ -950,4 +1016,5 @@ Regeln:
   // Beim Tab-Wechsel/Schließen ausstehende Speicherung sofort flushen — auch wenn der 2,5-s-Timer noch nicht lief
   window.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
   window.addEventListener("pagehide", flushSave);
+  requestAnimationFrame(miniDirLoop);   // Kompass-Pfeil der Mini-Karte mit dem Blick mitdrehen
 })();

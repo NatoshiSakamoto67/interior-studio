@@ -26,6 +26,7 @@
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="help"><span class="ic" data-icon="book-open"></span> Beispiele &amp; Hilfe</button>
     </nav>
+    <span id="saveState" class="save-state" hidden></span>
     <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
   </header>
 
@@ -166,6 +167,11 @@
             </div>
           </div>
           <div class="minimap" id="miniMap" hidden></div>
+          <div id="model3dHost" class="canvas3d model3d-host" hidden></div>
+          <div class="view-toggle seg" id="viewToggle" hidden>
+            <button class="seg-b is-active vt-b" data-view="pano" aria-pressed="true">Panorama</button>
+            <button class="seg-b vt-b" data-view="3d" aria-pressed="false">3D-Modell</button>
+          </div>
           <div class="vp-bar">
             <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
             <button class="btn btn-ghost" id="resetView">Blick zurück</button>
@@ -323,6 +329,8 @@
   <script src="gallery.js"></script>
   <script src="tour.js"></script>
   <script src="icons.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script src="model3d.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
