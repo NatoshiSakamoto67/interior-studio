@@ -9,7 +9,7 @@
   const CLICK_TOL = 6;
 
   let host, viewerEl, loadEl, viewer, limiter;
-  let onPick = null, onPlace = null;
+  let onPick = null, onPlace = null, onChange = null;
   let nodes = [], idx = -1, placeMode = false, inited = false, rotating = false, autorot = null;
   let downX = 0, downY = 0, moved = 0;
 
@@ -17,7 +17,7 @@
 
   function init(container, opts = {}) {
     if (inited) return;
-    inited = true; host = container; onPick = opts.onPick; onPlace = opts.onPlace;
+    inited = true; host = container; onPick = opts.onPick; onPlace = opts.onPlace; onChange = opts.onChange;
 
     viewerEl = el("div", "tour-canvas");
     loadEl = el("div", "tour-loading"); loadEl.hidden = true;
@@ -116,21 +116,49 @@
     (node.links || []).forEach(link => {
       const a = el("button", "nav-hotspot");
       a.innerHTML = `<span class="nav-ic">›</span><span class="nav-lbl">${link.label || nodes[link.to] && nodes[link.to].label || "weiter"}</span>`;
-      a.onclick = ev => { ev.stopPropagation(); go(link.to); };
+      a.onclick = ev => { ev.stopPropagation(); go(link.to, { dolly: true, fromYaw: link.yaw }); };
       node._hs.push(cont.createHotspot(a, { yaw: link.yaw, pitch: link.pitch != null ? link.pitch : 0.55 },
         { perspective: { radius: 1400, extraTransforms: "rotateX(86deg)" } }));
     });
   }
 
   /* ---------- Navigation ---------- */
+  // sanfter View-Tween (Yaw kürzester Weg, FOV) für das „Vorwärtsgehen"-Gefühl
+  function tweenView(view, to, dur, done) {
+    let dyaw = to.yaw != null ? to.yaw - view.yaw() : 0;
+    while (dyaw > Math.PI) dyaw -= 2 * Math.PI;
+    while (dyaw < -Math.PI) dyaw += 2 * Math.PI;
+    const fy = view.yaw(), fp = view.pitch(), ff = view.fov(), t0 = performance.now();
+    (function step(now) {
+      const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 3);
+      if (to.yaw != null) view.setYaw(fy + dyaw * e);
+      if (to.pitch != null) view.setPitch(fp + (to.pitch - fp) * e);
+      if (to.fov != null) view.setFov(ff + (to.fov - ff) * e);
+      if (t < 1) requestAnimationFrame(step); else if (done) done();
+    })(performance.now());
+  }
   function go(i, opts = {}) {
     if (i < 0 || i >= nodes.length) return;
     const n = nodes[i]; if (!n._scene) buildScene(n);
+    const cur = nodes[idx], dolly = opts.dolly && cur && cur._view && n._view && !rotating;
+    if (dolly) {
+      // Street-View-Gefühl: zur Tür drehen + reinzoomen → Cross-Fade → in der neuen Szene FOV aufziehen.
+      const v = cur._view, nv = n._view;
+      tweenView(v, { yaw: opts.fromYaw != null ? opts.fromYaw : v.yaw(), fov: Math.max(FOV_MIN, v.fov() * 0.6) }, 250, () => {
+        if (opts.fromYaw != null) nv.setYaw(opts.fromYaw);
+        nv.setFov(Math.max(FOV_MIN, FOV_DEF * 0.72));
+        n._scene.switchTo({ transitionDuration: 520 }, () => tweenView(nv, { fov: FOV_DEF }, 430));
+        idx = i;
+        if (onChange) { try { onChange(idx); } catch (e) {} }
+      });
+      return;
+    }
     setLoading(true, "Raum wird geladen …");
     n._scene.switchTo({ transitionDuration: opts.instant ? 0 : 700 }, () => setLoading(false));
     setTimeout(() => setLoading(false), 1200); // Sicherheitsnetz
     idx = i;
     if (rotating) startRot();
+    if (onChange) { try { onChange(idx); } catch (e) {} }   // Mini-Karte / Raum-Strip aktualisieren
   }
 
   function normalize(node) {

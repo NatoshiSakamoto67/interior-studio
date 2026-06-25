@@ -19,6 +19,7 @@
   let mode = "generate", redesignImg = null;   // KI-Studio
   let tourReady = false, tourSrc = "text", tourPhotoImg = null;
   let lastPlan = null, projectTitle = "Unbenanntes Projekt";   // Projekt-State
+  let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -26,6 +27,11 @@
     t.textContent = msg; $("#toasts").appendChild(t);
     setTimeout(() => t.remove(), 4200);
   }
+
+  /* ---------- Globaler Bau-Fortschritt (sofort sichtbar, jeder Tab) ---------- */
+  function buildBar(text) { const b = $("#buildBar"); if (!b) return; b.className = "build-bar"; b.hidden = false; b.innerHTML = Icons.svg("loader-circle", { cls: "spin" }) + " " + esc(text); }
+  function buildBarErr(text) { const b = $("#buildBar"); if (!b) return; b.className = "build-bar err"; b.hidden = false; b.innerHTML = Icons.svg("triangle-alert") + " " + esc(text); setTimeout(() => { if (b.classList.contains("err")) b.hidden = true; }, 6000); }
+  function hideBuildBar() { const b = $("#buildBar"); if (b) { b.hidden = true; b.className = "build-bar"; } }
 
   /* ---------- Modal (a11y: Fokus setzen, Escape, Fokus-Falle, Fokus zurück) ---------- */
   let lastFocus = null;
@@ -196,7 +202,7 @@
   function ensureTour() {
     if (tourReady) { window.Tour.resize(); return; }
     tourReady = true;
-    window.Tour.init($("#tourHost"), { onPick: showSpec, onPlace: openPicker });
+    window.Tour.init($("#tourHost"), { onPick: showSpec, onPlace: openPicker, onChange: onTourChange });
     setTimeout(() => window.Tour.resize(), 60);
   }
 
@@ -296,6 +302,15 @@
     }
   };
   $("#tourNext").onclick = () => {
+    // Begehbare Wohnung: durch die Tür in den nächsten SCHON gebauten Raum gehen (kein neues Panorama)
+    if ($("#tourNext").dataset.mode === "navigate" && window.Tour.count() > 1) {
+      const cur = window.Tour.stations()[window.Tour.index()];
+      const fwd = (cur.links && cur.links[0]) || null;   // erste Tür = „nach vorne"
+      if (fwd) window.Tour.go(fwd.to, { dolly: true, fromYaw: fwd.yaw });
+      else window.Tour.go((window.Tour.index() + 1) % window.Tour.count(), { dolly: true });
+      return;
+    }
+    // Einzel-Standort-Tour (Aus Text/Foto): einen neuen angrenzenden Standort erzeugen
     const cur = window.Tour.stations()[window.Tour.index()];
     if (!cur) return;
     generateStation({
@@ -324,6 +339,42 @@
       nav.appendChild(b);
     });
   }
+
+  /* ---------- Mini-Karte (Grundriss, „du bist hier") ---------- */
+  function onTourChange() { renderStationNav(); renderMiniMap(); updateNextBtn(); }
+  function updateNextBtn() {
+    const b = $("#tourNext"); if (!b) return;
+    const cur = window.Tour.stations()[window.Tour.index()];
+    const linked = !!(cur && cur.links && cur.links.length) && window.Tour.count() > 1;
+    b.dataset.mode = linked ? "navigate" : "extend";   // navigate = durch die Tür gehen; extend = neuen Standort generieren
+    b.innerHTML = Icons.svg("footprints") + (linked ? " Nächster Raum" : " Schritt vorwärts (neu)");
+    b.title = linked ? "In den nächsten gebauten Raum gehen" : "Einen neuen angrenzenden Standort erzeugen (KI)";
+  }
+  function setTourPos(rooms) {
+    tourPos = (rooms || []).map(r => (r && r.map && isFinite(r.map.x) && isFinite(r.map.y)) ? { x: +r.map.x, y: +r.map.y } : null);
+    if (tourPos.some(p => !p)) tourPos = [];   // nur verwenden, wenn ALLE Räume echte Grundriss-Positionen haben
+  }
+  function renderMiniMap() {
+    const box = $("#miniMap"); if (!box) return;
+    const st = (window.Tour && window.Tour.stations && window.Tour.stations()) || [];
+    const n = st.length;
+    if (n < 1) { box.hidden = true; return; }
+    box.hidden = false;
+    const cur = window.Tour.index();
+    let pts;
+    if (tourPos.length === n) pts = tourPos.slice();
+    else { const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols); pts = st.map((_, i) => ({ x: cols > 1 ? (i % cols) / (cols - 1) : 0.5, y: rows > 1 ? Math.floor(i / cols) / (rows - 1) : 0.5 })); }
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const sx = x => maxX > minX ? 12 + (x - minX) / (maxX - minX) * 76 : 50;
+    const sy = y => maxY > minY ? 12 + (y - minY) / (maxY - minY) * 76 : 50;
+    const P = pts.map(p => ({ x: sx(p.x), y: sy(p.y) }));
+    let lines = "";
+    st.forEach((node, i) => (node.links || []).forEach(l => { if (l.to > i && P[l.to]) lines += `<line x1="${P[i].x.toFixed(1)}" y1="${P[i].y.toFixed(1)}" x2="${P[l.to].x.toFixed(1)}" y2="${P[l.to].y.toFixed(1)}"/>`; }));
+    const dots = P.map((p, i) => `<g class="mm-room${i === cur ? " is-cur" : ""}" data-i="${i}"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i === cur ? 5 : 3.6}"/><title>${esc((st[i] && st[i].label) || ("Raum " + (i + 1)))}</title></g>`).join("");
+    box.innerHTML = `<svg viewBox="0 0 100 100" role="img" aria-label="Grundriss-Karte — du bist in: ${esc((st[cur] && st[cur].label) || "")}"><g class="mm-lines">${lines}</g>${dots}</svg>`;
+    $$(".mm-room", box).forEach(g => g.onclick = () => { const i = parseInt(g.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i); });
+  }
   $("#autoRotBtn").onclick = e => { const on = window.Tour.autoRotate(); e.currentTarget.classList.toggle("on", on); };
   $("#resetView").onclick = () => window.Tour.resetView();
   // Tastatur-Begehung (a11y, WCAG 2.1.1): #tourHost ist fokussierbar — Pfeile = umsehen, +/− = zoomen.
@@ -349,6 +400,7 @@
         pins: [P("chair", 0.1, 0.24)].filter(p => p.item),
         links: [{ to: 1, yaw: -2.6, pitch: 0.6, label: "Flur" }] }
     ];
+    tourPos = demo.map((d, i) => ({ x: demo.length > 1 ? 0.12 + i * (0.76 / (demo.length - 1)) : 0.5, y: 0.5 }));
     window.Tour.load(demo, 0);
     lastPlan = { title: "Demo-Wohnung", style: "Skandinavisch", rooms: demo.map(d => ({ id: d.id, name: d.label, neighbors: (d.links || []).map(l => demo[l.to] && demo[l.to].id).filter(Boolean) })) };
     projectTitle = "Demo-Wohnung";
@@ -452,6 +504,7 @@ Regeln:
     if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
     const text = briefText;
     setBuildBusy(true);
+    buildBar("Claude plant deine Wohnung …");   // SOFORT sichtbar (egal welcher Tab) — kein „passiert nichts" mehr
     const status = chatPush(Icons.svg("brain") + " Claude liest den Plan …", "bot");
     try {
       const brief = text ? `Wunsch/Stil des Nutzers (in JEDEN room.prompt einarbeiten): ${text}` : "Plane eine schöne, realistische Beispiel-Wohnung.";
@@ -459,38 +512,48 @@ Regeln:
       const plan = window.Claude.parseJSON(planTxt);
       if (!plan.rooms || !plan.rooms.length) throw new Error("Kein Raum-Plan erhalten.");
       lastPlan = plan; projectTitle = plan.title || projectTitle;
-      status.innerHTML = Icons.svg("brain") + ` Plan: <b>${esc(plan.title || "Wohnung")}</b> — ${plan.rooms.length} Räume. Ich rendere sie nacheinander …`;
+      status.innerHTML = Icons.svg("brain") + ` Plan: <b>${esc(plan.title || "Wohnung")}</b> — ${plan.rooms.length} Räume.`;
       renderPlanView(plan, -1);
       ensureTour();
-      showTab("walk");                 // Fortschritt (Lade-Overlay + Räume) sofort sichtbar — egal ob aus Studio oder Architekt gestartet
-      const nodes = []; let prevInline = null;   // Grundriss ist Strichzeichnung → NICHT als Render-Referenz; Räume verketten sich für Stil-Konsistenz
+      // Bewusst NICHT früh den Tab wechseln (war der „springt aus dem Nichts"-Sprung). Fortschritt zeigt der Banner.
+      const built = []; let prevInline = null;   // Grundriss ist Strichzeichnung → NICHT als Render-Referenz; Räume verketten sich für Stil-Konsistenz
       for (let i = 0; i < plan.rooms.length; i++) {
         const r = plan.rooms[i];
         renderPlanView(plan, i);
-        window.Tour.setLoading(true, `Raum ${i + 1}/${plan.rooms.length}: ${r.name} …`);
-        const res = await window.Banana.generate({
-          prompt: (r.prompt || r.name) + " Equirectangular 360 degree panorama, seamless, photorealistic, horizon centered.",
-          aspect: "21:9", resolution: "2K", images: prevInline ? [prevInline] : []
-        });
-        const img = await padTo2to1(res.url);
-        prevInline = window.Banana.dataUrlToInline(img) || prevInline;
-        nodes.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, pins: [] });
+        buildBar(`Raum ${i + 1}/${plan.rooms.length} wird gerendert: ${r.name || ""} …`);
+        try {
+          const res = await window.Banana.generate({
+            prompt: (r.prompt || r.name) + " Equirectangular 360 degree panorama, seamless, photorealistic, horizon centered.",
+            aspect: "21:9", resolution: "2K", images: prevInline ? [prevInline] : []
+          });
+          const img = await padTo2to1(res.url);
+          prevInline = window.Banana.dataUrlToInline(img) || prevInline;
+          built.push({ id: r.id || ("r" + i), label: r.name || ("Raum " + (i + 1)), img, map: r.map, neighbors: r.neighbors || [], pins: [] });
+        } catch (err) {
+          toast(`Raum „${r.name || (i + 1)}" übersprungen: ${err.message || "Fehler"}`, "err");   // Teilausfall killt nicht mehr alles
+        }
       }
-      const idIndex = {}; plan.rooms.forEach((r, i) => { idIndex[r.id] = i; });
-      nodes.forEach((n, i) => {
-        const nb = (plan.rooms[i].neighbors || []).map(id => idIndex[id]).filter(j => j != null && j !== i);
-        n.links = nb.map((to, k) => ({ to, yaw: -1.4 + k * 1.5, pitch: 0.55, label: nodes[to].label }));
+      if (!built.length) throw new Error("Kein Raum konnte gerendert werden — API-Limit, Guthaben oder Key prüfen.");
+      // Nachbarschaften auf die TATSÄCHLICH gebauten Räume abbilden (übersprungene rausfiltern)
+      const idIndex = {}; built.forEach((n, i) => { idIndex[n.id] = i; });
+      built.forEach((n, i) => {
+        const nb = (n.neighbors || []).map(id => idIndex[id]).filter(j => j != null && j !== i);
+        n.links = nb.map((to, k) => ({ to, yaw: -1.4 + k * 1.5, pitch: 0.55, label: built[to].label }));
       });
-      window.Tour.load(nodes, 0);
-      renderStationNav();
+      setTourPos(built);                          // Mini-Karte aus Grundriss-Positionen
+      window.Tour.load(built, 0);
+      renderStationNav(); renderMiniMap();
       $("#pinTools").hidden = false; $("#tourNext").hidden = false; $("#tourEmpty").hidden = true;
       renderPlanView(plan, plan.rooms.length);
-      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok", title: "Fertig" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
-      showTab("walk");
-      toast("Wohnung gebaut — viel Spaß beim Begehen!", "ok");
+      const skipped = plan.rooms.length - built.length;
+      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok", title: "Fertig" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar${skipped ? ` (${skipped} übersprungen)` : ""}. ${esc(plan.intro || "")}`;
+      showTab("walk");                            // erst JETZT wechseln — es gibt etwas zu sehen
+      hideBuildBar();
+      toast(skipped ? `Wohnung gebaut — ${skipped} Raum/Räume übersprungen.` : "Wohnung gebaut — durch die Boden-Pfeile gehst du von Raum zu Raum.", "ok");
     } catch (e) {
       status.className = "chat-msg err"; status.textContent = "Fehler: " + (e.message || "unbekannt");
       window.Tour.setLoading(false);
+      buildBarErr("Fehlgeschlagen: " + (e.message || "unbekannt"));
       toast("Wohnung bauen fehlgeschlagen: " + (e.message || "unbekannt"), "err");
     } finally { setBuildBusy(false); }
   }

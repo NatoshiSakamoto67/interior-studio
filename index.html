@@ -35,6 +35,9 @@
     <span class="muted">Key bei Google AI Studio holen · er bleibt nur in deinem Browser.</span>
   </div>
 
+  <!-- Globaler Bau-Fortschritt (auf jedem Tab sichtbar) -->
+  <div id="buildBar" class="build-bar" hidden></div>
+
   <main class="stage">
 
     <!-- ===================== TAB: PROJEKTE ===================== -->
@@ -160,6 +163,7 @@
               <button class="btn btn-accent" id="loadDemo" style="margin-top:6px"><span class="ic" data-icon="play"></span> Demo-Begehung ansehen (ohne Key)</button>
             </div>
           </div>
+          <div class="minimap" id="miniMap" hidden></div>
           <div class="vp-bar">
             <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
             <button class="btn btn-ghost" id="resetView">Blick zurück</button>
