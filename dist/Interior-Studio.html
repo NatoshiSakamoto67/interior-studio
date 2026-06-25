@@ -91,8 +91,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.spin{animation:none}}
 
 /* ---- Globaler Bau-Fortschritt (sichtbar auf jedem Tab) ---- */
-.build-bar{position:fixed;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:center;gap:9px;
-  padding:11px 16px;font-weight:700;font-size:14px;color:#1a120b;
+/* Nicht-blockierende Pille unten-mittig — lässt das komplette Menü oben frei bedienbar */
+.build-bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:55;display:flex;align-items:center;justify-content:center;gap:9px;
+  max-width:92vw;padding:11px 20px;border-radius:999px;font-weight:700;font-size:14px;color:#1a120b;
   background:linear-gradient(135deg,var(--accent),var(--accent-d));box-shadow:var(--shadow)}
 .build-bar.err{background:#e0654f;color:#fff}
 .build-bar .icon{width:1.15em;height:1.15em}
