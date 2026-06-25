@@ -67,6 +67,17 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .btn-ghost{background:transparent}
 .btn-lg{padding:13px;font-size:15px}
 .link{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-weight:600;padding:0;text-decoration:underline}
+
+/* ---- Icons (Lucide inline-SVG; Registry/Helfer in icons.js) ---- */
+.ic{display:inline-flex;align-items:center;justify-content:center;vertical-align:-.14em;line-height:0}
+.icon{width:1em;height:1em;flex:none}
+.tab .icon{opacity:.92}
+.ic-ok{color:var(--accent2)}
+.cart-list .rm .icon{width:.92em;height:.92em}
+.modal-x .icon{width:1em;height:1em}
+.spin{animation:spin .9s linear infinite;transform-origin:center}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--text)}
@@ -81,7 +92,8 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .results-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:50px 20px;border:1px dashed var(--line);border-radius:var(--radius);line-height:1.6}
-.empty-ic{font-size:34px;margin-bottom:8px}
+.empty-ic{font-size:34px;margin-bottom:8px;color:var(--faint)}
+.empty-ic .icon{width:42px;height:42px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s var(--ease)}
 .card:hover{transform:translateY(-3px);border-color:var(--accent)}
 .card img{width:100%;display:block;aspect-ratio:1;object-fit:cover;background:#000}

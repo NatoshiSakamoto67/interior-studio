@@ -28,7 +28,7 @@
   /* ---------- Key ---------- */
   function refreshKeyState() {
     const ok = !!IS.key;
-    $("#keyState").textContent = ok ? "Key ✓" : "Key";
+    $("#keyState").innerHTML = ok ? 'Key ' + Icons.svg("check", { cls: "ic-ok" }) : "Key";
     $("#openKey").classList.toggle("ok", ok);
     $("#needkey").hidden = ok;
   }
@@ -88,7 +88,7 @@
     if (!IS.key) return openKey();
     if (mode === "redesign" && !redesignImg) return toast("Bitte ein Raumfoto hochladen.");
     const card = addBusyCard();
-    $("#genBtn").disabled = true; $("#genBtn").textContent = "⏳ Erzeuge …";
+    $("#genBtn").disabled = true; $("#genBtn").innerHTML = Icons.svg("loader-circle", { cls: "spin" }) + " Erzeuge …";
     try {
       const res = await window.Banana.generate({
         prompt, aspect: $("#aspect").value, resolution: $("#resolution").value,
@@ -99,21 +99,21 @@
       refreshStudioSrc();
       toast("Bild erzeugt.", "ok");
     } catch (e) { card.remove(); toast(e.message || "Fehler", "err"); }
-    finally { $("#genBtn").disabled = false; $("#genBtn").textContent = "✨ Erzeugen"; }
+    finally { $("#genBtn").disabled = false; $("#genBtn").innerHTML = Icons.svg("sparkles") + " Erzeugen"; }
   };
 
   function addBusyCard() {
     $("#galleryEmpty") && ($("#galleryEmpty").style.display = "none");
     $("#clearGallery").hidden = false;
-    const c = document.createElement("div"); c.className = "card busy"; c.textContent = "⏳ Nano Banana rendert …";
+    const c = document.createElement("div"); c.className = "card busy"; c.innerHTML = Icons.svg("loader-circle", { cls: "spin" }) + " Nano Banana rendert …";
     $("#gallery").prepend(c); return c;
   }
   function fillCard(card, url, prompt) {
     card.className = "card";
     card.innerHTML = `<img src="${url}" alt="Ergebnis"/>
       <div class="card-acts">
-        <a class="btn" download="interior.png" href="${url}">⬇︎</a>
-        <button class="btn btn-accent" data-act="tour">🧭 Als Begehung</button>
+        <a class="btn" download="interior.png" href="${url}" title="Herunterladen">${Icons.svg("download")}</a>
+        <button class="btn btn-accent" data-act="tour">${Icons.svg("compass")} Als Begehung</button>
       </div>`;
     card.querySelector('[data-act="tour"]').onclick = () => startTourFromImage(url, prompt);
   }
@@ -138,13 +138,13 @@
     if (!SR) return;
     [["#genBtn", "#prompt"], ["#tourGen", "#tourPrompt"]].forEach(([btnSel, fldSel]) => {
       const host = $(btnSel); if (!host) return;
-      const btn = document.createElement("button"); btn.className = "btn btn-ghost"; btn.type = "button"; btn.textContent = "🎤 Sprechen"; btn.style.marginTop = "-6px";
+      const btn = document.createElement("button"); btn.className = "btn btn-ghost"; btn.type = "button"; btn.innerHTML = Icons.svg("mic") + " Sprechen"; btn.style.marginTop = "-6px";
       host.insertAdjacentElement("beforebegin", btn);
       const rec = new SR(); rec.lang = "de-DE"; rec.interimResults = false;
       btn.onclick = () => { btn.textContent = "● Hört zu …"; try { rec.start(); } catch {} };
       rec.onresult = e => { const txt = e.results[0][0].transcript; const p = $(fldSel); p.value = (p.value.trim() ? p.value.trim() + " " : "") + txt; };
       rec.onerror = () => toast("Spracherkennung nicht verfügbar.");
-      rec.onend = () => btn.textContent = "🎤 Sprechen";
+      rec.onend = () => btn.innerHTML = Icons.svg("mic") + " Sprechen";
     });
   }
 
@@ -226,14 +226,14 @@
       renderStationNav();
       $("#pinTools").hidden = false;
       $("#tourNext").hidden = false;
-      toast("Raum erstellt — ziehen zum Umsehen, Möbel mit 📍 verorten.", "ok");
+      toast("Raum erstellt — ziehen zum Umsehen, Möbel über „Pin setzen“ verorten.", "ok");
       return i;
     } catch (e) { window.Tour.setLoading(false); toast(e.message || "Fehler", "err"); }
     finally { setTourBusy(false); }
   }
   function setTourBusy(on) {
     $("#tourGen").disabled = on; $("#tourNext").disabled = on;
-    $("#tourGen").textContent = on ? "⏳ Rendert …" : "🧭 Panorama-Standort erzeugen";
+    $("#tourGen").innerHTML = on ? Icons.svg("loader-circle", { cls: "spin" }) + " Rendert …" : Icons.svg("compass") + " Panorama-Standort erzeugen";
   }
 
   $("#tourGen").onclick = () => {
@@ -308,7 +308,7 @@
   let placing = false;
   $("#placeBtn").onclick = () => {
     placing = !placing; window.Tour.setPlaceMode(placing);
-    $("#placeBtn").textContent = placing ? "✓ Fertig" : "📍 Pin setzen";
+    $("#placeBtn").innerHTML = placing ? Icons.svg("check") + " Fertig" : Icons.svg("map-pin") + " Pin setzen";
     $("#placeBtn").classList.toggle("on", placing);
     if (placing) toast("Pin-Modus an — tippe ins Panorama, wo ein Möbel steht.");
   };
@@ -319,7 +319,7 @@
   function renderPickGrid() {
     const grid = $("#pickGrid"); grid.innerHTML = "";
     const items = pickItems();
-    if (!items.length) { grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Keine Treffer. Lade/aktiviere Kataloge im Tab 🗂️ Kataloge.</div>'; return; }
+    if (!items.length) { grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Keine Treffer. Lade/aktiviere Kataloge im Tab ' + Icons.svg("library") + ' Kataloge.</div>'; return; }
     items.forEach(item => {
       const c = document.createElement("button"); c.className = "pick";
       c.innerHTML = `<span class="pick-sw" style="background:${esc(item.color)}"></span>
@@ -358,19 +358,19 @@
     const f = e.target.files[0]; if (!f) return;
     planImg = await window.Banana.fileToInline(f);
     const t = $("#planThumb"); t.hidden = false; t.querySelector("img").src = `data:${planImg.mime};base64,${planImg.base64}`;
-    chatPush("📐 Grundriss empfangen — klick <b>🏗️ Wohnung bauen</b> oder stell mir Fragen dazu.", "bot");
+    chatPush(Icons.svg("ruler") + " Grundriss empfangen — klick <b>" + Icons.svg("building-2") + " Wohnung bauen</b> oder stell mir Fragen dazu.", "bot");
   };
   $("#chatSend").onclick = sendChat;
   $("#chatText").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendChat(); } });
   async function sendChat() {
     const text = $("#chatText").value.trim(); if (!text && !planImg) return;
-    if (!IS.ckey) { toast("Trag zuerst den Claude-Key ein (🔑)."); return openKey(); }
+    if (!IS.ckey) { toast("Trag zuerst den Claude-Key ein (Schlüssel-Symbol oben rechts)."); return openKey(); }
     if (text) chatPush(esc(text), "me");
     $("#chatText").value = "";
     const busy = chatPush("…", "bot");
     try {
       const txt = await window.Claude.call({
-        system: "Du bist ein hilfreicher Interior-Architekt in der App Interior Studio. Antworte kurz auf Deutsch. Wenn der Nutzer eine Wohnung oder Etage bauen will, fordere ihn auf, „🏗️ Wohnung bauen\" zu klicken.",
+        system: "Du bist ein hilfreicher Interior-Architekt in der App Interior Studio. Antworte kurz auf Deutsch. Wenn der Nutzer eine Wohnung oder Etage bauen will, fordere ihn auf, „Wohnung bauen\" zu klicken.",
         content: window.Claude.content(text, planImg)
       });
       busy.innerHTML = esc(txt).replace(/\n/g, "<br>");
@@ -385,17 +385,17 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
 
   $("#buildApt").onclick = buildApartment;
   async function buildApartment() {
-    if (!IS.ckey) { toast("Claude-Key fehlt (🔑)."); return openKey(); }
-    if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (🔑)."); return openKey(); }
+    if (!IS.ckey) { toast("Claude-Key fehlt (Schlüssel-Symbol oben rechts)."); return openKey(); }
+    if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
     const text = $("#chatText").value.trim();
     $("#buildApt").disabled = true; $("#chatSend").disabled = true;
-    const status = chatPush("🧠 Claude liest den Plan …", "bot");
+    const status = chatPush(Icons.svg("brain") + " Claude liest den Plan …", "bot");
     try {
       const planTxt = await window.Claude.call({ system: PLAN_SYS, content: window.Claude.content(text || "Plane eine schöne Beispiel-Wohnung.", planImg), maxTokens: 4096 });
       const plan = window.Claude.parseJSON(planTxt);
       if (!plan.rooms || !plan.rooms.length) throw new Error("Kein Raum-Plan erhalten.");
       lastPlan = plan; projectTitle = plan.title || projectTitle;
-      status.innerHTML = `🧠 Plan: <b>${esc(plan.title || "Wohnung")}</b> — ${plan.rooms.length} Räume. Ich rendere sie nacheinander …`;
+      status.innerHTML = Icons.svg("brain") + ` Plan: <b>${esc(plan.title || "Wohnung")}</b> — ${plan.rooms.length} Räume. Ich rendere sie nacheinander …`;
       renderPlanView(plan, -1);
       ensureTour();
       const nodes = []; let prevInline = planImg;
@@ -420,7 +420,7 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
       renderStationNav();
       $("#pinTools").hidden = false; $("#tourNext").hidden = false; $("#tourEmpty").hidden = true;
       renderPlanView(plan, plan.rooms.length);
-      status.innerHTML = `✅ <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
+      status.innerHTML = Icons.svg("circle-check", { cls: "ic-ok" }) + ` <b>${esc(plan.title || "Wohnung")}</b> ist begehbar. ${esc(plan.intro || "")}`;
       showTab("walk");
       toast("Wohnung gebaut — viel Spaß beim Begehen!", "ok");
     } catch (e) {
@@ -481,14 +481,14 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
   }
   async function saveProject() {
     if (!window.Tour || !window.Tour.count()) return toast("Erst eine Wohnung bauen oder die Demo laden.");
-    const btn = $("#projSave"); btn.disabled = true; btn.textContent = "💾 Komprimiere …";
+    const btn = $("#projSave"); btn.disabled = true; btn.innerHTML = Icons.svg("loader-circle", { cls: "spin" }) + " Komprimiere …";
     try {
       const snap = await projectSnapshot();
       const fn = (projectTitle || "projekt").replace(/[^\wäöüÄÖÜ]+/g, "-").replace(/^-|-$/g, "") + ".studio.json";
       window.Project.download(fn, JSON.stringify(snap));
       toast("Projekt gespeichert: " + fn, "ok");
     } catch (e) { toast("Speichern fehlgeschlagen: " + (e.message || ""), "err"); }
-    finally { btn.disabled = false; btn.textContent = "💾 Projekt speichern"; }
+    finally { btn.disabled = false; btn.innerHTML = Icons.svg("save") + " Projekt speichern"; }
   }
   function restoreProject(obj) {
     if (!obj || obj.schema !== "interior-studio.project/v1" || !Array.isArray(obj.nodes) || !obj.nodes.length)
@@ -559,7 +559,7 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
     if (!cart.length) { ul.innerHTML = '<li class="muted">noch leer</li>'; }
     else {
       ul.innerHTML = "";
-      cart.forEach(it => { const li = document.createElement("li"); li.innerHTML = `<span>${it.name.replace(/„|"/g, "")}</span><span>${it.price.toLocaleString("de-DE")} € <span class="rm" title="entfernen">✕</span></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
+      cart.forEach(it => { const li = document.createElement("li"); li.innerHTML = `<span>${it.name.replace(/„|"/g, "")}</span><span>${it.price.toLocaleString("de-DE")} € <span class="rm" title="entfernen">${Icons.svg("x")}</span></span>`; li.querySelector(".rm").onclick = () => { cart.splice(cart.indexOf(it), 1); renderCart(); }; ul.appendChild(li); });
     }
     $("#cartTotal").textContent = sum.toLocaleString("de-DE") + " €";
     updateAmpel(sum);
@@ -581,13 +581,13 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
   function addFullscreen() {
     $$(".viewport .vp-bar").forEach(bar => {
       const vp = bar.closest(".viewport");
-      const b = document.createElement("button"); b.className = "btn btn-ghost"; b.innerHTML = "⛶ Vollbild";
+      const b = document.createElement("button"); b.className = "btn btn-ghost"; b.innerHTML = Icons.svg("maximize") + " Vollbild";
       b.onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else vp.requestFullscreen && vp.requestFullscreen(); };
       bar.insertBefore(b, bar.firstChild);
     });
     document.addEventListener("fullscreenchange", () => {
       const fs = document.fullscreenElement;
-      $$(".viewport .vp-bar .btn").forEach(b => { if (b.innerHTML.includes("Vollbild") || b.innerHTML.includes("Verlassen")) b.innerHTML = fs ? "⛶ Verlassen (Esc)" : "⛶ Vollbild"; });
+      $$(".viewport .vp-bar .btn").forEach(b => { if (b.innerHTML.includes("Vollbild") || b.innerHTML.includes("Verlassen")) b.innerHTML = fs ? Icons.svg("maximize") + " Verlassen (Esc)" : Icons.svg("maximize") + " Vollbild"; });
       setTimeout(() => tourReady && window.Tour.resize(), 80);
     });
   }
@@ -650,6 +650,7 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
   }
 
   /* ---------- Init ---------- */
+  if (window.Icons) Icons.hydrate(document);
   $("#budgetIn").oninput = renderCart;
   if (window.Catalogs) {
     window.Catalogs.setQuotaHandler(() => toast("Speicher voll — Katalog nur für diese Sitzung gehalten.", "err"));

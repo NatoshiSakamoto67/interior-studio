@@ -18,14 +18,14 @@
       </div>
     </div>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
-      <button class="tab" data-tab="projects">🗃️ Projekte</button>
-      <button class="tab is-active" data-tab="studio">🎨 KI-Studio</button>
-      <button class="tab" data-tab="arch">🏗️ Architekt</button>
-      <button class="tab" data-tab="walk">🧭 Begehung</button>
-      <button class="tab" data-tab="katalog">🗂️ Kataloge</button>
-      <button class="tab" data-tab="help">📘 Beispiele &amp; Hilfe</button>
+      <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
+      <button class="tab is-active" data-tab="studio"><span class="ic" data-icon="palette"></span> KI-Studio</button>
+      <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
+      <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
+      <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
+      <button class="tab" data-tab="help"><span class="ic" data-icon="book-open"></span> Beispiele &amp; Hilfe</button>
     </nav>
-    <button class="key-btn" id="openKey" title="Gemini-Key">🔑 <span id="keyState">Key</span></button>
+    <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
   </header>
 
   <!-- Hinweisbanner ohne Key -->
@@ -45,9 +45,9 @@
           <h2>Deine Wohnungen &amp; Projekte</h2>
           <p class="muted small">Speichere eine fertige Begehung als <b>.studio.json</b>-Datei (selbsttragend, mit Räumen, Pins, Einkaufsliste &amp; Budget) und öffne sie jederzeit wieder — auch auf einem anderen Rechner. Bilder werden beim Export komprimiert eingebettet.</p>
           <div class="proj-actions">
-            <button class="btn btn-accent" id="projSave">💾 Projekt speichern</button>
-            <button class="btn" id="projOpen">📂 Projekt öffnen</button>
-            <button class="btn btn-ghost" id="projNew">＋ Neues Projekt</button>
+            <button class="btn btn-accent" id="projSave"><span class="ic" data-icon="save"></span> Projekt speichern</button>
+            <button class="btn" id="projOpen"><span class="ic" data-icon="folder-open"></span> Projekt öffnen</button>
+            <button class="btn btn-ghost" id="projNew"><span class="ic" data-icon="plus"></span> Neues Projekt</button>
           </div>
         </div>
         <div class="proj-current" id="projCurrent"></div>
@@ -99,7 +99,7 @@
             </label>
           </div>
 
-          <button class="btn btn-accent btn-lg" id="genBtn">✨ Erzeugen</button>
+          <button class="btn btn-accent btn-lg" id="genBtn"><span class="ic" data-icon="sparkles"></span> Erzeugen</button>
           <p class="hint" id="genHint">Nutzt Nano Banana 2 (Gemini). Dauer ~5–20 s.</p>
         </aside>
 
@@ -110,7 +110,7 @@
           </div>
           <div class="gallery" id="gallery">
             <div class="empty" id="galleryEmpty">
-              <div class="empty-ic">🖼️</div>
+              <div class="empty-ic" data-icon="image"></div>
               Noch keine Bilder. Beschreibe einen Raum oder lade ein Foto hoch und klick <b>Erzeugen</b>.
               <div class="muted">Tipp: Beispiele &amp; fertige Prompts findest du im Tab „Beispiele &amp; Hilfe".</div>
             </div>
@@ -129,21 +129,21 @@
             <p class="muted small">Beschreibe eine Wohnung/Büroetage oder lade einen <b>Grundriss</b> hoch. Claude liest den Plan, legt die Räume an und steuert die Bildgenerierung — am Ende ist alles begehbar.</p>
           </div>
           <div class="chat-log" id="chatLog">
-            <div class="chat-msg bot">👋 Ich bin dein Architekt. Schreib z. B. „5-Zimmer-Wohnung, skandinavisch, mit Balkon" — oder lade einen Grundriss hoch und sag „bau das nach". Dann klick <b>🏗️ Wohnung bauen</b>.</div>
+            <div class="chat-msg bot"><span class="ic" data-icon="hand"></span> Ich bin dein Architekt. Schreib z. B. „5-Zimmer-Wohnung, skandinavisch, mit Balkon" — oder lade einen Grundriss hoch und sag „bau das nach". Dann klick <b><span class="ic" data-icon="building-2"></span> Wohnung bauen</b>.</div>
           </div>
           <div class="chat-input">
             <div class="thumb" id="planThumb" hidden><img alt="Grundriss" /></div>
             <textarea id="chatText" rows="2" placeholder="Wohnung/Etage beschreiben oder Frage an den Architekten …"></textarea>
             <div class="chat-actions">
-              <label class="btn btn-ghost" title="Grundriss hochladen">📐 Grundriss<input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden /></label>
+              <label class="btn btn-ghost" title="Grundriss hochladen"><span class="ic" data-icon="ruler"></span> Grundriss<input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden /></label>
               <button class="btn" id="chatSend">Senden</button>
-              <button class="btn btn-accent" id="buildApt">🏗️ Wohnung bauen</button>
+              <button class="btn btn-accent" id="buildApt"><span class="ic" data-icon="building-2"></span> Wohnung bauen</button>
             </div>
           </div>
         </aside>
         <div class="arch-plan">
           <span class="eyebrow">Plan &amp; Fortschritt</span>
-          <div id="planView" class="plan-view"><div class="muted">Noch kein Plan. Beschreibe eine Wohnung/Büroetage oder lade einen Grundriss — dann „🏗️ Wohnung bauen".</div></div>
+          <div id="planView" class="plan-view"><div class="muted">Noch kein Plan. Beschreibe eine Wohnung/Büroetage oder lade einen Grundriss — dann „<span class="ic" data-icon="building-2"></span> Wohnung bauen".</div></div>
         </div>
       </div>
     </section>
@@ -154,13 +154,13 @@
         <div class="viewport">
           <div id="tourHost" class="canvas3d tour-host">
             <div class="tour-empty" id="tourEmpty">
-              <div class="empty-ic">🧭</div>
+              <div class="empty-ic" data-icon="compass"></div>
               Noch keine Begehung. Erzeuge rechts einen <b>Panorama-Standort</b> — aus Text, einem Raumfoto oder einem KI-Studio-Ergebnis.
-              <button class="btn btn-accent" id="loadDemo" style="margin-top:6px">▶ Demo-Begehung ansehen (ohne Key)</button>
+              <button class="btn btn-accent" id="loadDemo" style="margin-top:6px"><span class="ic" data-icon="play"></span> Demo-Begehung ansehen (ohne Key)</button>
             </div>
           </div>
           <div class="vp-bar">
-            <button class="btn btn-ghost" id="autoRotBtn">↻ Auto-Drehung</button>
+            <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
             <button class="btn btn-ghost" id="resetView">Blick zurück</button>
             <div class="stations" id="stationNav"></div>
             <span class="vp-hint">Ziehen: umsehen · Scroll: zoomen · Pin antippen = Möbel-Details</span>
@@ -190,13 +190,13 @@
             <textarea id="tourPrompt" rows="3" placeholder="z. B. helles skandinavisches Wohnzimmer, Eiche, große Fenster, Pflanzen, warmes Licht"></textarea>
           </label>
 
-          <button class="btn btn-accent btn-lg" id="tourGen">🧭 Panorama-Standort erzeugen</button>
-          <button class="btn" id="tourNext" hidden>👣 Schritt vorwärts gehen</button>
+          <button class="btn btn-accent btn-lg" id="tourGen"><span class="ic" data-icon="compass"></span> Panorama-Standort erzeugen</button>
+          <button class="btn" id="tourNext" hidden><span class="ic" data-icon="footprints"></span> Schritt vorwärts gehen</button>
           <p class="hint" id="tourHint">Nano Banana rendert ein 360°-Panorama (~8–20 s). „Schritt vorwärts" erzeugt den nächsten Standort im selben Raum.</p>
 
           <div class="pin-tools" id="pinTools" hidden>
             <span class="eyebrow">Möbel verorten</span>
-            <button class="btn" id="placeBtn">📍 Pin setzen</button>
+            <button class="btn" id="placeBtn"><span class="ic" data-icon="map-pin"></span> Pin setzen</button>
             <p class="hint">Pin-Modus an → ins Panorama tippen, wo ein Möbel steht → Produkt wählen. Erscheint als Spec-Card und in der Einkaufsliste.</p>
           </div>
 
@@ -221,10 +221,10 @@
         <div class="kat-head">
           <span class="eyebrow">Kataloge</span>
           <h2>Produktkataloge laden</h2>
-          <p class="muted small">Importiere eigene Kataloge (JSON/CSV) — Möbel, Wandmaterial, Aquaristik … Aktive Kataloge erscheinen beim <b>📍 Pin setzen</b> in der Begehung zur Auswahl, mit Preisen in der Einkaufsliste. <b>Hinweis:</b> proprietäre Hersteller-Kataloge nur selbst importieren, nicht weitergeben.</p>
+          <p class="muted small">Importiere eigene Kataloge (JSON/CSV) — Möbel, Wandmaterial, Aquaristik … Aktive Kataloge erscheinen beim <b><span class="ic" data-icon="map-pin"></span> Pin setzen</b> in der Begehung zur Auswahl, mit Preisen in der Einkaufsliste. <b>Hinweis:</b> proprietäre Hersteller-Kataloge nur selbst importieren, nicht weitergeben.</p>
           <div class="kat-actions">
-            <label class="btn btn-accent">⬆︎ Katalog importieren<input type="file" id="catFile" accept=".json,.csv" multiple hidden /></label>
-            <a class="btn btn-ghost" id="catTemplate" download="katalog-vorlage.json" href="examples/catalogs/katalog-vorlage.json">⬇︎ Vorlage (JSON)</a>
+            <label class="btn btn-accent"><span class="ic" data-icon="upload"></span> Katalog importieren<input type="file" id="catFile" accept=".json,.csv" multiple hidden /></label>
+            <a class="btn btn-ghost" id="catTemplate" download="katalog-vorlage.json" href="examples/catalogs/katalog-vorlage.json"><span class="ic" data-icon="download"></span> Vorlage (JSON)</a>
           </div>
         </div>
         <div class="kat-list" id="catList"></div>
@@ -240,7 +240,7 @@
   <!-- Key-Modal -->
   <div class="modal" id="keyModal" hidden>
     <div class="modal-card">
-      <button class="modal-x" id="keyClose" aria-label="Schließen">✕</button>
+      <button class="modal-x" id="keyClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
       <h3>Gemini-API-Key (Nano Banana)</h3>
       <p class="muted">Trag deinen Key von <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> ein. Er wird <b>nur lokal in deinem Browser</b> gespeichert (localStorage) und geht ausschließlich an Googles API. Die Bildgenerierung läuft über ein Google-Cloud-Projekt mit aktiviertem Billing.</p>
       <label class="fld"><span>API-Key</span>
@@ -274,7 +274,7 @@
   <!-- Produkt-Picker fürs Pin-Setzen -->
   <div class="modal" id="pickModal" hidden>
     <div class="modal-card">
-      <button class="modal-x" id="pickClose" aria-label="Schließen">✕</button>
+      <button class="modal-x" id="pickClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
       <h3>Möbel an diese Stelle</h3>
       <p class="muted">Wähle ein Produkt aus den geladenen Katalogen — es landet als Pin im Panorama und in der Einkaufsliste.</p>
       <div class="pick-filter">
@@ -294,6 +294,7 @@
   <script src="claude.js"></script>
   <script src="project.js"></script>
   <script src="tour.js"></script>
+  <script src="icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
