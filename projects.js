@@ -75,10 +75,30 @@
     persistMeta(); emit();
   }
   function moveProject(id, folderId) { const r = index.find(x => x.id === id); if (r) { r.folderId = folderId || null; persistMeta(); emit(); } }
+  async function renameProject(id, title) {
+    title = (title || "").trim(); if (!title) return;
+    const r = index.find(x => x.id === id); if (r) r.title = title;
+    const b = await window.Store.get("projects", id);
+    if (b) { b.meta = b.meta || {}; b.meta.title = title; await window.Store.put("projects", id, b); }
+    await persistMeta(); emit();
+  }
+  function isDescendant(folderId, candidateId) {           // ist candidate == folder oder darunter?
+    let f = folders.find(x => x.id === candidateId);
+    while (f) { if (f.id === folderId) return true; f = folders.find(x => x.id === f.parentId); }
+    return false;
+  }
+  function reparentFolder(id, parentId) {
+    if (id === parentId || (parentId && isDescendant(id, parentId))) return;   // kein Zyklus
+    const f = folders.find(x => x.id === id); if (f) { f.parentId = parentId || null; persistMeta(); emit(); }
+  }
+  function moveNode(dragId, targetFolderId) {              // Drag&Drop: Ordner ODER Projekt verschieben
+    if (folders.find(f => f.id === dragId)) reparentFolder(dragId, targetFolderId);
+    else moveProject(dragId, targetFolderId);
+  }
 
   window.Projects = {
     init, save, load, remove, startNew, current: () => currentId,
-    addFolder, renameFolder, removeFolder, moveProject,
+    addFolder, renameFolder, removeFolder, moveProject, renameProject, reparentFolder, moveNode,
     tree: () => ({ folders: folders.slice(), projects: index.slice() }),
     onChange: fn => { if (typeof fn === "function") listeners.push(fn); }
   };

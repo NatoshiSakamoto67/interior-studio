@@ -108,28 +108,33 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .minimap .mm-room.is-cur circle{fill:#ff5252;stroke:#fff;stroke-width:1.5}
 @media(max-width:680px){.minimap{width:104px;height:104px;top:8px;right:8px}}
 
-/* ---- Projektbaum (Ordner + Projekte, persistent) ---- */
-.proj-tree{display:flex;flex-direction:column;gap:14px;margin-top:8px}
-.prj-folder{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel)}
-.prj-folder>summary{cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;list-style:none;font-size:14px}
-.prj-folder>summary::-webkit-details-marker{display:none}
-.prj-folder .fld-del{margin-left:auto;color:var(--faint);display:inline-flex}
-.prj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:0 12px 12px}
-.prj-card{position:relative;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--panel2);cursor:pointer;transition:.15s var(--ease)}
-.prj-card:hover{border-color:var(--accent);transform:translateY(-2px)}
-.prj-card.is-cur{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2)}
-.prj-card img{width:100%;aspect-ratio:2/1;object-fit:cover;background:#000;display:block}
-.prj-card .prj-ph{display:grid;place-items:center;aspect-ratio:2/1;background:var(--panel);color:var(--faint)}
-.prj-card .prj-ph .icon{width:34px;height:34px}
-.prj-meta{padding:9px 11px;display:flex;flex-direction:column;gap:2px}
-.prj-del{position:absolute;top:6px;right:6px;background:rgba(18,17,22,.72);border:none;border-radius:6px;color:#fff;padding:3px;cursor:pointer;display:inline-flex}
-.prj-del .icon{width:.9em;height:.9em}
-.prj-move{margin:0 11px 10px;font-size:12px;padding:5px 7px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+/* ---- Projektbaum (echter Baum: Ordner/Unterordner + Projekte) ---- */
+.proj-tree{margin-top:8px}
+.tree-root{display:flex;flex-direction:column;gap:1px}
+.tree-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px;transition:.12s var(--ease)}
+.tree-row:hover{background:var(--panel2)}
+.tree-row.is-cur{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
+.tree-row>.icon{flex:none;color:var(--muted)}
+.tree-row.is-cur>.icon{color:var(--accent)}
+.tree-caret{background:none;border:none;color:var(--muted);cursor:pointer;display:inline-flex;padding:3px;border-radius:6px;flex:none}
+.tree-caret.is-empty{visibility:hidden}
+.tree-caret:hover{background:var(--line);color:var(--text)}
+.tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-sub{flex:none}
+.tree-thumb{width:32px;height:18px;object-fit:cover;border-radius:3px;background:#000;flex:none;border:1px solid var(--line)}
+.tree-acts{display:none;gap:2px;flex:none}
+.tree-row:hover .tree-acts{display:inline-flex}
+.tree-act{background:none;border:none;color:var(--faint);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex}
+.tree-act:hover{background:var(--line);color:var(--accent)}
+.tree-act .icon{width:.95em;height:.95em}
+.tree-row.drop-over{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--panel2)}
+.tree-empty{color:var(--faint);font-size:12px;padding:5px 0}
+@media(max-width:680px){.tree-acts{display:inline-flex}}
 
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--text)}
-.thumb img{max-width:100%;border-radius:8px;margin-top:6px;border:1px solid var(--line)}
+.thumb img{max-width:100%;max-height:130px;width:auto;object-fit:contain;border-radius:8px;margin-top:6px;border:1px solid var(--line)}
 
 /* ---- Studio ---- */
 .studio-grid{display:grid;grid-template-columns:330px 1fr;height:100%}
@@ -1182,10 +1187,30 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     persistMeta(); emit();
   }
   function moveProject(id, folderId) { const r = index.find(x => x.id === id); if (r) { r.folderId = folderId || null; persistMeta(); emit(); } }
+  async function renameProject(id, title) {
+    title = (title || "").trim(); if (!title) return;
+    const r = index.find(x => x.id === id); if (r) r.title = title;
+    const b = await window.Store.get("projects", id);
+    if (b) { b.meta = b.meta || {}; b.meta.title = title; await window.Store.put("projects", id, b); }
+    await persistMeta(); emit();
+  }
+  function isDescendant(folderId, candidateId) {           // ist candidate == folder oder darunter?
+    let f = folders.find(x => x.id === candidateId);
+    while (f) { if (f.id === folderId) return true; f = folders.find(x => x.id === f.parentId); }
+    return false;
+  }
+  function reparentFolder(id, parentId) {
+    if (id === parentId || (parentId && isDescendant(id, parentId))) return;   // kein Zyklus
+    const f = folders.find(x => x.id === id); if (f) { f.parentId = parentId || null; persistMeta(); emit(); }
+  }
+  function moveNode(dragId, targetFolderId) {              // Drag&Drop: Ordner ODER Projekt verschieben
+    if (folders.find(f => f.id === dragId)) reparentFolder(dragId, targetFolderId);
+    else moveProject(dragId, targetFolderId);
+  }
 
   window.Projects = {
     init, save, load, remove, startNew, current: () => currentId,
-    addFolder, renameFolder, removeFolder, moveProject,
+    addFolder, renameFolder, removeFolder, moveProject, renameProject, reparentFolder, moveNode,
     tree: () => ({ folders: folders.slice(), projects: index.slice() }),
     onChange: fn => { if (typeof fn === "function") listeners.push(fn); }
   };
@@ -1429,6 +1454,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     "building-2": "<path d=\"M10 12h4\" /><path d=\"M10 8h4\" /><path d=\"M14 21v-3a2 2 0 0 0-4 0v3\" /><path d=\"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2\" /><path d=\"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16\" />",
     "camera": "<path d=\"M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z\" /><circle cx=\"12\" cy=\"13\" r=\"3\" />",
     "check": "<path d=\"M20 6 9 17l-5-5\" />",
+    "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+    "chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
     "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m9 12 2 2 4-4\" />",
     "circle-help": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\" /><path d=\"M12 17h.01\" />",
     "compass": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z\" />",
@@ -1438,6 +1465,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     "file-down": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M12 18v-6\" /><path d=\"m9 15 3 3 3-3\" />",
     "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
     "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\" />",
+    "folder-plus": "<path d=\"M12 10v6\" /><path d=\"M9 13h6\" /><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
     "folders": "<path d=\"M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z\" /><path d=\"M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1\" />",
     "footprints": "<path d=\"M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z\" /><path d=\"M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z\" /><path d=\"M16 17h4\" /><path d=\"M4 13h4\" />",
     "gauge": "<path d=\"m12 14 4-4\" /><path d=\"M3.34 19a10 10 0 1 1 17.32 0\" />",
@@ -1464,6 +1492,8 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
     "shopping-cart": "<circle cx=\"8\" cy=\"21\" r=\"1\" /><circle cx=\"19\" cy=\"21\" r=\"1\" /><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\" />",
     "sofa": "<path d=\"M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3\" /><path d=\"M2 16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z\" /><path d=\"M4 18v2\" /><path d=\"M20 18v2\" /><path d=\"M12 4v9\" />",
     "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /><path d=\"M20 2v4\" /><path d=\"M22 4h-4\" /><circle cx=\"4\" cy=\"20\" r=\"2\" />",
+    "square-pen": "<path d=\"M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7\" /><path d=\"M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z\" />",
+    "trash-2": "<path d=\"M10 11v6\" /><path d=\"M14 11v6\" /><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /><path d=\"M3 6h18\" /><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />",
     "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
     "upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
     "usb": "<circle cx=\"10\" cy=\"7\" r=\"1\" /><circle cx=\"4\" cy=\"20\" r=\"1\" /><path d=\"M4.7 19.3 19 5\" /><path d=\"m21 3-3 1 2 2Z\" /><path d=\"M9.26 7.68 5 12l2 5\" /><path d=\"m10 14 5 2 3.5-3.5\" /><path d=\"m18 12 1-1 1 1-1 1Z\" />",
@@ -1536,6 +1566,7 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
   let tourReady = false, tourSrc = "text", tourPhotoImg = null;
   let lastPlan = null, projectTitle = "Unbenanntes Projekt";   // Projekt-State
   let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
+  const openFolders = new Set();   // aufgeklappte Ordner im Projektbaum (UI-State)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -2188,28 +2219,63 @@ Regeln:
     const curId = window.Projects.current();
     const hint = $("#projHint");
     if (hint) hint.textContent = (window.Store && window.Store.persistent())
-      ? "Automatisch im Browser gespeichert. Tipp: für Backup/Weitergabe zusätzlich exportieren."
+      ? "Pfeil = auf/zu · Projekt anklicken = begehen · Symbole = umbenennen/löschen · per Drag&Drop in Ordner ziehen. Automatisch gespeichert."
       : "Achtung: dauerhaftes Speichern hier nicht möglich (file://) — bitte exportieren.";
     if (!projects.length && !folders.length) {
       box.innerHTML = '<div class="empty">Noch keine Projekte. Bau im <b>KI-Studio → „Wohnung aus Grundriss"</b> eine Wohnung — sie erscheint dann automatisch hier und ist jederzeit wieder begehbar.</div>';
       return;
     }
-    const folderOpts = sel => '<option value="">— ohne Ordner —</option>' + folders.map(f => `<option value="${esc(f.id)}"${sel === f.id ? " selected" : ""}>${esc(f.name)}</option>`).join("");
-    const card = p => `<div class="prj-card${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}">
-        ${p.thumbnail ? `<img src="${esc(p.thumbnail)}" alt=""/>` : `<span class="prj-ph">${Icons.svg("building-2")}</span>`}
-        <div class="prj-meta"><b>${esc(p.title)}</b><span class="muted small">${p.rooms || 0} Räume · ${esc(new Date(p.updatedAt).toLocaleDateString("de-DE"))}</span></div>
-        <select class="prj-move" data-mv="${esc(p.id)}" aria-label="In Ordner verschieben">${folderOpts(p.folderId)}</select>
-        <button class="prj-del" data-del="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("x")}</button>
-      </div>`;
-    const grid = list => `<div class="prj-grid">${list.map(card).join("") || '<div class="muted small" style="grid-column:1/-1;padding:4px">leer</div>'}</div>`;
-    let html = folders.map(f => `<details class="prj-folder" open><summary>${Icons.svg("folder")} <b>${esc(f.name)}</b><button class="link fld-del" data-fdel="${esc(f.id)}" aria-label="Ordner entfernen">${Icons.svg("x")}</button></summary>${grid(projects.filter(p => p.folderId === f.id))}</details>`).join("");
-    const loose = projects.filter(p => !p.folderId);
-    if (loose.length) html += grid(loose);
-    box.innerHTML = html;
-    $$(".prj-card[data-open]", box).forEach(c => c.onclick = e => { if (e.target.closest(".prj-del") || e.target.closest(".prj-move")) return; loadAndWalk(c.dataset.open); });
-    $$(".prj-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); if (confirm("Dieses Projekt löschen?")) window.Projects.remove(b.dataset.del); });
-    $$(".fld-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); e.preventDefault(); window.Projects.removeFolder(b.dataset.fdel); });
-    $$(".prj-move", box).forEach(s => { s.onclick = e => e.stopPropagation(); s.onchange = e => { e.stopPropagation(); window.Projects.moveProject(s.dataset.mv, s.value); }; });
+    const subFolders = pid => folders.filter(f => (f.parentId || null) === pid);
+    const subProjects = pid => projects.filter(p => (p.folderId || null) === pid);
+    function projectRow(p, depth) {
+      return `<div class="tree-row tree-project${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}" draggable="true" style="padding-left:${depth * 16 + 34}px" title="${esc(p.title)} — ${p.rooms || 0} Räume">
+        ${p.thumbnail ? `<img class="tree-thumb" src="${esc(p.thumbnail)}" alt=""/>` : Icons.svg("building-2")}
+        <span class="tree-name">${esc(p.title)}</span><span class="tree-sub muted small">${p.rooms || 0}</span>
+        <span class="tree-acts">
+          <button class="tree-act" data-rnp="${esc(p.id)}" aria-label="Projekt umbenennen">${Icons.svg("square-pen")}</button>
+          <button class="tree-act" data-delp="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("trash-2")}</button>
+        </span></div>`;
+    }
+    function folderRow(f, depth) {
+      const has = subFolders(f.id).length + subProjects(f.id).length > 0;
+      const open = openFolders.has(f.id);
+      let h = `<div class="tree-row tree-folder" data-fid="${esc(f.id)}" data-drop="${esc(f.id)}" draggable="true" style="padding-left:${depth * 16 + 6}px">
+        <button class="tree-caret${has ? "" : " is-empty"}" data-toggle="${esc(f.id)}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${Icons.svg(open ? "chevron-down" : "chevron-right")}</button>
+        ${Icons.svg("folder")}<span class="tree-name">${esc(f.name)}</span>
+        <span class="tree-acts">
+          <button class="tree-act" data-addsub="${esc(f.id)}" aria-label="Unterordner anlegen">${Icons.svg("folder-plus")}</button>
+          <button class="tree-act" data-rnf="${esc(f.id)}" aria-label="Ordner umbenennen">${Icons.svg("square-pen")}</button>
+          <button class="tree-act" data-delf="${esc(f.id)}" aria-label="Ordner entfernen">${Icons.svg("trash-2")}</button>
+        </span></div>`;
+      if (open) {
+        h += '<div class="tree-children">';
+        subFolders(f.id).forEach(c => h += folderRow(c, depth + 1));
+        subProjects(f.id).forEach(p => h += projectRow(p, depth));
+        if (!has) h += `<div class="tree-empty" style="padding-left:${(depth + 1) * 16 + 34}px">leer — Projekt hierher ziehen</div>`;
+        h += '</div>';
+      }
+      return h;
+    }
+    let html = "";
+    subFolders(null).forEach(f => html += folderRow(f, 0));
+    subProjects(null).forEach(p => html += projectRow(p, 0));
+    box.innerHTML = `<div class="tree-root" data-drop="">${html}</div>`;
+
+    const P = window.Projects, stop = e => e.stopPropagation();
+    $$(".tree-caret[data-toggle]", box).forEach(b => b.onclick = e => { stop(e); const id = b.dataset.toggle; openFolders.has(id) ? openFolders.delete(id) : openFolders.add(id); renderProjects(); });
+    $$(".tree-folder", box).forEach(r => r.onclick = e => { if (e.target.closest(".tree-act") || e.target.closest(".tree-caret")) return; const id = r.dataset.fid; openFolders.has(id) ? openFolders.delete(id) : openFolders.add(id); renderProjects(); });
+    $$(".tree-project[data-open]", box).forEach(r => r.onclick = e => { if (e.target.closest(".tree-act")) return; loadAndWalk(r.dataset.open); });
+    $$("[data-addsub]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Name des Unterordners:"); if (n && n.trim()) { openFolders.add(b.dataset.addsub); P.addFolder(n.trim(), b.dataset.addsub); } });
+    $$("[data-rnf]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Ordner umbenennen:"); if (n && n.trim()) P.renameFolder(b.dataset.rnf, n.trim()); });
+    $$("[data-delf]", box).forEach(b => b.onclick = e => { stop(e); if (confirm("Ordner entfernen? (Projekte darin bleiben erhalten)")) P.removeFolder(b.dataset.delf); });
+    $$("[data-rnp]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Projekt umbenennen:"); if (n && n.trim()) P.renameProject(b.dataset.rnp, n.trim()); });
+    $$("[data-delp]", box).forEach(b => b.onclick = e => { stop(e); if (confirm("Dieses Projekt löschen?")) P.remove(b.dataset.delp); });
+    $$("[draggable]", box).forEach(r => r.ondragstart = e => { stop(e); e.dataTransfer.setData("text/plain", r.dataset.fid || r.dataset.open); e.dataTransfer.effectAllowed = "move"; });
+    $$("[data-drop]", box).forEach(t => {
+      t.ondragover = e => { e.preventDefault(); t.classList.add("drop-over"); };
+      t.ondragleave = () => t.classList.remove("drop-over");
+      t.ondrop = e => { e.preventDefault(); stop(e); t.classList.remove("drop-over"); const id = e.dataTransfer.getData("text/plain"); const target = t.dataset.drop || null; if (id && id !== target) P.moveNode(id, target); };
+    });
   }
   $("#projSave").onclick = saveProject;
   $("#projOpen").onclick = openProject;

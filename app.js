@@ -20,6 +20,7 @@
   let tourReady = false, tourSrc = "text", tourPhotoImg = null;
   let lastPlan = null, projectTitle = "Unbenanntes Projekt";   // Projekt-State
   let tourPos = [];   // {x,y} je Raum für die Mini-Karte (aus Grundriss-map; sonst Grid-Fallback)
+  const openFolders = new Set();   // aufgeklappte Ordner im Projektbaum (UI-State)
 
   /* ---------- Toast ---------- */
   function toast(msg, kind) {
@@ -672,28 +673,63 @@ Regeln:
     const curId = window.Projects.current();
     const hint = $("#projHint");
     if (hint) hint.textContent = (window.Store && window.Store.persistent())
-      ? "Automatisch im Browser gespeichert. Tipp: für Backup/Weitergabe zusätzlich exportieren."
+      ? "Pfeil = auf/zu · Projekt anklicken = begehen · Symbole = umbenennen/löschen · per Drag&Drop in Ordner ziehen. Automatisch gespeichert."
       : "Achtung: dauerhaftes Speichern hier nicht möglich (file://) — bitte exportieren.";
     if (!projects.length && !folders.length) {
       box.innerHTML = '<div class="empty">Noch keine Projekte. Bau im <b>KI-Studio → „Wohnung aus Grundriss"</b> eine Wohnung — sie erscheint dann automatisch hier und ist jederzeit wieder begehbar.</div>';
       return;
     }
-    const folderOpts = sel => '<option value="">— ohne Ordner —</option>' + folders.map(f => `<option value="${esc(f.id)}"${sel === f.id ? " selected" : ""}>${esc(f.name)}</option>`).join("");
-    const card = p => `<div class="prj-card${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}">
-        ${p.thumbnail ? `<img src="${esc(p.thumbnail)}" alt=""/>` : `<span class="prj-ph">${Icons.svg("building-2")}</span>`}
-        <div class="prj-meta"><b>${esc(p.title)}</b><span class="muted small">${p.rooms || 0} Räume · ${esc(new Date(p.updatedAt).toLocaleDateString("de-DE"))}</span></div>
-        <select class="prj-move" data-mv="${esc(p.id)}" aria-label="In Ordner verschieben">${folderOpts(p.folderId)}</select>
-        <button class="prj-del" data-del="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("x")}</button>
-      </div>`;
-    const grid = list => `<div class="prj-grid">${list.map(card).join("") || '<div class="muted small" style="grid-column:1/-1;padding:4px">leer</div>'}</div>`;
-    let html = folders.map(f => `<details class="prj-folder" open><summary>${Icons.svg("folder")} <b>${esc(f.name)}</b><button class="link fld-del" data-fdel="${esc(f.id)}" aria-label="Ordner entfernen">${Icons.svg("x")}</button></summary>${grid(projects.filter(p => p.folderId === f.id))}</details>`).join("");
-    const loose = projects.filter(p => !p.folderId);
-    if (loose.length) html += grid(loose);
-    box.innerHTML = html;
-    $$(".prj-card[data-open]", box).forEach(c => c.onclick = e => { if (e.target.closest(".prj-del") || e.target.closest(".prj-move")) return; loadAndWalk(c.dataset.open); });
-    $$(".prj-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); if (confirm("Dieses Projekt löschen?")) window.Projects.remove(b.dataset.del); });
-    $$(".fld-del", box).forEach(b => b.onclick = e => { e.stopPropagation(); e.preventDefault(); window.Projects.removeFolder(b.dataset.fdel); });
-    $$(".prj-move", box).forEach(s => { s.onclick = e => e.stopPropagation(); s.onchange = e => { e.stopPropagation(); window.Projects.moveProject(s.dataset.mv, s.value); }; });
+    const subFolders = pid => folders.filter(f => (f.parentId || null) === pid);
+    const subProjects = pid => projects.filter(p => (p.folderId || null) === pid);
+    function projectRow(p, depth) {
+      return `<div class="tree-row tree-project${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}" draggable="true" style="padding-left:${depth * 16 + 34}px" title="${esc(p.title)} — ${p.rooms || 0} Räume">
+        ${p.thumbnail ? `<img class="tree-thumb" src="${esc(p.thumbnail)}" alt=""/>` : Icons.svg("building-2")}
+        <span class="tree-name">${esc(p.title)}</span><span class="tree-sub muted small">${p.rooms || 0}</span>
+        <span class="tree-acts">
+          <button class="tree-act" data-rnp="${esc(p.id)}" aria-label="Projekt umbenennen">${Icons.svg("square-pen")}</button>
+          <button class="tree-act" data-delp="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("trash-2")}</button>
+        </span></div>`;
+    }
+    function folderRow(f, depth) {
+      const has = subFolders(f.id).length + subProjects(f.id).length > 0;
+      const open = openFolders.has(f.id);
+      let h = `<div class="tree-row tree-folder" data-fid="${esc(f.id)}" data-drop="${esc(f.id)}" draggable="true" style="padding-left:${depth * 16 + 6}px">
+        <button class="tree-caret${has ? "" : " is-empty"}" data-toggle="${esc(f.id)}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${Icons.svg(open ? "chevron-down" : "chevron-right")}</button>
+        ${Icons.svg("folder")}<span class="tree-name">${esc(f.name)}</span>
+        <span class="tree-acts">
+          <button class="tree-act" data-addsub="${esc(f.id)}" aria-label="Unterordner anlegen">${Icons.svg("folder-plus")}</button>
+          <button class="tree-act" data-rnf="${esc(f.id)}" aria-label="Ordner umbenennen">${Icons.svg("square-pen")}</button>
+          <button class="tree-act" data-delf="${esc(f.id)}" aria-label="Ordner entfernen">${Icons.svg("trash-2")}</button>
+        </span></div>`;
+      if (open) {
+        h += '<div class="tree-children">';
+        subFolders(f.id).forEach(c => h += folderRow(c, depth + 1));
+        subProjects(f.id).forEach(p => h += projectRow(p, depth));
+        if (!has) h += `<div class="tree-empty" style="padding-left:${(depth + 1) * 16 + 34}px">leer — Projekt hierher ziehen</div>`;
+        h += '</div>';
+      }
+      return h;
+    }
+    let html = "";
+    subFolders(null).forEach(f => html += folderRow(f, 0));
+    subProjects(null).forEach(p => html += projectRow(p, 0));
+    box.innerHTML = `<div class="tree-root" data-drop="">${html}</div>`;
+
+    const P = window.Projects, stop = e => e.stopPropagation();
+    $$(".tree-caret[data-toggle]", box).forEach(b => b.onclick = e => { stop(e); const id = b.dataset.toggle; openFolders.has(id) ? openFolders.delete(id) : openFolders.add(id); renderProjects(); });
+    $$(".tree-folder", box).forEach(r => r.onclick = e => { if (e.target.closest(".tree-act") || e.target.closest(".tree-caret")) return; const id = r.dataset.fid; openFolders.has(id) ? openFolders.delete(id) : openFolders.add(id); renderProjects(); });
+    $$(".tree-project[data-open]", box).forEach(r => r.onclick = e => { if (e.target.closest(".tree-act")) return; loadAndWalk(r.dataset.open); });
+    $$("[data-addsub]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Name des Unterordners:"); if (n && n.trim()) { openFolders.add(b.dataset.addsub); P.addFolder(n.trim(), b.dataset.addsub); } });
+    $$("[data-rnf]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Ordner umbenennen:"); if (n && n.trim()) P.renameFolder(b.dataset.rnf, n.trim()); });
+    $$("[data-delf]", box).forEach(b => b.onclick = e => { stop(e); if (confirm("Ordner entfernen? (Projekte darin bleiben erhalten)")) P.removeFolder(b.dataset.delf); });
+    $$("[data-rnp]", box).forEach(b => b.onclick = e => { stop(e); const n = prompt("Projekt umbenennen:"); if (n && n.trim()) P.renameProject(b.dataset.rnp, n.trim()); });
+    $$("[data-delp]", box).forEach(b => b.onclick = e => { stop(e); if (confirm("Dieses Projekt löschen?")) P.remove(b.dataset.delp); });
+    $$("[draggable]", box).forEach(r => r.ondragstart = e => { stop(e); e.dataTransfer.setData("text/plain", r.dataset.fid || r.dataset.open); e.dataTransfer.effectAllowed = "move"; });
+    $$("[data-drop]", box).forEach(t => {
+      t.ondragover = e => { e.preventDefault(); t.classList.add("drop-over"); };
+      t.ondragleave = () => t.classList.remove("drop-over");
+      t.ondrop = e => { e.preventDefault(); stop(e); t.classList.remove("drop-over"); const id = e.dataTransfer.getData("text/plain"); const target = t.dataset.drop || null; if (id && id !== target) P.moveNode(id, target); };
+    });
   }
   $("#projSave").onclick = saveProject;
   $("#projOpen").onclick = openProject;

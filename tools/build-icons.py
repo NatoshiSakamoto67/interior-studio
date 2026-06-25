@@ -27,6 +27,8 @@ ICONS = [
     "shopping-cart", "gauge", "info", "sofa", "door-open", "house",
     "circle-help", "triangle-alert", "eye", "mouse-pointer-click", "usb",
     "share-2", "file-down", "folder", "camera", "settings",
+    # Projektbaum
+    "chevron-right", "chevron-down", "folder-plus", "square-pen", "trash-2",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
