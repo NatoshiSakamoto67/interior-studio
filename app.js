@@ -631,44 +631,59 @@ Regeln:
     { src: "examples/style-luxury-office.png", t: "Light-Luxury-Office", s: "Text → Bild" }
   ];
   function renderHelp() {
+    const I = (n, o) => (window.Icons ? Icons.svg(n, o) : "");
     const ex = EXAMPLES.map(e => `<div class="ex" data-p="${e.p.replace(/"/g, "&quot;")}"><b>${e.t}</b><span>${e.p.slice(0, 70)}…</span></div>`).join("");
     const gal = GALLERY.map(g => `<figure class="shot"><img loading="lazy" src="${g.src}" alt="${g.t}"/><figcaption><b>${g.t}</b><span>${g.s}</span></figcaption></figure>`).join("");
     $("#helpContent").innerHTML = `
       <span class="eyebrow">Anleitung</span>
       <h2>Interior Studio — so funktioniert's</h2>
-      <p>Zwei Module: <b>Bilder erzeugen/redesignen</b> (Nano Banana) und die <b>Begehung</b> — ein 360°-Panorama, in dem man sich frei umsieht, mit klickbaren Möbel-Pins. Kein Server, kein Konto — dein Gemini-Key bleibt nur in deinem Browser.</p>
+      <p>Drei Dinge in einem Werkzeug: <b>Bilder erzeugen &amp; Räume redesignen</b> (Nano Banana / Gemini), aus einem <b>Grundriss eine begehbare Wohnung</b> bauen (Claude plant, Gemini rendert), und darin <b>Möbel verorten</b> mit automatischer Einkaufsliste &amp; Budget. Kein Server, kein Konto — deine Keys bleiben nur in deinem Browser (BYOK).</p>
 
       <h3>Beispiele — direkt mit diesem Tool erzeugt</h3>
       <div class="ba">
         <figure class="shot ba-fig"><img loading="lazy" src="examples/before-empty.png" alt="Vorher: leerer Raum"/><figcaption><b>Vorher</b><span>Leeres Foto</span></figcaption></figure>
-        <div class="ba-arrow" aria-hidden="true">→</div>
+        <div class="ba-arrow">${I("arrow-right")}</div>
         <figure class="shot ba-fig"><img loading="lazy" src="examples/after-midcentury.png" alt="Nachher: Mid-Century redesignt"/><figcaption><b>Nachher</b><span>„Raum redesignen" · Mid-Century</span></figcaption></figure>
       </div>
       <p class="muted">Gleicher Raum, gleiche Kamera — Wände, Fenster und Boden bleiben, nur eingerichtet.</p>
       <div class="shots">${gal}</div>
 
-      <h3>1) Einmal einrichten</h3>
-      <ol><li>Oben rechts auf <b>🔑 Key</b>.</li><li>Key bei <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> holen, einfügen, speichern. (Bildgenerierung benötigt aktiviertes Billing im Google-Cloud-Projekt.)</li></ol>
+      <h3>1) Einmal einrichten — zwei Schlüssel</h3>
+      <ol>
+        <li>Oben rechts auf <b>${I("key")} Key</b>.</li>
+        <li><b>Gemini-Key</b> (für die Bilder) bei <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> holen. Die Bildgenerierung braucht ein Google-Cloud-Projekt mit aktiviertem Billing.</li>
+        <li><b>Claude-Key</b> (für das Lesen von Grundrissen &amp; das Planen der Wohnung) bei <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. Beide Keys bleiben nur lokal in deinem Browser.</li>
+      </ol>
 
-      <h3>2) Bilder erzeugen oder Raum redesignen</h3>
-      <p>Im <b>KI-Studio</b>: „Bild erzeugen" für neue Räume/Website-Bilder, oder „Raum redesignen" → eigenes Foto hochladen + Anweisung. Stil-Vorlagen anklicken, 🎤 zum Diktieren. Jedes Ergebnis hat einen Button <b>🧭 Als Begehung</b>.</p>
+      <h3>2) ${I("building-2")} Wohnung aus Grundriss — das Herzstück</h3>
+      <p>Im <b>KI-Studio</b> den Modus <b>„Wohnung aus Grundriss"</b> wählen (oder den Tab <b>${I("building-2")} Architekt</b>). Lade ein Foto/Scan deines <b>Grundrisses</b> hoch und beschreibe den gewünschten Stil (z. B. „moderne Luxus-Ästhetik, Marmor, Messing, indirekte Beleuchtung"). Claude liest den Plan, legt die <b>tatsächlichen Räume</b> an (1:1 nach Aufteilung &amp; Türen) und rendert pro Raum ein 360°-Panorama — am Ende ist alles <b>begehbar</b>. Ohne Grundriss reicht auch eine reine Beschreibung.</p>
+
+      <h3>3) Einzelne Bilder erzeugen oder einen Raum redesignen</h3>
+      <p>Im <b>KI-Studio</b>: <b>„Bild erzeugen"</b> für neue Räume/Website-Bilder, oder <b>„Raum redesignen"</b> → eigenes Foto hochladen + Anweisung (Wände/Fenster bleiben, nur neu eingerichtet). Stil-Vorlagen anklicken, ${I("mic")} zum Diktieren. Jedes Ergebnis hat einen Button <b>${I("compass")} Als Begehung</b>.</p>
       <div class="ex-grid">${ex}</div>
       <p class="muted">Klick eine Vorlage, um sie ins Studio zu laden.</p>
 
-      <h3>3) Begehung — im Raum umsehen</h3>
-      <p>Im Tab <b>Begehung</b> einen <b>Panorama-Standort</b> erzeugen (aus Text, einem Raumfoto oder einem KI-Studio-Bild). Dann <b>ziehen zum Umsehen</b>, Scroll zum Zoomen, <b>↻ Auto-Drehung</b> für die Präsentation. Mit <b>＋ Nächster Standort</b> erzeugt Nano Banana eine konsistente Folge-Ansicht zum „Weitergehen". <b>⛶ Vollbild</b> für die volle Wirkung (Esc = raus).</p>
+      <h3>4) ${I("compass")} Begehung — im Raum umsehen</h3>
+      <p><b>Ziehen</b> zum Umsehen, <b>Scroll</b> zum Zoomen, <b>${I("rotate-cw")} Auto-Drehung</b> für die Präsentation, <b>${I("footprints")} Schritt vorwärts</b> für den nächsten Standort, <b>${I("maximize")} Vollbild</b> (Esc = raus). Tipp: <b>${I("play")} Demo-Begehung</b> läuft sofort ohne Key.</p>
 
-      <h3>4) Möbel verorten → Einkaufsliste</h3>
-      <p><b>📍 Pin setzen</b> → ins Panorama tippen, wo ein Möbel steht → Produkt aus dem Katalog wählen. Es erscheint als Pin und als <b>Spec-Card</b> (Maße, Material, Farbe, Lieferant, Lieferzeit, Preis). „+ Einkaufsliste" summiert gegen dein <b>Budget</b> (Ampel).</p>
+      <h3>5) ${I("map-pin")} Möbel verorten → ${I("shopping-cart")} Einkaufsliste</h3>
+      <p><b>${I("map-pin")} Pin setzen</b> → ins Panorama tippen, wo ein Möbel steht → Produkt aus dem Katalog wählen. Es erscheint als Pin und als <b>Spec-Card</b> (Maße, Material, Farbe, Lieferant, Lieferzeit, Preis) und summiert in der <b>Einkaufsliste</b> gegen dein ${I("gauge")} <b>Budget</b> (Ampel). Eigene Kataloge (JSON/CSV) lädst du im Tab <b>${I("library")} Kataloge</b>.</p>
 
-      <h3>Selber weiterbauen</h3>
+      <h3>6) ${I("save")} Projekt sichern &amp; ${I("share-2")} teilen</h3>
       <ul>
-        <li><code>catalog.js</code> — Möbel, Maße, Preise, Lieferanten (erscheinen im Produkt-Picker beim Pin-Setzen).</li>
-        <li><code>catalog.js → STYLES</code> — eigene Stil-Vorlagen.</li>
-        <li><code>tour.js</code> — Panorama-Begehung: Kugel-Mapping, Standort-Übergänge, Pins.</li>
-        <li><code>banana.js</code> — Bild-API (Modell/Parameter); Panorama nutzt <code>aspectRatio 21:9</code>.</li>
+        <li><b>Speichern:</b> Tab <b>${I("folders")} Projekte</b> → <b>${I("save")} Projekt speichern</b> legt eine selbsttragende <code>.studio.json</code> an (Räume, Pins, Einkaufsliste, Budget). Jederzeit wieder öffnen — auch auf einem anderen Rechner.</li>
+        <li><b>Als EINE Datei verschicken:</b> <code>dist/Interior-Studio.html</code> enthält alles in sich (Code, Bilder, Demo). Per WhatsApp/Mail/USB verschicken — Empfänger öffnet sie per <b>Doppelklick</b> und trägt eigene Keys ein. (Neu bauen: <code>python3 tools/build-single.py</code>.)</li>
       </ul>
-      <div class="note">📦 <b>Auf USB weitergeben:</b> ganzen Ordner kopieren. Empfänger öffnet <code>index.html</code> (oder <code>START.command</code>/<code>START-Windows.bat</code>) im Chrome/Edge, trägt seinen eigenen Gemini-Key ein — fertig. (Internet nur für die Bildgenerierung nötig.)</div>`;
+
+      <div class="note">${I("triangle-alert")} <b>Ehrlich, was es (noch) nicht ist:</b> Die Begehung ist eine <b>360°-Panorama-Tour</b> — du siehst dich um und springst Raum für Raum, läufst aber noch nicht frei wie in einem Spiel (echtes 6DoF-3D ist als nächster Schritt geplant). KI-Bilder sind <b>nicht maßstabstreu</b> — gut für Stil &amp; Wirkung, nicht für exakte Maße. Beim Öffnen als Einzeldatei (file://) merkt sich Safari die Keys teils nicht über Neustarts — einfach erneut eintragen.</div>
+
+      <h3>Für Entwickler — selber weiterbauen</h3>
+      <ul>
+        <li><code>icons.js</code> — Icon-Set (Lucide, offline). Neu bauen: <code>python3 tools/build-icons.py</code>.</li>
+        <li><code>catalog.js</code> / <code>catalogs.js</code> — Produktdaten &amp; Import (Picker beim Pin-Setzen, Einkaufsliste).</li>
+        <li><code>tour.js</code> — Panorama-Begehung: Kugel-Mapping, Standort-Übergänge, Pins.</li>
+        <li><code>app.js</code> — Orchestrierung; <code>banana.js</code> (Gemini-Bild), <code>claude.js</code> (Anthropic-Plan).</li>
+      </ul>`;
     $$("#helpContent .ex").forEach(c => c.onclick = () => { $("#prompt").value = c.dataset.p; showTab("studio"); $("#prompt").focus(); toast("Prompt geladen."); });
   }
 

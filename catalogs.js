@@ -104,11 +104,16 @@
 
   /* ---------- API ---------- */
   async function loadBuiltins() {
+    const inj = window.__IS_BUILTIN_CATALOGS__;   // vom Einzeldatei-Build injiziert (fetch scheitert unter file://)
     for (const id of BUILTINS) {
       try {
-        const r = await fetch("examples/catalogs/" + id + ".json");
-        if (!r.ok) continue;
-        const cat = normalizeCatalog(await r.json(), true);
+        let env = inj && inj[id];
+        if (!env) {
+          const r = await fetch("examples/catalogs/" + id + ".json");
+          if (!r.ok) continue;
+          env = await r.json();
+        }
+        const cat = normalizeCatalog(env, true);
         if (!catalogs.find(c => c.id === cat.id)) catalogs.push(cat);
       } catch {}
     }
