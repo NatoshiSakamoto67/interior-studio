@@ -64,11 +64,21 @@
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
     $$("#studioMode .seg-b").forEach(x => x.classList.remove("is-active")); b.classList.add("is-active");
     mode = b.dataset.mode;
-    $("#uploadFld").hidden = mode !== "redesign";
-    $("#promptLabel").textContent = mode === "redesign" ? "Anweisung" : "Beschreibung / Stil";
-    $("#prompt").placeholder = mode === "redesign"
-      ? "z. B. Gestalte diesen Raum wie ein Profi-Interior-Designer: Japandi, helle Eiche, das Fenster behalten."
-      : "z. B. Modernes Wohnzimmer, helle Eiche, warmes Licht, große Fenster, skandinavisch …";
+    const isApt = mode === "apartment";
+    $("#uploadFld").hidden = !(mode === "redesign" || isApt);
+    if ($("#uploadLabel")) $("#uploadLabel").textContent = isApt ? "Grundriss hochladen (optional)" : "Raumfoto hochladen";
+    if ($("#studioParams")) $("#studioParams").hidden = isApt;   // Format/Auflösung steuert die Wohnung-Pipeline selbst
+    $("#promptLabel").textContent = isApt ? "Stil & Wünsche für die ganze Wohnung"
+      : (mode === "redesign" ? "Anweisung" : "Beschreibung / Stil");
+    $("#prompt").placeholder = isApt
+      ? "z. B. moderne Luxus-Ästhetik, Marmor, Messingakzente, indirekte Beleuchtung — mit Grundriss baut Claude die Räume 1:1 nach"
+      : mode === "redesign"
+        ? "z. B. Gestalte diesen Raum wie ein Profi-Interior-Designer: Japandi, helle Eiche, das Fenster behalten."
+        : "z. B. Modernes Wohnzimmer, helle Eiche, warmes Licht, große Fenster, skandinavisch …";
+    $("#genBtn").innerHTML = isApt ? Icons.svg("building-2") + " Wohnung bauen & begehen" : Icons.svg("sparkles") + " Erzeugen";
+    $("#genHint").textContent = isApt
+      ? "Claude liest den Grundriss → plant die Räume → rendert pro Raum ein 360°-Panorama → begehbare Wohnung."
+      : "Nutzt Nano Banana 2 (Gemini). Dauer ~5–20 s.";
   });
   (window.STYLES || []).forEach(s => {
     const c = document.createElement("button"); c.className = "chip"; c.textContent = s.k;
@@ -83,6 +93,7 @@
   };
 
   $("#genBtn").onclick = async () => {
+    if (mode === "apartment") return buildApartment($("#prompt").value.trim(), redesignImg);
     const prompt = $("#prompt").value.trim();
     if (!prompt) return toast("Bitte zuerst eine Beschreibung eingeben.");
     if (!IS.key) return openKey();
@@ -377,28 +388,39 @@
     } catch (e) { busy.className = "chat-msg err"; busy.textContent = e.message; }
   }
 
-  const PLAN_SYS = `Du bist der Orchestrierungs-Architekt von "Interior Studio". Aus Beschreibung und/oder Grundrissbild planst du eine begehbare Wohnung oder Büroetage.
+  const PLAN_SYS = `Du bist der Orchestrierungs-Architekt von "Interior Studio". Aus Beschreibung und/oder GRUNDRISSBILD planst du eine begehbare Wohnung oder Büroetage.
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text drumherum. Schema:
 {"title":"kurzer Titel","intro":"1-2 Sätze Deutsch, was du gebaut hast","style":"gemeinsamer Einrichtungsstil",
  "rooms":[{"id":"kurz_eindeutig","name":"Anzeigename Deutsch","prompt":"Englischer Prompt für ein fotorealistisches EQUIRECTANGULAR 360 Panorama dieses Raums; Fenster und Türen passend zum Grundriss; IDENTISCHER Boden, Stil und Lichtstimmung über ALLE Räume","neighbors":["id"],"map":{"x":0.0,"y":0.0}}]}
-Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B als Nachbar hat, hat B auch A). Alle Räume teilen denselben Einrichtungsstil. map = Position im Grundriss, x und y zwischen 0 und 1 (0,0 = oben links).`;
+Regeln:
+- WENN ein Grundriss-Bild vorliegt: lies es GENAU. Verwende die TATSÄCHLICH eingezeichneten Räume — exakte Anzahl und Namen aus der Zeichnung (z. B. "Wohnküche","Schlafzimmer","Bad","Flur","Diele","Balkon"). Erfinde KEINE zusätzlichen Räume und lasse keinen weg. neighbors = Räume, die laut Plan durch Tür/Durchgang verbunden sind. map.x/map.y = Position des Raums im Grundriss (0..1, 0,0 = oben links), maßstäblich zur Zeichnung.
+- OHNE Grundriss: plane 4 bis 7 sinnvolle, verbundene Räume.
+- neighbors müssen GEGENSEITIG konsistent sein (hat A B als Nachbar, hat B auch A).
+- Arbeite den vom Nutzer gewünschten Stil/Materialien/Licht in JEDEN room.prompt ein, damit alle Räume EINHEITLICH wirken (gleicher Boden, gleiche Wandfarbe, gleiche Lichtstimmung).`;
 
-  $("#buildApt").onclick = buildApartment;
-  async function buildApartment() {
+  $("#buildApt").onclick = () => buildApartment($("#chatText").value.trim(), planImg);
+  function setBuildBusy(on) {
+    [$("#buildApt"), $("#chatSend"), $("#genBtn")].forEach(b => { if (b) b.disabled = on; });
+  }
+  async function buildApartment(briefText, planImage) {
+    if (typeof briefText !== "string") briefText = $("#chatText").value.trim();
+    if (planImage === undefined) planImage = planImg;
     if (!IS.ckey) { toast("Claude-Key fehlt (Schlüssel-Symbol oben rechts)."); return openKey(); }
     if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
-    const text = $("#chatText").value.trim();
-    $("#buildApt").disabled = true; $("#chatSend").disabled = true;
+    const text = briefText;
+    setBuildBusy(true);
     const status = chatPush(Icons.svg("brain") + " Claude liest den Plan …", "bot");
     try {
-      const planTxt = await window.Claude.call({ system: PLAN_SYS, content: window.Claude.content(text || "Plane eine schöne Beispiel-Wohnung.", planImg), maxTokens: 4096 });
+      const brief = text ? `Wunsch/Stil des Nutzers (in JEDEN room.prompt einarbeiten): ${text}` : "Plane eine schöne, realistische Beispiel-Wohnung.";
+      const planTxt = await window.Claude.call({ system: PLAN_SYS, content: window.Claude.content(brief, planImage), maxTokens: 4096 });
       const plan = window.Claude.parseJSON(planTxt);
       if (!plan.rooms || !plan.rooms.length) throw new Error("Kein Raum-Plan erhalten.");
       lastPlan = plan; projectTitle = plan.title || projectTitle;
       status.innerHTML = Icons.svg("brain") + ` Plan: <b>${esc(plan.title || "Wohnung")}</b> — ${plan.rooms.length} Räume. Ich rendere sie nacheinander …`;
       renderPlanView(plan, -1);
       ensureTour();
-      const nodes = []; let prevInline = planImg;
+      showTab("walk");                 // Fortschritt (Lade-Overlay + Räume) sofort sichtbar — egal ob aus Studio oder Architekt gestartet
+      const nodes = []; let prevInline = null;   // Grundriss ist Strichzeichnung → NICHT als Render-Referenz; Räume verketten sich für Stil-Konsistenz
       for (let i = 0; i < plan.rooms.length; i++) {
         const r = plan.rooms[i];
         renderPlanView(plan, i);
@@ -426,7 +448,8 @@ Regeln: 4 bis 7 Räume. neighbors müssen gegenseitig konsistent sein (wenn A B 
     } catch (e) {
       status.className = "chat-msg err"; status.textContent = "Fehler: " + (e.message || "unbekannt");
       window.Tour.setLoading(false);
-    } finally { $("#buildApt").disabled = false; $("#chatSend").disabled = false; }
+      toast("Wohnung bauen fehlgeschlagen: " + (e.message || "unbekannt"), "err");
+    } finally { setBuildBusy(false); }
   }
   function renderPlanView(plan, doneUpto) {
     $("#planView").innerHTML = `<div class="plan-title">${esc(plan.title || "Wohnung")}</div>

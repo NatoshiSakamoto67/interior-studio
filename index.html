@@ -63,10 +63,11 @@
           <div class="seg" id="studioMode">
             <button class="seg-b is-active" data-mode="generate">Bild erzeugen</button>
             <button class="seg-b" data-mode="redesign">Raum redesignen</button>
+            <button class="seg-b" data-mode="apartment">Wohnung aus Grundriss</button>
           </div>
 
           <label class="fld" id="uploadFld" hidden>
-            <span>Raumfoto hochladen</span>
+            <span id="uploadLabel">Raumfoto hochladen</span>
             <input type="file" id="roomFile" accept="image/png,image/jpeg,image/webp" />
             <div class="thumb" id="roomThumb" hidden><img alt="Raumfoto" /></div>
           </label>
@@ -79,7 +80,7 @@
           <span class="eyebrow">Stil-Vorlagen</span>
           <div class="chips" id="styleChips"></div>
 
-          <div class="row2">
+          <div class="row2" id="studioParams">
             <label class="fld"><span>Format</span>
               <select id="aspect">
                 <option value="16:9">16:9 (quer)</option>
