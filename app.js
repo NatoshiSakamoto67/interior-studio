@@ -386,7 +386,7 @@
     const dots = here.map(p => `<g class="mm-room${p.i === cur ? " is-cur" : ""}" data-i="${p.i}"><circle cx="${pos[p.i].x.toFixed(1)}" cy="${pos[p.i].y.toFixed(1)}" r="${p.i === cur ? 5 : 3.6}"></circle><title>${esc(st[p.i].label || ("Raum " + (p.i + 1)))}</title></g>`).join("");
     const svg = `<svg viewBox="0 0 100 100" role="img" aria-label="Etagen-Karte ${esc(floorLabel(curFloor))} — du bist in: ${esc((st[cur] && st[cur].label) || "")}"><g class="mm-lines">${lines}</g><g class="mm-stairs">${stairs}</g>${dots}</svg>`;
     let switcher = "";
-    if (floors.length > 1) switcher = `<div class="mm-floors">${floors.slice().reverse().map(f => `<button class="mm-floor${f === curFloor ? " on" : ""}" data-floor="${f}" title="${esc(floorLabel(f))}">${esc(floorLabel(f))}</button>`).join("")}</div>`;
+    if (floors.length > 1) switcher = `<div class="mm-floors">${floors.slice().reverse().map(f => `<button class="mm-floor${f === curFloor ? " on" : ""}" data-floor="${f}" aria-pressed="${f === curFloor}" title="Etage ${esc(floorLabel(f))}">${esc(floorLabel(f))}</button>`).join("")}</div>`;
     box.innerHTML = switcher + svg;
     $$(".mm-room", box).forEach(g => g.onclick = () => { const i = parseInt(g.dataset.i, 10); if (i !== window.Tour.index()) window.Tour.go(i, { dolly: true }); });
     $$(".mm-floor", box).forEach(b => b.onclick = () => { curFloor = parseInt(b.dataset.floor, 10); renderMiniMap(); });
@@ -669,6 +669,7 @@ Regeln:
   }
   let saveTimer = null;
   function scheduleSave() { if (!window.Projects || !window.Tour || !window.Tour.count()) return; clearTimeout(saveTimer); saveTimer = setTimeout(autoSaveFull, 2500); }
+  function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } autoSaveFull(); }   // beim Verlassen sofort sichern
   async function autoSaveFull() {
     if (!window.Projects || !window.Tour || !window.Tour.count()) return;
     try {
@@ -697,11 +698,13 @@ Regeln:
     }
     const subFolders = pid => folders.filter(f => (f.parentId || null) === pid);
     const subProjects = pid => projects.filter(p => (p.folderId || null) === pid);
+    const folderOpts = sel => '<option value="">— Ordner wählen —</option>' + folders.map(f => `<option value="${esc(f.id)}"${sel === f.id ? " selected" : ""}>${esc(f.name)}</option>`).join("");
     function projectRow(p, depth) {
-      return `<div class="tree-row tree-project${p.id === curId ? " is-cur" : ""}" data-open="${esc(p.id)}" draggable="true" style="padding-left:${depth * 16 + 34}px" title="${esc(p.title)} — ${p.rooms || 0} Räume">
+      return `<div class="tree-row tree-project${p.id === curId ? " is-cur" : ""}" role="treeitem" tabindex="0" data-open="${esc(p.id)}" draggable="true" style="padding-left:${depth * 16 + 34}px" title="${esc(p.title)} — ${p.rooms || 0} Räume">
         ${p.thumbnail ? `<img class="tree-thumb" src="${esc(p.thumbnail)}" alt=""/>` : Icons.svg("building-2")}
         <span class="tree-name">${esc(p.title)}</span><span class="tree-sub muted small">${p.rooms || 0}</span>
         <span class="tree-acts">
+          ${folders.length ? `<select class="tree-move" data-mvp="${esc(p.id)}" aria-label="In Ordner verschieben">${folderOpts(p.folderId)}</select>` : ""}
           <button class="tree-act" data-rnp="${esc(p.id)}" aria-label="Projekt umbenennen">${Icons.svg("square-pen")}</button>
           <button class="tree-act" data-delp="${esc(p.id)}" aria-label="Projekt löschen">${Icons.svg("trash-2")}</button>
         </span></div>`;
@@ -709,7 +712,7 @@ Regeln:
     function folderRow(f, depth) {
       const has = subFolders(f.id).length + subProjects(f.id).length > 0;
       const open = openFolders.has(f.id);
-      let h = `<div class="tree-row tree-folder" data-fid="${esc(f.id)}" data-drop="${esc(f.id)}" draggable="true" style="padding-left:${depth * 16 + 6}px">
+      let h = `<div class="tree-row tree-folder" role="treeitem" tabindex="0" aria-expanded="${open}" data-fid="${esc(f.id)}" data-drop="${esc(f.id)}" draggable="true" style="padding-left:${depth * 16 + 6}px">
         <button class="tree-caret${has ? "" : " is-empty"}" data-toggle="${esc(f.id)}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${Icons.svg(open ? "chevron-down" : "chevron-right")}</button>
         ${Icons.svg("folder")}<span class="tree-name">${esc(f.name)}</span>
         <span class="tree-acts">
@@ -746,6 +749,13 @@ Regeln:
       t.ondragleave = () => t.classList.remove("drop-over");
       t.ondrop = e => { e.preventDefault(); stop(e); t.classList.remove("drop-over"); const id = e.dataTransfer.getData("text/plain"); const target = t.dataset.drop || null; if (id && id !== target) P.moveNode(id, target); };
     });
+    // Tastatur-Bedienung (WCAG 2.1.1): Enter/Space aktiviert die Zeile, Pfeile klappen Ordner auf/zu
+    $$(".tree-row", box).forEach(r => r.onkeydown = e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.click(); }
+      else if (r.classList.contains("tree-folder")) { const id = r.dataset.fid; if (e.key === "ArrowRight" && !openFolders.has(id)) { e.preventDefault(); openFolders.add(id); renderProjects(); } else if (e.key === "ArrowLeft" && openFolders.has(id)) { e.preventDefault(); openFolders.delete(id); renderProjects(); } }
+    });
+    // Verschieben ohne Drag&Drop (WCAG 2.5.7): Ordner-Auswahl pro Projekt
+    $$(".tree-move", box).forEach(s => { s.onclick = e => e.stopPropagation(); s.onkeydown = e => e.stopPropagation(); s.onchange = e => { e.stopPropagation(); P.moveProject(s.dataset.mvp, s.value); }; });
   }
   $("#projSave").onclick = saveProject;
   $("#projOpen").onclick = openProject;
@@ -769,12 +779,12 @@ Regeln:
         <img loading="lazy" src="${esc(it.thumb)}" alt="${esc((it.prompt || "").slice(0, 60))}"/>
         <figcaption><span class="gal-kind">${esc(it.kind)}</span><span class="muted small">${esc(new Date(it.createdAt).toLocaleDateString("de-DE"))}</span></figcaption>
         <div class="gal-acts">
-          <button class="btn btn-ghost" data-use="${esc(it.id)}" title="Als Begehung verwenden">${Icons.svg("compass")}</button>
-          <button class="btn btn-ghost" data-dl="${esc(it.id)}" title="Herunterladen">${Icons.svg("download")}</button>
-          <button class="btn btn-ghost" data-del="${esc(it.id)}" title="Löschen">${Icons.svg("trash-2")}</button>
+          <button class="btn btn-ghost" data-use="${esc(it.id)}" aria-label="Als Begehung verwenden" title="Als Begehung verwenden">${Icons.svg("compass")}</button>
+          <button class="btn btn-ghost" data-dl="${esc(it.id)}" aria-label="Herunterladen" title="Herunterladen">${Icons.svg("download")}</button>
+          <button class="btn btn-ghost" data-del="${esc(it.id)}" aria-label="Bild löschen" title="Löschen">${Icons.svg("trash-2")}</button>
         </div></figure>`).join("");
     $$("[data-use]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.use); if (it) startTourFromImage(it.full, it.prompt); });
-    $$("[data-dl]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.dl); if (it) { const a = document.createElement("a"); a.href = it.full; a.download = "interior-" + it.id + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); } });
+    $$("[data-dl]", box).forEach(b => b.onclick = async () => { const it = await window.Gallery.get(b.dataset.dl); if (it && /^data:image\//.test(it.full || "")) { const a = document.createElement("a"); a.href = it.full; a.download = "interior-" + it.id + ".jpg"; document.body.appendChild(a); a.click(); a.remove(); } });
     $$("[data-del]", box).forEach(b => b.onclick = () => { if (confirm("Bild löschen?")) window.Gallery.remove(b.dataset.del); });
   }
   $$("#galFilter .seg-b").forEach(b => b.onclick = () => {
@@ -929,6 +939,15 @@ Regeln:
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
-  if (window.Projects) { window.Projects.onChange(renderProjects); window.Projects.init(); } else { renderProjects(); }
+  if (window.Projects) {
+    window.Projects.onChange(renderProjects);
+    window.Projects.init().then(() => {
+      const id = window.Projects.current();   // zuletzt offenes Projekt beim Laden automatisch wieder aufmachen → „nichts verschwunden"
+      if (id) window.Projects.load(id).then(b => { if (b) { try { restoreProject(b); } catch (e) {} } });
+    });
+  } else { renderProjects(); }
   if (window.Gallery) window.Gallery.onChange(renderGallery);
+  // Beim Tab-Wechsel/Schließen ausstehende Speicherung sofort flushen — auch wenn der 2,5-s-Timer noch nicht lief
+  window.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
+  window.addEventListener("pagehide", flushSave);
 })();

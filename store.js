@@ -26,7 +26,7 @@
 
   async function os(store, mode) {
     const db = await open();
-    if (!db) return null;
+    if (!db || usingMem) return null;   // sobald EIN Write in den Memory-Fallback ging, ALLES aus Memory lesen (kein Split-State → kein stiller Daten-Rückfall)
     try { return db.transaction(store, mode).objectStore(store); }
     catch (e) { usingMem = true; return null; }
   }

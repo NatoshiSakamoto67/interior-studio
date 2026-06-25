@@ -64,17 +64,17 @@
 
   function startNew() { currentId = null; }   // nächster save() legt ein NEUES Projekt an
 
-  function addFolder(name, parentId) {
+  async function addFolder(name, parentId) {
     const f = { id: uid("fld"), name: name || "Ordner", parentId: parentId || null };
-    folders.push(f); persistMeta(); emit(); return f.id;
+    folders.push(f); await persistMeta(); emit(); return f.id;
   }
-  function renameFolder(id, name) { const f = folders.find(x => x.id === id); if (f) { f.name = name || f.name; persistMeta(); emit(); } }
-  function removeFolder(id) {
+  async function renameFolder(id, name) { const f = folders.find(x => x.id === id); if (f) { f.name = name || f.name; await persistMeta(); emit(); } }
+  async function removeFolder(id) {
     folders = folders.filter(f => f.id !== id);
     index.forEach(r => { if (r.folderId === id) r.folderId = null; });   // Projekte nicht löschen, nur lösen
-    persistMeta(); emit();
+    await persistMeta(); emit();
   }
-  function moveProject(id, folderId) { const r = index.find(x => x.id === id); if (r) { r.folderId = folderId || null; persistMeta(); emit(); } }
+  async function moveProject(id, folderId) { const r = index.find(x => x.id === id); if (r) { r.folderId = folderId || null; await persistMeta(); emit(); } }
   async function renameProject(id, title) {
     title = (title || "").trim(); if (!title) return;
     const r = index.find(x => x.id === id); if (r) r.title = title;
@@ -87,9 +87,9 @@
     while (f) { if (f.id === folderId) return true; f = folders.find(x => x.id === f.parentId); }
     return false;
   }
-  function reparentFolder(id, parentId) {
+  async function reparentFolder(id, parentId) {
     if (id === parentId || (parentId && isDescendant(id, parentId))) return;   // kein Zyklus
-    const f = folders.find(x => x.id === id); if (f) { f.parentId = parentId || null; persistMeta(); emit(); }
+    const f = folders.find(x => x.id === id); if (f) { f.parentId = parentId || null; await persistMeta(); emit(); }
   }
   function moveNode(dragId, targetFolderId) {              // Drag&Drop: Ordner ODER Projekt verschieben
     if (folders.find(f => f.id === dragId)) reparentFolder(dragId, targetFolderId);

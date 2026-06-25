@@ -118,8 +118,9 @@ input[type=file]{font-size:12px;color:var(--muted)}
 .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tree-sub{flex:none}
 .tree-thumb{width:32px;height:18px;object-fit:cover;border-radius:3px;background:#000;flex:none;border:1px solid var(--line)}
-.tree-acts{display:none;gap:2px;flex:none}
-.tree-row:hover .tree-acts{display:inline-flex}
+.tree-acts{display:none;gap:2px;flex:none;align-items:center}
+.tree-row:hover .tree-acts,.tree-row:focus-within .tree-acts{display:inline-flex}
+.tree-move{font-size:11px;padding:3px 5px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:var(--muted);max-width:120px}
 .tree-act{background:none;border:none;color:var(--faint);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex}
 .tree-act:hover{background:var(--line);color:var(--accent)}
 .tree-act .icon{width:.95em;height:.95em}

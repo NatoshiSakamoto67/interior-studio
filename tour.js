@@ -14,6 +14,8 @@
   let downX = 0, downY = 0, moved = 0;
 
   function el(t, c) { const e = document.createElement(t); if (c) e.className = c; return e; }
+  let navGen = 0;   // Generationszähler gegen Navigations-Race (zwei schnelle Dolly-Übergänge)
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
   function init(container, opts = {}) {
     if (inited) return;
@@ -107,15 +109,15 @@
     // Möbel-Pins
     (node.pins || []).forEach((pin, i) => {
       const b = el("button", "pin");
-      b.innerHTML = `<span class="pin-dot"></span><span class="pin-lbl">${pin.item.tag}</span>`;
-      b.title = pin.item.name.replace(/„|"/g, "");
+      b.innerHTML = `<span class="pin-dot"></span><span class="pin-lbl">${esc(pin.item.tag)}</span>`;
+      b.title = String(pin.item.name || "").replace(/„|"/g, "");
       b.onclick = ev => { ev.stopPropagation(); onPick && onPick(pin.item, { nodeIdx: nodes.indexOf(node), pinIdx: i }); };
       node._hs.push(cont.createHotspot(b, { yaw: pin.yaw, pitch: pin.pitch }));
     });
     // Navigations-Pfeile (Boden) → in anderen Raum gehen
     (node.links || []).forEach(link => {
       const a = el("button", "nav-hotspot");
-      a.innerHTML = `<span class="nav-ic">›</span><span class="nav-lbl">${link.label || nodes[link.to] && nodes[link.to].label || "weiter"}</span>`;
+      a.innerHTML = `<span class="nav-ic">›</span><span class="nav-lbl">${esc(link.label || (nodes[link.to] && nodes[link.to].label) || "weiter")}</span>`;
       a.onclick = ev => { ev.stopPropagation(); go(link.to, { dolly: true, fromYaw: link.yaw }); };
       node._hs.push(cont.createHotspot(a, { yaw: link.yaw, pitch: link.pitch != null ? link.pitch : 0.55 },
         { perspective: { radius: 1400, extraTransforms: "rotateX(86deg)" } }));
@@ -139,12 +141,14 @@
   }
   function go(i, opts = {}) {
     if (i < 0 || i >= nodes.length) return;
+    const gen = ++navGen;
     const n = nodes[i]; if (!n._scene) buildScene(n);
     const cur = nodes[idx], dolly = opts.dolly && cur && cur._view && n._view && !rotating;
     if (dolly) {
       // Street-View-Gefühl: zur Tür drehen + reinzoomen → Cross-Fade → in der neuen Szene FOV aufziehen.
       const v = cur._view, nv = n._view;
       tweenView(v, { yaw: opts.fromYaw != null ? opts.fromYaw : v.yaw(), fov: Math.max(FOV_MIN, v.fov() * 0.6) }, 250, () => {
+        if (gen !== navGen) return;   // eine neuere Navigation hat übernommen → diesen Übergang verwerfen
         if (opts.fromYaw != null) nv.setYaw(opts.fromYaw);
         nv.setFov(Math.max(FOV_MIN, FOV_DEF * 0.72));
         n._scene.switchTo({ transitionDuration: 520 }, () => tweenView(nv, { fov: FOV_DEF }, 430));
