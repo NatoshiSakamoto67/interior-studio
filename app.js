@@ -424,10 +424,17 @@
 
   /* ---------- 3D-Modell (Phase 2: echtes Begehen aus dem Grundriss) ---------- */
   function current3DPlan() {
-    if (lastPlan && lastPlan.rooms && lastPlan.rooms.length) return lastPlan;
     const st = window.Tour ? window.Tour.stations() : [];
+    // Panorama je Raum finden (für die echte Farbpalette im 3D): erst per Index, dann per id.
+    const imgFor = (room, i) => {
+      if (st[i] && st[i].id === room.id && st[i].img) return st[i].img;
+      const m = st.find(s => s.id === room.id);
+      return (m && m.img) || (st[i] && st[i].img) || null;
+    };
+    if (lastPlan && lastPlan.rooms && lastPlan.rooms.length)
+      return { ...lastPlan, rooms: lastPlan.rooms.map((r, i) => ({ ...r, img: r.img || imgFor(r, i) })) };
     if (!st.length) return null;
-    return { rooms: st.map((nd, i) => ({ id: nd.id || ("r" + i), name: nd.label, neighbors: (nd.links || []).map(l => (st[l.to] && st[l.to].id) || ("r" + l.to)), box: tourPos[i] ? { x: tourPos[i].x, y: tourPos[i].y, w: tourPos[i].w, h: tourPos[i].h } : null, floor: tourPos[i] ? tourPos[i].floor : 0 })) };
+    return { rooms: st.map((nd, i) => ({ id: nd.id || ("r" + i), name: nd.label, neighbors: (nd.links || []).map(l => (st[l.to] && st[l.to].id) || ("r" + l.to)), box: tourPos[i] ? { x: tourPos[i].x, y: tourPos[i].y, w: tourPos[i].w, h: tourPos[i].h } : null, floor: tourPos[i] ? tourPos[i].floor : 0, img: nd.img })) };
   }
   function setView(v) {
     const m3d = $("#model3dHost");

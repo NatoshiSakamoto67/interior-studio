@@ -34,6 +34,25 @@
     g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
   }
 
+  /* Echte Farbpalette aus dem 360°-Panorama des Raums ziehen (winziges 64×32-Canvas, danach verworfen
+     → kein GL-Texturspeicher, keine Crash-Gefahr). Unteres Band = Boden, Horizont-Band = Wände. */
+  function packRGB(a) { return (Math.round(a[0]) << 16) | (Math.round(a[1]) << 8) | Math.round(a[2]); }
+  function lighten(a, amt) { return [a[0] + (255 - a[0]) * amt, a[1] + (255 - a[1]) * amt, a[2] + (255 - a[2]) * amt]; }
+  function sampleColors(url, cb) {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const w = 64, h = 32, cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        const ctx = cv.getContext("2d"); ctx.drawImage(im, 0, 0, w, h);
+        const d = ctx.getImageData(0, 0, w, h).data;
+        const band = (y0, y1) => { let r = 0, g = 0, b = 0, n = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } return [r / n, g / n, b / n]; };
+        cb({ floor: packRGB(band(Math.floor(h * 0.74), h)), wall: packRGB(lighten(band(Math.floor(h * 0.30), Math.floor(h * 0.60)), 0.22)) });
+      } catch (e) { cb(null); }
+    };
+    im.onerror = () => cb(null);
+    im.src = url;
+  }
+
   function deriveBoxes(rooms) {
     const ok = rooms.length && rooms.every(r => r.box && [r.box.x, r.box.y, r.box.w, r.box.h].every(v => isFinite(v)) && r.box.w > 0 && r.box.h > 0);
     if (ok) return rooms.map(r => ({ x: +r.box.x, y: +r.box.y, w: +r.box.w, h: +r.box.h }));
@@ -66,8 +85,15 @@
       const x = cx(b, f), z = cz(b, f);
       minX = Math.min(minX, x - w / 2); maxX = Math.max(maxX, x + w / 2);
       minZ = Math.min(minZ, z - dch / 2); maxZ = Math.max(maxZ, z + dch / 2);
+      // Material: bei vorhandenem KI-Bild eigene, aus dem Panorama gefärbte Materialien — sonst Standard
+      let rFloorMat = floorMat, rWallMat = wallMat;
+      if (r.img) {
+        rFloorMat = new T.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.95 });
+        rWallMat = new T.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.9 });
+        sampleColors(r.img, c => { if (c) { rFloorMat.color.setHex(c.floor); rWallMat.color.setHex(c.wall); } });
+      }
       // Boden
-      const floorMesh = new T.Mesh(new T.BoxGeometry(w, 0.1, dch), floorMat);
+      const floorMesh = new T.Mesh(new T.BoxGeometry(w, 0.1, dch), rFloorMat);
       floorMesh.position.set(x, 0, z); group.add(floorMesh);
       // verbundene Nachbarn → offene Seite (Tür)
       const open = { n: false, s: false, e: false, w: false };
@@ -78,7 +104,7 @@
         if (Math.abs(dx) >= Math.abs(dz)) (dx > 0 ? open.e = true : open.w = true);
         else (dz > 0 ? open.s = true : open.n = true);
       });
-      const addWall = (sw, sh, px, pz) => { const m = new T.Mesh(new T.BoxGeometry(sw, WALL_H, sh), wallMat); m.position.set(px, WALL_H / 2, pz); group.add(m); };
+      const addWall = (sw, sh, px, pz) => { const m = new T.Mesh(new T.BoxGeometry(sw, WALL_H, sh), rWallMat); m.position.set(px, WALL_H / 2, pz); group.add(m); };
       if (!open.n) addWall(w, WALL_T, x, z - dch / 2);
       if (!open.s) addWall(w, WALL_T, x, z + dch / 2);
       if (!open.w) addWall(WALL_T, dch, x - w / 2, z);
