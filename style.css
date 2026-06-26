@@ -431,3 +431,57 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus,input[type=numb
   .gallery>.card,.gallery-grid>.gal-card,.plan-rooms>li,.pick-grid>.pick,.kat-list>.kat-card{animation:none}
   .btn-accent:hover:not(:disabled){transform:none}
 }
+
+/* ============================================================
+   MODERN PASS — kühles Tiefschwarz, Glas-Chrome, geometrische Sans.
+   Creative-Tool-Ästhetik (Linear/Figma/Vercel-Denkrichtung). Additiv,
+   spätere Regeln gewinnen → kein Umbau der Basis nötig.
+   ============================================================ */
+:root{
+  --bg:#0c0c0f; --panel:#16161b; --panel2:#1e1e25; --line:#2b2b34;
+  --accent:#e3a06f; --accent-d:#c9824d; --accent2:#9cc4ac;
+  --radius:16px; --r-sm:11px;
+  --shadow:0 26px 64px -24px rgba(0,0,0,.72);
+  --glass:rgba(23,23,29,.6); --glass-line:rgba(255,255,255,.085); --ring:rgba(227,160,111,.34);
+  --font-display:"SF Pro Display","Helvetica Neue",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+/* Kühlere Bühne mit dezenter Akzent-Aura statt flachem Dunkel */
+body{background:
+  radial-gradient(82% 56% at 80% -10%, rgba(227,160,111,.11), transparent 60%),
+  radial-gradient(70% 50% at 6% 2%, rgba(156,196,172,.055), transparent 55%),
+  var(--bg)}
+/* Korn etwas zurücknehmen — modern = ruhiger */
+body::before{opacity:.04}
+
+/* — Glas-Chrome: Header + Seitenspalten + schwebende Overlays (mit -webkit-Präfix für Safari!) — */
+.top{background:rgba(13,13,17,.66);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid var(--glass-line)}
+.controls,.walk-side,.arch-plan,.arch-chat{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border-color:var(--glass-line)}
+.modal{background:rgba(8,8,11,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal-card{-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);background:rgba(22,22,28,.82);border-color:var(--glass-line)}
+.view-toggle,.minimap{-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}
+
+/* — Geometrische Sans-Headlines: größer, straffer, schwerer (kein Serif mehr) — */
+.brand-txt strong{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;font-size:16px}
+.proj-head h2,.arch-head h2,.gal-head h2,.kat-head h2,.help h2{
+  font-family:var(--font-display);font-weight:700;letter-spacing:-.034em;line-height:1.05;
+  font-size:clamp(1.7rem,1.18rem+2vw,2.55rem)}
+.help h3{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em}
+.eyebrow{letter-spacing:.14em;color:var(--accent2)}
+.arch-head h2,.kat-head h2,.proj-head h2{margin-bottom:2px}
+
+/* — Flächen: translucent + Haarlinie statt mattem Block (Karten ohne Blur → Safari-Performance) — */
+.card,.gal-card,.cart,.spec,.pin-tools,.kat-card,.proj-card,.seg,.plan-rooms li,.chat-msg.bot,.modal-sep{border-color:var(--glass-line)}
+.card,.gal-card,.cart,.spec,.pin-tools,.kat-card,.proj-card,.chat-msg.bot{background:rgba(255,255,255,.035)}
+.seg{background:rgba(255,255,255,.04)}
+
+/* — Eingaben & Buttons: klarer, moderner, mit Akzent-Ring — */
+textarea,input[type=text],input[type=password],input[type=number],input[type=search],select{
+  background:rgba(255,255,255,.045);border-color:var(--glass-line);border-radius:var(--r-sm)}
+.btn{border-color:var(--glass-line)}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.seg-b.is-active{box-shadow:0 3px 12px -3px var(--ring)}
+.brand-mark{border-radius:13px;box-shadow:0 6px 18px -6px var(--ring),inset 0 1px 0 rgba(255,255,255,.25)}
+
+/* — Aktiver Tab als Glas-Pille statt nur Strich (zeitgemäßer) — */
+.tab.is-active{background:rgba(255,255,255,.06);border-color:var(--glass-line)}
+.tab.is-active::after{left:14px;right:14px;height:2px;bottom:4px;border-radius:2px}
