@@ -95,6 +95,13 @@
           <span class="eyebrow">Stil-Vorlagen</span>
           <div class="chips" id="styleChips"></div>
 
+          <label class="fld"><span>Bild-Engine</span>
+            <select id="imgProvider">
+              <option value="gemini">Nano Banana (Gemini)</option>
+              <option value="openai">ChatGPT (OpenAI · gpt-image-1)</option>
+            </select>
+          </label>
+
           <div class="row2" id="studioParams">
             <label class="fld"><span>Format</span>
               <select id="aspect">
@@ -361,6 +368,16 @@
         </select>
       </label>
 
+      <hr class="modal-sep" />
+      <p class="muted small"><b>ChatGPT (OpenAI)</b> — optionale zweite Bild-Engine (oft sehr hohe Qualität). Key von <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>, bleibt nur lokal im Browser.</p>
+      <label class="fld"><span>OpenAI-Key</span>
+        <input type="password" id="okeyInput" placeholder="sk-…" autocomplete="off" />
+      </label>
+      <label class="fld"><span>Bild-Modell (OpenAI)</span>
+        <input type="text" id="omodelInput" value="gpt-image-1" />
+        <small class="muted">Standard: <code>gpt-image-1</code> (höchste Qualität).</small>
+      </label>
+
       <div class="row2">
         <button class="btn btn-accent" id="keySave">Speichern</button>
         <button class="btn btn-ghost" id="keyForget">Keys entfernen</button>
@@ -388,6 +405,8 @@
   <script src="catalog.js"></script>
   <script src="catalogs.js"></script>
   <script src="banana.js"></script>
+  <script src="openai.js"></script>
+  <script src="imagegen.js"></script>
   <script src="claude.js"></script>
   <script src="project.js"></script>
   <script src="store.js"></script>

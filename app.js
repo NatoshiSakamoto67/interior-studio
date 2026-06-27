@@ -14,7 +14,9 @@
   let savedModel = store.get("is_model");
   if (!savedModel || savedModel === "gemini-2.5-flash-image") savedModel = NANO_BANANA; // auf das stärkere Modell migrieren
   window.IS = { key: store.get("is_key") || "", model: savedModel,
-    ckey: store.get("is_ckey") || "", cmodel: store.get("is_cmodel") || "claude-opus-4-8", gallery: [] };
+    ckey: store.get("is_ckey") || "", cmodel: store.get("is_cmodel") || "claude-opus-4-8",
+    okey: store.get("is_okey") || "", omodel: store.get("is_omodel") || "gpt-image-1",
+    imgProvider: store.get("is_imgprov") || "gemini", gallery: [] };
 
   let mode = "generate", redesignImg = null;   // KI-Studio
   let tourReady = false, tourSrc = "text", tourPhotoImg = null;
@@ -64,7 +66,7 @@
 
   /* ---------- Key ---------- */
   function refreshKeyState() {
-    const ok = !!IS.key;
+    const ok = !!IS.key || !!IS.okey;
     $("#keyState").innerHTML = ok ? 'Key ' + Icons.svg("check", { cls: "ic-ok" }) : "Key";
     $("#openKey").classList.toggle("ok", ok);
     $("#needkey").hidden = ok;
@@ -72,6 +74,7 @@
   function openKey() {
     $("#keyInput").value = IS.key; $("#modelInput").value = IS.model;
     $("#ckeyInput").value = IS.ckey; $("#cmodelInput").value = IS.cmodel;
+    $("#okeyInput").value = IS.okey; $("#omodelInput").value = IS.omodel;
     openModal("keyModal");
   }
   $("#openKey").onclick = openKey; $("#needkeyBtn").onclick = openKey;
@@ -80,12 +83,14 @@
   $("#keySave").onclick = () => {
     IS.key = $("#keyInput").value.trim(); IS.model = $("#modelInput").value.trim() || IS.model;
     IS.ckey = $("#ckeyInput").value.trim(); IS.cmodel = $("#cmodelInput").value || IS.cmodel;
+    IS.okey = $("#okeyInput").value.trim(); IS.omodel = $("#omodelInput").value.trim() || IS.omodel;
     store.set("is_key", IS.key); store.set("is_model", IS.model);
     store.set("is_ckey", IS.ckey); store.set("is_cmodel", IS.cmodel);
+    store.set("is_okey", IS.okey); store.set("is_omodel", IS.omodel);
     closeModal("keyModal"); refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
   };
   $("#keyForget").onclick = () => {
-    IS.key = ""; IS.ckey = ""; store.del("is_key"); store.del("is_ckey");
+    IS.key = ""; IS.ckey = ""; IS.okey = ""; store.del("is_key"); store.del("is_ckey"); store.del("is_okey");
     refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
   };
 
@@ -141,12 +146,12 @@
     if (mode === "apartment") return buildApartment($("#prompt").value.trim(), redesignImg);
     const prompt = $("#prompt").value.trim();
     if (!prompt) return toast("Bitte zuerst eine Beschreibung eingeben.");
-    if (!IS.key) return openKey();
+    if (!window.ImageGen.activeKeyOk()) return openKey();
     if (mode === "redesign" && !redesignImg) return toast("Bitte ein Raumfoto hochladen.");
     const card = addBusyCard();
     $("#genBtn").disabled = true; $("#genBtn").innerHTML = Icons.svg("loader-circle", { cls: "spin" }) + " Erzeuge …";
     try {
-      const res = await window.Banana.generate({
+      const res = await window.ImageGen.generate({
         prompt, aspect: $("#aspect").value, resolution: $("#resolution").value,
         images: mode === "redesign" && redesignImg ? [redesignImg] : []
       });
@@ -269,11 +274,11 @@
 
   async function generateStation({ prompt, refImg, label, linkFrom }) {
     ensureTour();
-    if (!IS.key) { openKey(); return; }
+    if (!window.ImageGen.activeKeyOk()) { openKey(); return; }
     setTourBusy(true);
     window.Tour.setLoading(true, "Nano Banana rendert dein Panorama … (~8–20 s)");
     try {
-      const res = await window.Banana.generate({
+      const res = await window.ImageGen.generate({
         prompt: equirectPrompt(prompt), aspect: "21:9", resolution: "2K",
         images: refImg ? [refImg] : []
       });
@@ -579,7 +584,7 @@ Regeln:
     if (typeof briefText !== "string") briefText = $("#chatText").value.trim();
     if (planImage === undefined) planImage = planImg;
     if (!IS.ckey) { toast("Claude-Key fehlt (Schlüssel-Symbol oben rechts)."); return openKey(); }
-    if (!IS.key) { toast("Gemini-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
+    if (!window.ImageGen.activeKeyOk()) { toast(window.ImageGen.activeLabel() + "-Key fehlt fürs Rendern (Schlüssel-Symbol oben rechts)."); return openKey(); }
     const text = briefText;
     if (window.Projects) window.Projects.startNew();   // jeder Bau = neues Projekt im Baum
     setBuildBusy(true);
@@ -601,7 +606,7 @@ Regeln:
         renderPlanView(plan, i);
         buildBar(`Raum ${i + 1}/${plan.rooms.length} wird gerendert: ${r.name || ""} …`);
         try {
-          const res = await window.Banana.generate({
+          const res = await window.ImageGen.generate({
             prompt: (r.prompt || r.name) + " Equirectangular 360 degree panorama, seamless, photorealistic, horizon centered.",
             aspect: "21:9", resolution: "2K", images: prevInline ? [prevInline] : []
           });
@@ -1014,6 +1019,14 @@ Regeln:
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
+  // Bild-Engine-Auswahl (Nano Banana / ChatGPT)
+  (function wireImgProvider() {
+    const sel = $("#imgProvider"); if (!sel) return;
+    const hint = () => { const h = $("#genHint"); if (h) h.textContent = IS.imgProvider === "openai" ? "Nutzt ChatGPT (OpenAI · gpt-image-1). ~10–30 s." : "Nutzt Nano Banana 2 (Gemini). ~5–20 s."; };
+    sel.value = IS.imgProvider;
+    sel.onchange = () => { IS.imgProvider = sel.value; store.set("is_imgprov", IS.imgProvider); refreshKeyState(); hint(); };
+    hint();
+  })();
   // Ehrlicher Hinweis bei direktem Öffnen (file://): Safari hält Daten dort nur sitzungsweise.
   (function fileProtocolNotice() {
     const el = $("#fileWarn"); if (!el) return;
