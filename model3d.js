@@ -15,19 +15,51 @@
     host = container;
     if (!T) { host.innerHTML = '<div class="d3-fail">3D-Engine (three.js) nicht geladen.</div>'; return false; }
     if (ready) return true;
-    scene = new T.Scene(); scene.background = new T.Color(0x14131a);
-    scene.fog = new T.Fog(0x14131a, 30, 90);
-    cam = new T.PerspectiveCamera(74, (host.clientWidth || 16) / (host.clientHeight || 9), 0.08, 400);
+    scene = new T.Scene(); scene.background = new T.Color(0x0e0d12);
+    scene.fog = new T.Fog(0x0e0d12, 34, 100);
+    cam = new T.PerspectiveCamera(70, (host.clientWidth || 16) / (host.clientHeight || 9), 0.08, 400);
     cam.position.set(0, EYE, 0);
     renderer = new T.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(host.clientWidth || 800, host.clientHeight || 450);
+    // Filmische Tonwertkompression + sRGB-Ausgabe (alte three-API dieses Vendor-Builds) → keine ausgebrannten Wände
+    renderer.toneMapping = T.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.04;
+    if ("outputEncoding" in renderer && T.sRGBEncoding != null) renderer.outputEncoding = T.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = T.PCFSoftShadowMap;
     host.appendChild(renderer.domElement);
-    scene.add(new T.HemisphereLight(0xffffff, 0x3a3a44, 1.0));
-    const d = new T.DirectionalLight(0xffffff, 0.75); d.position.set(6, 14, 8); scene.add(d);
+    // Warmes Grundlicht (Hemisphere) + gerichtetes „Sonnenlicht" mit weichen Schatten
+    scene.add(new T.HemisphereLight(0xffe9d6, 0x20191c, 0.55));
+    const d = new T.DirectionalLight(0xfff2e6, 1.25);
+    d.position.set(8, 20, 10);
+    d.castShadow = true;
+    d.shadow.mapSize.set(1024, 1024);
+    d.shadow.camera.near = 0.5; d.shadow.camera.far = 220;
+    d.shadow.camera.left = d.shadow.camera.bottom = -40;
+    d.shadow.camera.right = d.shadow.camera.top = 40;
+    d.shadow.bias = -0.0012;
+    scene.add(d);
+    setupEnvironment();
     bindControls();
     ready = true;
     return true;
+  }
+
+  // Indirektes Umgebungslicht (IBL) OHNE externes HDRI (RoomEnvironment fehlt im Vendor-Build):
+  // kleiner Canvas-Gradient → PMREM-Environment. Gibt MeshStandard Spekular-/Umgebungslicht,
+  // sonst wirken die Flächen wie matte Plakatfarbe. Bonus — ohne läuft das 3D weiter.
+  function setupEnvironment() {
+    try {
+      const c = document.createElement("canvas"); c.width = 16; c.height = 64;
+      const g = c.getContext("2d"), grd = g.createLinearGradient(0, 0, 0, 64);
+      grd.addColorStop(0, "#3c3542"); grd.addColorStop(0.5, "#2a2630"); grd.addColorStop(1, "#15131a");
+      g.fillStyle = grd; g.fillRect(0, 0, 16, 64);
+      const tex = new T.CanvasTexture(c); tex.mapping = T.EquirectangularReflectionMapping;
+      const pmrem = new T.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromEquirectangular(tex).texture;
+      tex.dispose(); pmrem.dispose();
+    } catch (e) { /* Environment ist Bonus */ }
   }
 
   function disposeGroup(g) {
@@ -73,8 +105,9 @@
     const floorZ = f => (floors.indexOf(f)) * floorGap;
     const idIndex = {}; rooms.forEach((r, i) => { idIndex[r.id] = i; });
 
-    const floorMat = new T.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.95 });
-    const wallMat = new T.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.9 });
+    const floorMat = new T.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.72, metalness: 0 });
+    const wallMat = new T.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.85, metalness: 0 });
+    const ceilMat = new T.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, metalness: 0 });
     const cx = (b, f) => (b.x + b.w / 2 - 0.5) * SCALE;
     const cz = (b, f) => (b.y + b.h / 2 - 0.5) * SCALE + floorZ(f);
 
@@ -88,13 +121,13 @@
       // Material: bei vorhandenem KI-Bild eigene, aus dem Panorama gefärbte Materialien — sonst Standard
       let rFloorMat = floorMat, rWallMat = wallMat;
       if (r.img) {
-        rFloorMat = new T.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.95 });
-        rWallMat = new T.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.9 });
+        rFloorMat = new T.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.72, metalness: 0 });
+        rWallMat = new T.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.85, metalness: 0 });
         sampleColors(r.img, c => { if (c) { rFloorMat.color.setHex(c.floor); rWallMat.color.setHex(c.wall); } });
       }
       // Boden
       const floorMesh = new T.Mesh(new T.BoxGeometry(w, 0.1, dch), rFloorMat);
-      floorMesh.position.set(x, 0, z); group.add(floorMesh);
+      floorMesh.position.set(x, 0, z); floorMesh.receiveShadow = true; group.add(floorMesh);
       // verbundene Nachbarn → offene Seite (Tür)
       const open = { n: false, s: false, e: false, w: false };
       (r.neighbors || []).forEach(nid => {
@@ -104,14 +137,17 @@
         if (Math.abs(dx) >= Math.abs(dz)) (dx > 0 ? open.e = true : open.w = true);
         else (dz > 0 ? open.s = true : open.n = true);
       });
-      const addWall = (sw, sh, px, pz) => { const m = new T.Mesh(new T.BoxGeometry(sw, WALL_H, sh), rWallMat); m.position.set(px, WALL_H / 2, pz); group.add(m); };
+      const addWall = (sw, sh, px, pz) => { const m = new T.Mesh(new T.BoxGeometry(sw, WALL_H, sh), rWallMat); m.position.set(px, WALL_H / 2, pz); m.castShadow = true; m.receiveShadow = true; group.add(m); };
       if (!open.n) addWall(w, WALL_T, x, z - dch / 2);
       if (!open.s) addWall(w, WALL_T, x, z + dch / 2);
       if (!open.w) addWall(WALL_T, dch, x - w / 2, z);
       if (!open.e) addWall(WALL_T, dch, x + w / 2, z);
-      // Raum-Label
+      // Decke — verhindert den „offener Himmel"-Blick nach oben und schließt den Raum zum echten Innenraum
+      const ceil = new T.Mesh(new T.BoxGeometry(w, 0.1, dch), ceilMat);
+      ceil.position.set(x, WALL_H, z); ceil.receiveShadow = true; group.add(ceil);
+      // Raum-Label auf Augenhöhe (depthTest an → verschwindet hinter Wänden statt durchzuscheinen)
       const label = makeLabel(r.name || ("Raum " + (i + 1)));
-      if (label) { label.position.set(x, WALL_H + 0.5, z); group.add(label); }
+      if (label) { label.position.set(x, WALL_H * 0.62, z); group.add(label); }
     });
     bounds = { minX: minX - 1, maxX: maxX + 1, minZ: minZ - 1, maxZ: maxZ + 1 };
     // Kamera in den ersten Raum
@@ -127,7 +163,7 @@
       g.fillStyle = "#ededf0"; g.font = "bold 30px system-ui,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
       g.fillText(String(text).slice(0, 18), 128, 34);
       const tex = new T.CanvasTexture(c); tex.minFilter = T.LinearFilter;
-      const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+      const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: true, depthWrite: false }));
       sp.scale.set(3.2, 0.8, 1);
       return sp;
     } catch (e) { return null; }
