@@ -12,3 +12,8 @@
 # OS / temp
 Thumbs.db
 *~
+
+# Backend (lokal)
+backend/.venv/
+backend/.env
+backend/__pycache__/
