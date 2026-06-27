@@ -1013,6 +1013,12 @@ Regeln:
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
+  // Ehrlicher Hinweis bei direktem Öffnen (file://): Safari hält Daten dort nur sitzungsweise.
+  (function fileProtocolNotice() {
+    const el = $("#fileWarn"); if (!el) return;
+    if (location.protocol === "file:" && store.get("is_filewarn_seen") !== "1") el.hidden = false;
+    const x = $("#fileWarnX"); if (x) x.onclick = () => { el.hidden = true; store.set("is_filewarn_seen", "1"); };
+  })();
   if (window.Projects) {
     window.Projects.onChange(renderProjects);
     window.Projects.init().then(() => {

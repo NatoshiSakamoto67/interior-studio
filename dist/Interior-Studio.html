@@ -596,9 +596,16 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
 
   <!-- Hinweisbanner ohne Key -->
   <div class="needkey" id="needkey" hidden>
-    Für die Bildgenerierung fehlt noch dein <b>Gemini-API-Key</b> (Nano Banana).
+    Für die volle Funktion brauchst du zwei eigene Schlüssel: <b>Gemini</b> (Bilder &amp; Panoramen) und <b>Claude</b> (Architekt liest Grundrisse).
     <button class="link" id="needkeyBtn">Jetzt eintragen →</button>
-    <span class="muted">Key bei Google AI Studio holen · er bleibt nur in deinem Browser.</span>
+    <span class="muted">Beide bleiben nur lokal im Browser · die Demo-Begehung läuft ganz ohne Key.</span>
+  </div>
+
+  <!-- Hinweis bei direktem Öffnen (file://): keine zuverlässige Persistenz -->
+  <div class="needkey filewarn" id="fileWarn" hidden>
+    <span class="ic" data-icon="triangle-alert"></span>
+    <b>Direkt geöffnet:</b> Projekte werden hier nur für diese Sitzung gehalten. Für dauerhaftes Speichern den <b>Launcher</b> („Interior-Studio-starten") nutzen — oder dein Projekt regelmäßig per <b>Exportieren</b> als <code>.studio.json</code> sichern.
+    <button class="link" id="fileWarnX">verstanden</button>
   </div>
 
   <!-- Globaler Bau-Fortschritt (auf jedem Tab sichtbar) -->
@@ -3374,6 +3381,12 @@ Regeln:
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
   refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
+  // Ehrlicher Hinweis bei direktem Öffnen (file://): Safari hält Daten dort nur sitzungsweise.
+  (function fileProtocolNotice() {
+    const el = $("#fileWarn"); if (!el) return;
+    if (location.protocol === "file:" && store.get("is_filewarn_seen") !== "1") el.hidden = false;
+    const x = $("#fileWarnX"); if (x) x.onclick = () => { el.hidden = true; store.set("is_filewarn_seen", "1"); };
+  })();
   if (window.Projects) {
     window.Projects.onChange(renderProjects);
     window.Projects.init().then(() => {

@@ -1,0 +1,30 @@
+Interior Studio — so startest du das Tool
+==========================================
+
+Zwei Wege, beide funktionieren ohne Internet:
+
+1) SCHNELL ANSCHAUEN  (ohne Speichern)
+   Doppelklick auf:  Interior-Studio.html
+   Öffnet sich im Browser, läuft sofort, die Demo-Begehung braucht
+   keinen Schlüssel. ABER: so werden Projekte nur für die laufende
+   Sitzung gehalten — beim Schließen sind sie weg (Browser-Grenze bei
+   direkt geöffneten Dateien). Projekte über „Exportieren“ als
+   .studio.json sichern.
+
+2) RICHTIG ARBEITEN  (mit dauerhaftem Speichern)  ← empfohlen
+   Doppelklick auf:  Interior-Studio-starten.command
+   Startet einen kleinen lokalen Server und öffnet das Tool in Safari.
+   So bleiben Projekte dauerhaft gespeichert und der „Architekt“
+   (Grundriss lesen) funktioniert zuverlässig.
+
+   Beim ALLERERSTEN Mal warnt macOS evtl. („nicht geprüfter Entwickler“).
+   Dann: Rechtsklick auf die Datei → „Öffnen“ → „Öffnen“. Nur einmal nötig.
+   Das Terminal-Fenster offen lassen — Schließen beendet das Tool.
+
+Eigene KI-Schlüssel (für eigene Bilder & Grundrisse):
+   Oben rechts auf „Key“. Zwei Schlüssel, beide bleiben nur lokal:
+   • Gemini  (Bilder & Panoramen)   — aistudio.google.com/apikey
+   • Claude  (Architekt/Grundriss)  — console.anthropic.com
+   Die Demo-Begehung läuft komplett ohne Schlüssel.
+
+Vision & alle Unterlagen findest du im Tool selbst im Reiter „Unterlagen“.

@@ -113,6 +113,70 @@ def inline_assets(doc: str) -> str:
     return doc
 
 
+LAUNCHER = "Interior-Studio-starten.command"
+READMETXT = "LIESMICH-UEBERGABE.txt"
+
+
+def emit_handover_package() -> None:
+    """Übergabe-Paket neben der Einzeldatei: Launcher (localhost = dauerhaftes Speichern) + LIESMICH."""
+    launcher = (
+        "#!/bin/zsh\n"
+        "# Interior Studio — Start MIT dauerhaftem Speichern (kleiner lokaler Server, kein Internet nötig fürs Tool).\n"
+        'cd "$(dirname "$0")"\n'
+        "PORT=8771\n"
+        'echo "▶ Interior Studio startet auf http://localhost:$PORT …"\n'
+        'echo "  Dieses Fenster bitte offen lassen — Schließen beendet das Tool."\n'
+        "if command -v python3 >/dev/null 2>&1; then\n"
+        "  python3 -m http.server $PORT >/dev/null 2>&1 &\n"
+        "else\n"
+        '  echo "Kein python3 gefunden — öffne die Datei direkt (dann ohne dauerhaftes Speichern)."\n'
+        f'  open "{OUT.name}"; exit 0\n'
+        "fi\n"
+        "SRV=$!\n"
+        "sleep 1\n"
+        f'open -a Safari "http://localhost:$PORT/{OUT.name}" 2>/dev/null || open "http://localhost:$PORT/{OUT.name}"\n'
+        'trap "kill $SRV 2>/dev/null" EXIT\n'
+        "wait $SRV\n"
+    )
+    p = OUT_DIR / LAUNCHER
+    p.write_text(launcher, encoding="utf-8")
+    p.chmod(0o755)
+
+    readme = f"""Interior Studio — so startest du das Tool
+==========================================
+
+Zwei Wege, beide funktionieren ohne Internet:
+
+1) SCHNELL ANSCHAUEN  (ohne Speichern)
+   Doppelklick auf:  {OUT.name}
+   Öffnet sich im Browser, läuft sofort, die Demo-Begehung braucht
+   keinen Schlüssel. ABER: so werden Projekte nur für die laufende
+   Sitzung gehalten — beim Schließen sind sie weg (Browser-Grenze bei
+   direkt geöffneten Dateien). Projekte über „Exportieren“ als
+   .studio.json sichern.
+
+2) RICHTIG ARBEITEN  (mit dauerhaftem Speichern)  ← empfohlen
+   Doppelklick auf:  {LAUNCHER}
+   Startet einen kleinen lokalen Server und öffnet das Tool in Safari.
+   So bleiben Projekte dauerhaft gespeichert und der „Architekt“
+   (Grundriss lesen) funktioniert zuverlässig.
+
+   Beim ALLERERSTEN Mal warnt macOS evtl. („nicht geprüfter Entwickler“).
+   Dann: Rechtsklick auf die Datei → „Öffnen“ → „Öffnen“. Nur einmal nötig.
+   Das Terminal-Fenster offen lassen — Schließen beendet das Tool.
+
+Eigene KI-Schlüssel (für eigene Bilder & Grundrisse):
+   Oben rechts auf „Key“. Zwei Schlüssel, beide bleiben nur lokal:
+   • Gemini  (Bilder & Panoramen)   — aistudio.google.com/apikey
+   • Claude  (Architekt/Grundriss)  — console.anthropic.com
+   Die Demo-Begehung läuft komplett ohne Schlüssel.
+
+Vision & alle Unterlagen findest du im Tool selbst im Reiter „Unterlagen“.
+"""
+    (OUT_DIR / READMETXT).write_text(readme, encoding="utf-8")
+    print(f"  ✓ Übergabe-Paket: {LAUNCHER} (ausführbar) · {READMETXT}")
+
+
 def main() -> int:
     OUT_DIR.mkdir(exist_ok=True)
     html = (ROOT / "index.html").read_text(encoding="utf-8")
@@ -139,6 +203,7 @@ def main() -> int:
         print(f"  ⚠ verbleibende lokale Referenzen ({len(leftover)}): {sorted(set(leftover))[:8]}")
     else:
         print("  ✓ keine lokalen Datei-Referenzen mehr — voll selbsttragend")
+    emit_handover_package()
     return 0
 
 
