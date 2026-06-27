@@ -6,7 +6,8 @@
   function compressImg(url, max = 1600, q = 0.82) {
     return new Promise(res => {
       const im = new Image();
-      im.crossOrigin = "anonymous";
+      // data:-URLs sind same-origin; crossOrigin darauf löst in Safari NotSupportedError aus → Thumbnails brachen
+      if (!/^data:/.test(url)) im.crossOrigin = "anonymous";
       im.onload = () => {
         let w = im.naturalWidth, h = im.naturalHeight;
         if (w > max) { h = Math.round(h * max / w); w = max; }
