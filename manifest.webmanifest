@@ -1,0 +1,16 @@
+{
+  "name": "Interior Studio",
+  "short_name": "Interior Studio",
+  "description": "KI-Raumdesign, begehbare Wohnungen, Möbel & Budget — offline, BYOK.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0c0c0f",
+  "theme_color": "#0c0c0f",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

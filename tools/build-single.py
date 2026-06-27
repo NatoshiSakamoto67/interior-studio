@@ -132,8 +132,10 @@ def emit_handover_package() -> None:
         "# Interior Studio — Start MIT dauerhaftem Speichern (kleiner lokaler Server, kein Internet nötig fürs Tool).\n"
         'cd "$(dirname "$0")"\n'
         "PORT=8771\n"
-        'echo "▶ Interior Studio startet auf http://localhost:$PORT …"\n'
-        'echo "  Dieses Fenster bitte offen lassen — Schließen beendet das Tool."\n'
+        'IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)\n'
+        'echo "▶ Interior Studio läuft — dieses Fenster offen lassen (Schließen beendet das Tool):"\n'
+        f'echo "   Auf diesem Mac:           http://localhost:$PORT/{OUT.name}"\n'
+        f'[ -n "$IP" ] && echo "   Am Handy (gleiches WLAN): http://$IP:$PORT/{OUT.name}"\n'
         "if command -v python3 >/dev/null 2>&1; then\n"
         "  python3 -m http.server $PORT >/dev/null 2>&1 &\n"
         "else\n"
@@ -173,16 +175,36 @@ Zwei Wege, beide funktionieren ohne Internet:
    Dann: Rechtsklick auf die Datei → „Öffnen“ → „Öffnen“. Nur einmal nötig.
    Das Terminal-Fenster offen lassen — Schließen beendet das Tool.
 
+3) AUF DEM HANDY  (gleiches WLAN wie der Mac)
+   Den Launcher (2) auf dem Mac starten — er zeigt eine Zeile
+   „Am Handy: http://192.168.x.x:8771/…". Diese Adresse am Handy im Browser
+   eingeben. Optional dann „Zum Home-Bildschirm" → die App liegt wie eine
+   echte App auf dem Handy, mit Speichern.
+   WICHTIG: Eine Datei direkt vom USB-Stick am Handy zu öffnen funktioniert
+   NICHT — Handy-Browser lassen das aus Sicherheitsgründen nicht zu. Immer
+   über die obige WLAN-Adresse gehen.
+
 Eigene KI-Schlüssel (für eigene Bilder & Grundrisse):
-   Oben rechts auf „Key“. Zwei Schlüssel, beide bleiben nur lokal:
-   • Gemini  (Bilder & Panoramen)   — aistudio.google.com/apikey
-   • Claude  (Architekt/Grundriss)  — console.anthropic.com
+   Oben rechts auf „Key“. Alle bleiben nur lokal im Browser:
+   • Gemini  (Bilder & Panoramen)             — aistudio.google.com/apikey
+   • Claude  (Architekt/Grundriss)            — console.anthropic.com
+   • OpenAI  (optional, oft top Bildqualität) — platform.openai.com/api-keys
    Die Demo-Begehung läuft komplett ohne Schlüssel.
 
 Vision & alle Unterlagen findest du im Tool selbst im Reiter „Unterlagen“.
 """
     (OUT_DIR / READMETXT).write_text(readme, encoding="utf-8")
     print(f"  ✓ Übergabe-Paket: {LAUNCHER} (ausführbar) · {READMETXT}")
+
+
+def strip_pwa(html: str) -> str:
+    """PWA-Datei-Referenzen + SW-Registrierung sind für die SERVER-Version (LAN/Hosting).
+    Im Einzelfile raus halten — sie zeigen auf separate Dateien, die es dort nicht gibt."""
+    html = re.sub(r'\s*<link rel="manifest"[^>]*>', "", html)
+    html = re.sub(r'\s*<link rel="icon"[^>]*>', "", html)
+    html = re.sub(r'\s*<link rel="apple-touch-icon"[^>]*>', "", html)
+    html = re.sub(r"\s*<script>\s*/\* Service Worker.*?</script>", "", html, flags=re.S)
+    return html
 
 
 def main() -> int:
@@ -192,6 +214,7 @@ def main() -> int:
     html = inline_js(html)
     html = inline_assets(html)
     html = inline_json_links(html)
+    html = strip_pwa(html)
 
     banner = (
         f"<!-- Interior Studio — Einzeldatei-Build, generiert {date.today().isoformat()} "

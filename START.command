@@ -3,7 +3,10 @@
 # Doppelklick auf diese Datei (macOS). Startet einen kleinen lokalen Server und öffnet die App.
 cd "$(dirname "$0")"
 PORT=8765
-echo "▶ Interior Studio startet auf http://localhost:$PORT …"
+IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
+echo "▶ Interior Studio läuft:"
+echo "   Auf diesem Mac:           http://localhost:$PORT/index.html"
+[ -n "$IP" ] && echo "   Am Handy (gleiches WLAN): http://$IP:$PORT/index.html  → dort 'Zum Home-Bildschirm'"
 if command -v python3 >/dev/null 2>&1; then
   python3 -m http.server $PORT >/dev/null 2>&1 &
 elif command -v python >/dev/null 2>&1; then

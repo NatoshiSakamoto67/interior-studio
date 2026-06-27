@@ -6,6 +6,15 @@
   <title>Interior Studio — KI-Raumdesign &amp; Begehung</title>
   <meta name="description" content="Räume mit Nano Banana (Gemini) gestalten, als Panorama begehen, Möbel anklicken — alles in einem Tool. BYOK." />
   <link rel="stylesheet" href="style.css" />
+  <!-- PWA / Handy: installierbar via „Zum Home-Bildschirm", Offline im sicheren Kontext -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0c0c0f" />
+  <link rel="icon" href="favicon.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Interior Studio" />
 </head>
 <body>
   <!-- Kopf -->
@@ -432,5 +441,12 @@
   </script>
   <script type="module" src="splatviewer.js"></script>
   <script src="app.js"></script>
+  <script>
+    /* Service Worker nur im sicheren Kontext (https / localhost) → Handy: installierbar & offline.
+       Über LAN-IP (http) nicht aktiv, aber die App läuft dort trotzdem voll (Persistenz via IndexedDB). */
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  </script>
 </body>
 </html>

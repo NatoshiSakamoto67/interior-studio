@@ -21,10 +21,20 @@ Zwei Wege, beide funktionieren ohne Internet:
    Dann: Rechtsklick auf die Datei → „Öffnen“ → „Öffnen“. Nur einmal nötig.
    Das Terminal-Fenster offen lassen — Schließen beendet das Tool.
 
+3) AUF DEM HANDY  (gleiches WLAN wie der Mac)
+   Den Launcher (2) auf dem Mac starten — er zeigt eine Zeile
+   „Am Handy: http://192.168.x.x:8771/…". Diese Adresse am Handy im Browser
+   eingeben. Optional dann „Zum Home-Bildschirm" → die App liegt wie eine
+   echte App auf dem Handy, mit Speichern.
+   WICHTIG: Eine Datei direkt vom USB-Stick am Handy zu öffnen funktioniert
+   NICHT — Handy-Browser lassen das aus Sicherheitsgründen nicht zu. Immer
+   über die obige WLAN-Adresse gehen.
+
 Eigene KI-Schlüssel (für eigene Bilder & Grundrisse):
-   Oben rechts auf „Key“. Zwei Schlüssel, beide bleiben nur lokal:
-   • Gemini  (Bilder & Panoramen)   — aistudio.google.com/apikey
-   • Claude  (Architekt/Grundriss)  — console.anthropic.com
+   Oben rechts auf „Key“. Alle bleiben nur lokal im Browser:
+   • Gemini  (Bilder & Panoramen)             — aistudio.google.com/apikey
+   • Claude  (Architekt/Grundriss)            — console.anthropic.com
+   • OpenAI  (optional, oft top Bildqualität) — platform.openai.com/api-keys
    Die Demo-Begehung läuft komplett ohne Schlüssel.
 
 Vision & alle Unterlagen findest du im Tool selbst im Reiter „Unterlagen“.
