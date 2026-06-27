@@ -99,6 +99,7 @@
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
+    if (name === "docs" && window.Docs) window.Docs.render();
   }
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
 

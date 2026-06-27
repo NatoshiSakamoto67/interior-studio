@@ -24,7 +24,8 @@
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
-      <button class="tab" data-tab="help"><span class="ic" data-icon="book-open"></span> Beispiele &amp; Hilfe</button>
+      <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
+      <button class="tab" data-tab="help"><span class="ic" data-icon="circle-help"></span> Beispiele &amp; Hilfe</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
     <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
@@ -266,6 +267,11 @@
     <section class="panel" data-panel="help">
       <div class="help" id="helpContent"><!-- gefüllt per JS --></div>
     </section>
+
+    <!-- ===================== TAB: UNTERLAGEN ===================== -->
+    <section class="panel" data-panel="docs">
+      <div id="docsRoot" class="docs-wrap"><!-- gefüllt von docs.js --></div>
+    </section>
   </main>
 
   <!-- Key-Modal -->
@@ -329,6 +335,8 @@
   <script src="gallery.js"></script>
   <script src="tour.js"></script>
   <script src="icons.js"></script>
+  <script src="docs-data.js"></script>
+  <script src="docs.js"></script>
   <script src="vendor/three.min.js"></script>
   <script src="model3d.js"></script>
   <script src="app.js"></script>
