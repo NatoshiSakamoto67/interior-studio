@@ -56,7 +56,7 @@
   </div>
 
   <!-- Globaler Bau-Fortschritt (auf jedem Tab sichtbar) -->
-  <div id="buildBar" class="build-bar" hidden></div>
+  <div id="buildBar" class="build-bar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
   <main class="stage">
 
@@ -160,12 +160,12 @@
             <h2>Claude plant deine Wohnung</h2>
             <p class="muted small">Beschreibe eine Wohnung/Büroetage oder lade einen <b>Grundriss</b> hoch. Claude liest den Plan, legt die Räume an und steuert die Bildgenerierung — am Ende ist alles begehbar.</p>
           </div>
-          <div class="chat-log" id="chatLog">
+          <div class="chat-log" id="chatLog" aria-live="polite">
             <div class="chat-msg bot"><span class="ic" data-icon="hand"></span> Ich bin dein Architekt. Schreib z. B. „5-Zimmer-Wohnung, skandinavisch, mit Balkon" — oder lade einen Grundriss hoch und sag „bau das nach". Dann klick <b><span class="ic" data-icon="building-2"></span> Wohnung bauen</b>.</div>
           </div>
           <div class="chat-input">
             <div class="thumb" id="planThumb" hidden><img alt="Grundriss" /></div>
-            <textarea id="chatText" rows="2" placeholder="Wohnung/Etage beschreiben oder Frage an den Architekten …"></textarea>
+            <textarea id="chatText" rows="2" aria-label="Nachricht an den Architekten" placeholder="Wohnung/Etage beschreiben oder Frage an den Architekten …"></textarea>
             <div class="chat-actions">
               <label class="btn btn-ghost" title="Grundriss hochladen"><span class="ic" data-icon="ruler"></span> Grundriss<input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden /></label>
               <button class="btn" id="chatSend">Senden</button>
@@ -401,8 +401,8 @@
       <h3 id="pickModalTitle">Möbel an diese Stelle</h3>
       <p class="muted">Wähle ein Produkt aus den geladenen Katalogen — es landet als Pin im Panorama und in der Einkaufsliste.</p>
       <div class="pick-filter">
-        <input type="search" id="pickSearch" placeholder="Suche (Name, Hersteller …)" />
-        <select id="pickCat"><option value="">Alle Kategorien</option></select>
+        <input type="search" id="pickSearch" aria-label="Produkte durchsuchen" placeholder="Suche (Name, Hersteller …)" />
+        <select id="pickCat" aria-label="Nach Kategorie filtern"><option value="">Alle Kategorien</option></select>
       </div>
       <div class="pick-grid" id="pickGrid"></div>
     </div>

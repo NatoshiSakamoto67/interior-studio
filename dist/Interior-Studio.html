@@ -64,7 +64,7 @@ textarea,input[type=text],input[type=password],select{
   padding:10px 12px;font:inherit;font-size:14px;outline:none;transition:.15s}
 textarea:focus,input:focus,select:focus{border-color:var(--accent)}
 /* Sichtbarer Tastatur-Fokus (WCAG 2.4.7/2.4.11) */
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea{resize:vertical;min-height:74px}
 input[type=range]{accent-color:var(--accent)}
@@ -257,7 +257,7 @@ input[type=file]{font-size:12px;color:var(--muted)}
 /* Pins */
 .pin{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;display:flex;align-items:center;gap:6px;
   background:rgba(18,17,22,.86);border:1px solid var(--accent);border-radius:999px;padding:4px 9px 4px 5px;cursor:pointer;
-  color:var(--text);font:inherit;font-size:11px;font-weight:700;backdrop-filter:blur(3px);transition:.14s var(--ease);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+  color:var(--text);font:inherit;font-size:11px;font-weight:700;transition:.14s var(--ease);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 .pin:hover{background:var(--accent);color:#1a120b;transform:translate(-50%,-50%) scale(1.06)}
 .pin-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(213,154,106,.25);flex:none}
 .pin:hover .pin-dot{background:#1a120b;box-shadow:0 0 0 4px rgba(26,18,11,.2)}
@@ -449,6 +449,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus,input[type=numb
 :root{
   --bg:#0c0c0f; --panel:#16161b; --panel2:#1e1e25; --line:#2b2b34;
   --accent:#e3a06f; --accent-d:#c9824d; --accent2:#9cc4ac;
+  --faint:#8a8794;   /* von #6f6c78 angehoben → AA-Kontrast bei Kleintext (a11y-Audit) */
   --radius:16px; --r-sm:11px;
   --shadow:0 26px 64px -24px rgba(0,0,0,.72);
   --glass:rgba(23,23,29,.6); --glass-line:rgba(255,255,255,.085); --ring:rgba(227,160,111,.34);
@@ -596,6 +597,64 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
   .world-viewport{height:62vh}
 }
 
+/* ============================================================
+   MOBILE & TOUCH — Handy-Tauglichkeit (UI/UX-Audit)
+   ============================================================ */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* iOS zoomt bei Fokus auf Felder <16px automatisch rein → verhindern */
+textarea,input[type=text],input[type=password],input[type=number],input[type=search],input[type=email]{font-size:16px}
+/* 3D/Panorama: Touch gehört dem Umsehen, nicht dem Seiten-Scroll/Pull-to-Refresh */
+.canvas3d,.tour-host,#splatHost,.tour-canvas{touch-action:none}
+.viewport,.world-viewport{overscroll-behavior:contain}
+/* Safe-Area (Notch / Home-Indikator) */
+.top{padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right))}
+.toasts{right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom))}
+.build-bar{bottom:max(18px,env(safe-area-inset-bottom))}
+.vp-bar{padding-bottom:max(11px,env(safe-area-inset-bottom))}
+/* Visuell verstecktes Label (a11y) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* On-Screen-Bewegung (Touch) für begehbares 3D / Welt 3D — setzt dieselben keys-Flags wie WASD */
+.dpad{position:absolute;left:max(12px,env(safe-area-inset-left));bottom:max(72px,env(safe-area-inset-bottom));
+  display:none;grid-template:repeat(3,46px)/repeat(3,46px);gap:5px;z-index:12;touch-action:none}
+.dpad button{width:46px;height:46px;border-radius:13px;background:rgba(20,19,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid var(--glass-line);color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;touch-action:none;cursor:pointer}
+.dpad button:active{background:var(--accent);color:#1a120b}
+.dpad [data-k=w]{grid-area:1/2}.dpad [data-k=a]{grid-area:2/1}.dpad [data-k=s]{grid-area:2/2}.dpad [data-k=d]{grid-area:2/3}
+@media (pointer:coarse){ .dpad{display:grid} }
+
+/* Modal auf kleinen Screens scrollbar — sonst ragen obere Felder + Schließen aus dem Viewport */
+.modal{overflow-y:auto;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.modal-card{margin:auto;max-height:calc(100dvh - 32px);overflow-y:auto}
+
+@media (max-width:768px){
+  /* DIE Tab-Leiste: aus 3 umbrechenden Zeilen EINE swipebare Leiste (spart ~2/3 Höhe) */
+  .top{gap:10px 12px}
+  .brand{flex:0 1 auto;min-width:0}
+  .key-btn{margin-left:auto}
+  .tabs{order:3;flex:0 0 100%;width:100%;margin:0;flex-wrap:nowrap;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;min-height:42px;padding:9px 13px;scroll-snap-align:start}
+  .brand-txt span{display:none}
+  /* Tap-Ziele ≥ ~42–44px */
+  .seg-b{min-height:42px}
+  .room-chip{height:36px}
+  .modal-x{width:40px;height:40px;display:grid;place-items:center}
+  .modal{align-items:flex-start}
+  /* Lesbarkeit + schmale Screens */
+  .hint{color:var(--muted)}
+  .row2{grid-template-columns:1fr}
+  /* sichtbare Höhe folgt der iOS-Adressleiste (dvh), vh als Fallback oben */
+  .viewport,.world-viewport{height:72dvh}
+}
+
+/* reduced-motion: vom Audit ergänzte Stellen */
+@media (prefers-reduced-motion:reduce){
+  .toast,.docs-read-inner{animation:none}
+  .spin,.spinner{animation:none}
+}
+
 </style>
   <!-- PWA / Handy: installierbar via „Zum Home-Bildschirm", Offline im sicheren Kontext -->
   <meta name="theme-color" content="#0c0c0f" />
@@ -644,7 +703,7 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
   </div>
 
   <!-- Globaler Bau-Fortschritt (auf jedem Tab sichtbar) -->
-  <div id="buildBar" class="build-bar" hidden></div>
+  <div id="buildBar" class="build-bar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
   <main class="stage">
 
@@ -748,12 +807,12 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
             <h2>Claude plant deine Wohnung</h2>
             <p class="muted small">Beschreibe eine Wohnung/Büroetage oder lade einen <b>Grundriss</b> hoch. Claude liest den Plan, legt die Räume an und steuert die Bildgenerierung — am Ende ist alles begehbar.</p>
           </div>
-          <div class="chat-log" id="chatLog">
+          <div class="chat-log" id="chatLog" aria-live="polite">
             <div class="chat-msg bot"><span class="ic" data-icon="hand"></span> Ich bin dein Architekt. Schreib z. B. „5-Zimmer-Wohnung, skandinavisch, mit Balkon" — oder lade einen Grundriss hoch und sag „bau das nach". Dann klick <b><span class="ic" data-icon="building-2"></span> Wohnung bauen</b>.</div>
           </div>
           <div class="chat-input">
             <div class="thumb" id="planThumb" hidden><img alt="Grundriss" /></div>
-            <textarea id="chatText" rows="2" placeholder="Wohnung/Etage beschreiben oder Frage an den Architekten …"></textarea>
+            <textarea id="chatText" rows="2" aria-label="Nachricht an den Architekten" placeholder="Wohnung/Etage beschreiben oder Frage an den Architekten …"></textarea>
             <div class="chat-actions">
               <label class="btn btn-ghost" title="Grundriss hochladen"><span class="ic" data-icon="ruler"></span> Grundriss<input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden /></label>
               <button class="btn" id="chatSend">Senden</button>
@@ -989,8 +1048,8 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
       <h3 id="pickModalTitle">Möbel an diese Stelle</h3>
       <p class="muted">Wähle ein Produkt aus den geladenen Katalogen — es landet als Pin im Panorama und in der Einkaufsliste.</p>
       <div class="pick-filter">
-        <input type="search" id="pickSearch" placeholder="Suche (Name, Hersteller …)" />
-        <select id="pickCat"><option value="">Alle Kategorien</option></select>
+        <input type="search" id="pickSearch" aria-label="Produkte durchsuchen" placeholder="Suche (Name, Hersteller …)" />
+        <select id="pickCat" aria-label="Nach Kategorie filtern"><option value="">Alle Kategorien</option></select>
       </div>
       <div class="pick-grid" id="pickGrid"></div>
     </div>
@@ -2383,8 +2442,27 @@ window.DOCS = [
     scene.add(d);
     setupEnvironment();
     bindControls();
+    makeDpad(host, keys);
     ready = true;
     return true;
+  }
+
+  // Touch-Steuerkreuz (nur auf Touch-Geräten sichtbar via CSS) — setzt dieselben keys-Flags wie WASD.
+  function makeDpad(hostEl, keyObj) {
+    if (!hostEl || hostEl.querySelector(".dpad")) return;
+    const pad = document.createElement("div"); pad.className = "dpad";
+    const lbl = { w: "vorwärts", a: "links", s: "rückwärts", d: "rechts" };
+    ["w", "a", "s", "d"].forEach(k => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.k = k; b.textContent = k.toUpperCase();
+      b.setAttribute("aria-label", lbl[k]);
+      const on = e => { e.preventDefault(); e.stopPropagation(); keyObj[k] = true; };
+      const off = e => { e.stopPropagation(); keyObj[k] = false; };
+      b.addEventListener("touchstart", on, { passive: false });
+      b.addEventListener("touchend", off); b.addEventListener("touchcancel", off);
+      b.addEventListener("mousedown", on); b.addEventListener("mouseup", off); b.addEventListener("mouseleave", off);
+      pad.appendChild(b);
+    });
+    hostEl.appendChild(pad);
   }
 
   // Indirektes Umgebungslicht (IBL) OHNE externes HDRI (RoomEnvironment fehlt im Vendor-Build):
@@ -2731,8 +2809,27 @@ function mount(container) {
   scene.add(spark);
 
   bindControls();
+  makeDpad(host, keys);
   window.addEventListener("resize", resize);
   mounted = true;
+}
+
+// Touch-Steuerkreuz (nur auf Touch-Geräten sichtbar via CSS) — setzt dieselben keys-Flags wie WASD.
+function makeDpad(hostEl, keyObj) {
+  if (!hostEl || hostEl.querySelector(".dpad")) return;
+  const pad = document.createElement("div"); pad.className = "dpad";
+  const lbl = { w: "vorwärts", a: "links", s: "rückwärts", d: "rechts" };
+  ["w", "a", "s", "d"].forEach(k => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.k = k; b.textContent = k.toUpperCase();
+    b.setAttribute("aria-label", lbl[k]);
+    const on = e => { e.preventDefault(); e.stopPropagation(); keyObj[k] = true; };
+    const off = e => { e.stopPropagation(); keyObj[k] = false; };
+    b.addEventListener("touchstart", on, { passive: false });
+    b.addEventListener("touchend", off); b.addEventListener("touchcancel", off);
+    b.addEventListener("mousedown", on); b.addEventListener("mouseup", off); b.addEventListener("mouseleave", off);
+    pad.appendChild(b);
+  });
+  hostEl.appendChild(pad);
 }
 
 function aspect() { const w = host.clientWidth || 800, h = host.clientHeight || 450; return w / Math.max(1, h); }

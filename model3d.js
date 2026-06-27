@@ -42,8 +42,27 @@
     scene.add(d);
     setupEnvironment();
     bindControls();
+    makeDpad(host, keys);
     ready = true;
     return true;
+  }
+
+  // Touch-Steuerkreuz (nur auf Touch-Geräten sichtbar via CSS) — setzt dieselben keys-Flags wie WASD.
+  function makeDpad(hostEl, keyObj) {
+    if (!hostEl || hostEl.querySelector(".dpad")) return;
+    const pad = document.createElement("div"); pad.className = "dpad";
+    const lbl = { w: "vorwärts", a: "links", s: "rückwärts", d: "rechts" };
+    ["w", "a", "s", "d"].forEach(k => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.k = k; b.textContent = k.toUpperCase();
+      b.setAttribute("aria-label", lbl[k]);
+      const on = e => { e.preventDefault(); e.stopPropagation(); keyObj[k] = true; };
+      const off = e => { e.stopPropagation(); keyObj[k] = false; };
+      b.addEventListener("touchstart", on, { passive: false });
+      b.addEventListener("touchend", off); b.addEventListener("touchcancel", off);
+      b.addEventListener("mousedown", on); b.addEventListener("mouseup", off); b.addEventListener("mouseleave", off);
+      pad.appendChild(b);
+    });
+    hostEl.appendChild(pad);
   }
 
   // Indirektes Umgebungslicht (IBL) OHNE externes HDRI (RoomEnvironment fehlt im Vendor-Build):
