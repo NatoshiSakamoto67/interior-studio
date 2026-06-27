@@ -100,6 +100,7 @@
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
     if (name === "docs" && window.Docs) window.Docs.render();
+    if (window.World) { if (name === "world") window.World.enter(); else window.World.leave(); }
   }
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
 

@@ -22,6 +22,7 @@
       <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
       <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
+      <button class="tab" data-tab="world"><span class="ic" data-icon="house"></span> Welt 3D<span class="tab-beta">Beta</span></button>
       <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
@@ -236,6 +237,58 @@
       </div>
     </section>
 
+    <!-- ===================== TAB: WELT 3D (Beta) ===================== -->
+    <section class="panel" data-panel="world">
+      <div class="world-grid">
+        <aside class="world-side">
+          <span class="eyebrow">Welt 3D · Beta</span>
+          <h2>Begeh deinen Raum — in echt</h2>
+          <p class="muted small">Aus einem Raumfoto eine fotorealistische, <b>frei begehbare</b> 3D-Welt (Gaussian Splatting, World Labs Marble). Oder öffne eine fertige Splat-Datei — das läuft komplett offline.</p>
+
+          <div class="seg" id="worldMode">
+            <button class="seg-b is-active" data-wmode="generate" aria-pressed="true">Aus Foto erzeugen</button>
+            <button class="seg-b" data-wmode="open" aria-pressed="false">Splat-Datei öffnen</button>
+          </div>
+
+          <div id="worldGenerate">
+            <label class="fld">
+              <span>Raumfoto oder 360°-Panorama</span>
+              <input type="file" id="worldFile" accept="image/png,image/jpeg,image/webp" />
+              <div class="thumb" id="worldThumb" hidden><img alt="Quelle" /></div>
+            </label>
+            <button class="btn btn-accent btn-lg" id="worldGenBtn"><span class="ic" data-icon="sparkles"></span> Welt erzeugen</button>
+            <div class="world-backend" id="worldBackend"></div>
+            <p class="hint">Erzeugt serverseitig via World-Labs-Marble (Backend nötig). Dauer: Sekunden bis Minuten.</p>
+          </div>
+
+          <div id="worldOpen" hidden>
+            <label class="fld">
+              <span>Gaussian-Splat-Datei (.ply · .splat · .ksplat)</span>
+              <input type="file" id="worldSplatFile" accept=".ply,.splat,.ksplat,.spz" />
+            </label>
+            <p class="hint">Läuft ohne Marble-Backend. Splats z. B. aus Luma, Polycam oder KIRI exportieren.</p>
+            <button class="btn btn-ghost" id="worldDemo"><span class="ic" data-icon="play"></span> Beispiel-Welt laden (Demo)</button>
+          </div>
+
+          <div class="world-progress" id="worldProgress" hidden>
+            <div class="ampel-bar"><i id="worldBar"></i></div>
+            <span class="muted small" id="worldStatus"></span>
+          </div>
+        </aside>
+
+        <div class="viewport world-viewport">
+          <div id="splatHost" class="canvas3d"></div>
+          <div class="world-empty" id="worldEmpty">
+            <div class="empty-ic" data-icon="house"></div>
+            Noch keine Welt geladen.<br>Erzeuge eine aus einem Foto — oder öffne eine Splat-Datei.
+          </div>
+          <div class="vp-bar">
+            <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===================== TAB: GALERIE ===================== -->
     <section class="panel" data-panel="gallery">
       <div class="gal-wrap">
@@ -346,6 +399,19 @@
   <script src="docs.js"></script>
   <script src="vendor/three.min.js"></script>
   <script src="model3d.js"></script>
+  <script src="world.js"></script>
+  <!-- Welt 3D (Beta): Gaussian-Splat-Viewer = Spark + modernes three als ES-Modul,
+       bewusst ISOLIERT vom alten globalen window.THREE oben. Läuft über localhost/Launcher
+       (CDN online); im reinen file://-Einzelfile ist Welt 3D nicht aktiv. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"
+    }
+  }
+  </script>
+  <script type="module" src="splatviewer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

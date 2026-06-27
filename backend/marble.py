@@ -1,11 +1,14 @@
-"""World Labs Marble API — dünne Anbindung (async).
+"""World Labs Marble API — Anbindung (async), gegen die offizielle Doku gebaut.
 
-Start -> Poll -> Download-Muster für eine asynchrone Welt-Generierung.
+Quelle: docs.worldlabs.ai/api (Stand Juni 2026). Ablauf (alles server-seitig, Key bleibt geheim):
+  1) media-assets:prepare_upload   -> media_asset_id + signierte upload_url
+  2) PUT der Bild-Bytes an upload_url
+  3) worlds:generate (JSON, image_prompt -> media_asset)  -> operation_id
+  4) operations/{id} pollen bis done -> response.assets.splats.spz_urls.full_res
+  5) .spz herunterladen
 
-⚠ Die mit TODO[SPEC] markierten Konstanten/Feldnamen werden aus der offiziellen
-Marble-Doku (docs.worldlabs.ai) bestätigt/korrigiert. Struktur (Job starten,
-pollen, Splat herunterladen) ist stabil; nur Pfade/Feldnamen können abweichen.
-Per ENV überschreibbar, damit man ohne Code-Änderung an die echte Spec anpassen kann.
+Auth: Header `WLT-Api-Key` (NICHT Bearer). Output: Gaussian Splat .spz.
+Endpoints/Modell per ENV überschreibbar, falls die Doku sich verschiebt.
 """
 from __future__ import annotations
 
@@ -15,88 +18,103 @@ from dataclasses import dataclass
 
 import httpx
 
-# TODO[SPEC]: aus offizieller Marble-Doku bestätigen (per ENV überschreibbar)
 BASE_URL = os.getenv("MARBLE_BASE_URL", "https://api.worldlabs.ai")
-CREATE_PATH = os.getenv("MARBLE_CREATE_PATH", "/v1/worlds")
-STATUS_PATH = os.getenv("MARBLE_STATUS_PATH", "/v1/worlds/{id}")
-POLL_SECONDS = int(os.getenv("MARBLE_POLL_SECONDS", "4"))
+PREPARE_PATH = os.getenv("MARBLE_PREPARE_PATH", "/marble/v1/media-assets:prepare_upload")
+GENERATE_PATH = os.getenv("MARBLE_GENERATE_PATH", "/marble/v1/worlds:generate")
+OP_PATH = os.getenv("MARBLE_OP_PATH", "/marble/v1/operations/{id}")
+MODEL = os.getenv("MARBLE_MODEL", "marble-1.1")
+POLL_SECONDS = int(os.getenv("MARBLE_POLL_SECONDS", "5"))
 TIMEOUT_SECONDS = int(os.getenv("MARBLE_TIMEOUT_SECONDS", "900"))
 
-_DONE = {"succeeded", "completed", "done", "ready"}
-_FAILED = {"failed", "error", "canceled", "cancelled"}
+_EXT = {"image/png": "png", "image/webp": "webp", "image/jpeg": "jpg", "image/jpg": "jpg"}
 
 
 @dataclass(frozen=True)
 class WorldResult:
     data: bytes
-    fmt: str  # "ply" | "splat" | "ksplat" | "spz" | "glb"
+    fmt: str  # "spz"
 
 
 def _headers() -> dict[str, str]:
-    key = os.environ["MARBLE_API_KEY"]
-    return {"Authorization": f"Bearer {key}"}
+    return {"WLT-Api-Key": os.environ["MARBLE_API_KEY"], "Content-Type": "application/json"}
 
 
-def _fmt_from_url(url: str) -> str:
-    ext = url.split("?")[0].rsplit(".", 1)[-1].lower()
-    return ext if ext in {"ply", "splat", "ksplat", "spz", "glb"} else "ply"
-
-
-def _pick_splat_url(payload: dict) -> str:
-    """Splat-Download-URL aus der Status-Antwort fischen (TODO[SPEC]: exaktes Feld)."""
-    for key in ("splat_url", "gaussian_splat_url", "ply_url", "download_url", "output_url"):
-        if payload.get(key):
-            return payload[key]
-    outputs = payload.get("outputs") or payload.get("assets") or {}
-    if isinstance(outputs, dict):
-        for key in ("spz", "ply", "splat", "ksplat", "glb"):
-            if outputs.get(key):
-                return outputs[key]
-    if isinstance(outputs, list) and outputs:
-        first = outputs[0]
-        if isinstance(first, dict):
-            return first.get("url") or first.get("href") or ""
-        if isinstance(first, str):
-            return first
-    raise RuntimeError(f"Keine Splat-URL in Marble-Antwort gefunden: {list(payload.keys())}")
+def _pick_spz(world: dict) -> str:
+    """response.assets.splats.spz_urls.{full_res|500k|100k} mit Fallbacks."""
+    assets = world.get("assets") or {}
+    splats = assets.get("splats") or {}
+    urls = splats.get("spz_urls") or {}
+    for k in ("full_res", "500k", "100k"):
+        if urls.get(k):
+            return urls[k]
+    # defensive Fallbacks, falls Feldnamen abweichen
+    for k in ("spz_url", "splat_url", "url"):
+        if splats.get(k):
+            return splats[k]
+    raise RuntimeError(f"Keine .spz-URL in Marble-Welt: assets={list(assets.keys())} splats={list(splats.keys())}")
 
 
 async def generate_world(image: bytes, content_type: str, on_progress=None) -> WorldResult:
-    """Bild -> Marble-Welt -> Gaussian-Splat-Bytes. Wirft bei Fehler/Timeout."""
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=httpx.Timeout(60.0)) as client:
+    ext = _EXT.get((content_type or "").lower(), "jpg")
+
+    def prog(p: int, m: str) -> None:
         if on_progress:
-            on_progress(5, "Welt-Auftrag wird an Marble gesendet …")
+            on_progress(p, m)
 
-        # 1) Job starten — TODO[SPEC]: multipart vs. JSON+base64 aus Doku bestätigen
-        files = {"image": ("room.jpg", image, content_type)}
-        resp = await client.post(CREATE_PATH, headers=_headers(), files=files)
-        resp.raise_for_status()
-        created = resp.json()
-        world_id = created.get("id") or created.get("world_id") or created.get("job_id")
-        if not world_id:
-            raise RuntimeError(f"Keine World-ID in Marble-Antwort: {created}")
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        # 1) Upload vorbereiten
+        prog(6, "Upload wird vorbereitet …")
+        pr = await client.post(BASE_URL + PREPARE_PATH, headers=_headers(),
+                               json={"file_name": f"room.{ext}", "kind": "image", "extension": ext})
+        pr.raise_for_status()
+        pj = pr.json()
+        asset = pj.get("media_asset") or pj
+        asset_id = asset.get("id") or pj.get("media_asset_id") or pj.get("id")
+        upload_url = pj.get("upload_url") or asset.get("upload_url")
+        if not asset_id or not upload_url:
+            raise RuntimeError(f"prepare_upload unerwartet: {list(pj.keys())}")
 
-        # 2) Pollen bis fertig
+        # 2) Bytes an die signierte URL (kein API-Key — Signatur steckt in der URL)
+        prog(12, "Bild wird hochgeladen …")
+        up = await client.put(upload_url, content=image,
+                              headers={"Content-Type": content_type or "image/jpeg",
+                                       "x-goog-content-length-range": "0,1048576000"})
+        up.raise_for_status()
+
+        # 3) Welt-Generierung starten
+        prog(18, "Welt-Generierung gestartet …")
+        body = {
+            "display_name": "Interior Studio Raum",
+            "model": MODEL,
+            "world_prompt": {
+                "type": "image",
+                "image_prompt": {"source": "media_asset", "media_asset_id": asset_id},
+                "is_pano": "auto",
+            },
+        }
+        gr = await client.post(BASE_URL + GENERATE_PATH, headers=_headers(), json=body)
+        gr.raise_for_status()
+        gj = gr.json()
+        op_id = gj.get("operation_id") or gj.get("id") or (gj.get("operation") or {}).get("id")
+        if not op_id:
+            raise RuntimeError(f"worlds:generate unerwartet: {gj}")
+
+        # 4) Pollen bis fertig (~5 Min typisch)
         waited = 0
         while waited < TIMEOUT_SECONDS:
-            status_resp = await client.get(STATUS_PATH.format(id=world_id), headers=_headers())
-            status_resp.raise_for_status()
-            payload = status_resp.json()
-            state = str(payload.get("status") or payload.get("state") or "").lower()
-            pct = int(payload.get("progress", 50) or 50)
-            if on_progress:
-                on_progress(min(95, max(10, pct)), f"Marble: {state or 'in Arbeit'} …")
-
-            if state in _DONE:
-                if on_progress:
-                    on_progress(96, "Splat wird geladen …")
-                url = _pick_splat_url(payload)
-                dl = await client.get(url, headers=_headers(), timeout=httpx.Timeout(180.0))
+            s = await client.get(BASE_URL + OP_PATH.format(id=op_id), headers=_headers())
+            s.raise_for_status()
+            sj = s.json()
+            prog(min(94, 20 + (waited * 72) // max(1, TIMEOUT_SECONDS)), "Marble erzeugt die Welt …")
+            if sj.get("done") is True:
+                if sj.get("error"):
+                    raise RuntimeError(f"Marble-Fehler: {sj['error']}")
+                world = sj.get("response") or sj.get("result") or {}
+                url = _pick_spz(world)
+                prog(96, "Splat wird geladen …")
+                dl = await client.get(url, timeout=httpx.Timeout(300.0))
                 dl.raise_for_status()
-                return WorldResult(data=dl.content, fmt=_fmt_from_url(url))
-            if state in _FAILED:
-                raise RuntimeError(f"Marble-Job fehlgeschlagen: {payload}")
-
+                return WorldResult(data=dl.content, fmt="spz")
             await asyncio.sleep(POLL_SECONDS)
             waited += POLL_SECONDS
 

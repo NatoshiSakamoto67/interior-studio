@@ -63,6 +63,14 @@ def inline_js(html: str) -> str:
         if src.endswith("catalogs.js"):
             js = builtins_global() + js   # Builtins inline, damit der Katalog-Picker auch in der Einzeldatei gefüllt ist
         return f"<script>\n{harden_js(js)}\n</script>"
+
+    def repl_module(m):
+        # ES-Modul (Welt 3D / Spark) inline halten — Imports sind absolute CDN-URLs + Importmap-bare-specifier.
+        src = m.group(1)
+        js = (ROOT / src).read_text(encoding="utf-8")
+        return f'<script type="module">\n{harden_js(js)}\n</script>'
+
+    html = re.sub(r'<script\s+type="module"\s+src="([^"]+)"></script>', repl_module, html)
     return re.sub(r'<script\s+src="([^"]+)"></script>', repl, html)
 
 

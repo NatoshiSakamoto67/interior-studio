@@ -18,13 +18,20 @@ import asyncio
 import os
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-import marble
+# Load secrets BEFORE importing the marble client. backend/.env first, then ~/.env
+# (the rest of the tool already keeps GEMINI_API_KEY there) as a fallback.
+load_dotenv()
+load_dotenv(Path.home() / ".env", override=False)
+
+import marble  # noqa: E402  (must follow load_dotenv so the key is present)
 
 app = FastAPI(title="Interior Studio — World Backend", version="0.1.0")
 
