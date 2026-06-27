@@ -638,6 +638,11 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
   .row2{grid-template-columns:1fr}
   /* sichtbare Höhe folgt der iOS-Adressleiste (dvh), vh als Fallback oben */
   .viewport,.world-viewport{height:72dvh}
+  /* Key-Modal: X schwebt fest am Bildschirm-Eck (scrollt NICHT mit dem Inhalt weg) */
+  .modal-x{position:fixed;top:max(12px,env(safe-area-inset-top));right:16px;z-index:95;
+    width:44px;height:44px;border-radius:12px;color:var(--text);
+    background:rgba(22,22,28,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid var(--glass-line)}
+  .modal-card h3{padding-right:46px}
 }
 
 /* reduced-motion: vom Audit ergänzte Stellen */

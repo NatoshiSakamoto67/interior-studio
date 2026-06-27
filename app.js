@@ -63,6 +63,8 @@
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
   });
+  // Tippen/Klick auf den Hintergrund (außerhalb der Karte) schließt das Modal — Sicherheitsnetz, v. a. Handy.
+  $$(".modal").forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModal(m.id); }));
 
   /* ---------- Key ---------- */
   function refreshKeyState() {
