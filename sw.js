@@ -1,7 +1,7 @@
-/* Interior Studio — Service Worker (nur im sicheren Kontext aktiv: https / localhost).
-   Macht die App auf dem Handy installierbar und nach dem ersten Laden offline-fähig.
-   Strategie: gleiche Herkunft = cache-first (App-Shell); APIs/CDN = immer Netz. */
-const CACHE = "interior-studio-v1";
+/* Interior Studio — Service Worker (nur im sicheren Kontext: https / localhost).
+   NETWORK-FIRST: online immer die frische Version (Updates erscheinen sofort),
+   Cache nur als Offline-Fallback. (Cache-first verschluckte sonst Deploys.) */
+const CACHE = "interior-studio-v2";
 const CORE = ["./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
@@ -21,10 +21,11 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // APIs (Gemini/OpenAI/Claude/Marble) + CDN: immer Netz
+  // Network-first: frische Antwort holen + Cache aktualisieren; offline -> Cache.
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
+    fetch(req).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
   );
 });
