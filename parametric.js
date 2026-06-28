@@ -208,17 +208,56 @@ function addDimLabel(w, exact) {
 
 function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }); }
 
-// Sauberer Schnappschuss der AKTUELLEN Ansicht (exakte Geometrie + Kamera) als data-URL —
-// Maßlabels/D-Pad fürs Foto kurz ausblenden. Dient als Struktur-Vorlage für den Fotoreal-Pass.
-function snapshot() {
+// Struktur-Vorlage für den Fotoreal-Pass (Recherche: bake ControlNet-Cues in EIN RGB-Bild).
+// → exaktes Seitenverhältnis (kein Recompose-Drift), KEIN Nebel, helleres Licht, gebackenes AO
+//   (SSAO best-effort), Maßlabels/D-Pad aus. async wegen optionalem SSAO-Lazy-Import.
+let _composer = null, _ssao = null, _aoTried = false;
+async function ensureAO() {
+  if (_composer || _aoTried) return;
+  _aoTried = true;
+  try {
+    const [EC, RP, SS, OP] = await Promise.all([
+      import("three/addons/postprocessing/EffectComposer.js"),
+      import("three/addons/postprocessing/RenderPass.js"),
+      import("three/addons/postprocessing/SSAOPass.js"),
+      import("three/addons/postprocessing/OutputPass.js"),
+    ]);
+    _composer = new EC.EffectComposer(renderer);
+    _composer.addPass(new RP.RenderPass(scene, cam));
+    _ssao = new SS.SSAOPass(scene, cam, 1600, 900);
+    _ssao.kernelRadius = 0.5; _ssao.minDistance = 0.0015; _ssao.maxDistance = 0.12;
+    _composer.addPass(_ssao);
+    _composer.addPass(new OP.OutputPass());
+  } catch (e) { _composer = null; }   // SSAO nicht verfügbar → planer Render-Fallback
+}
+async function snapshot(opts = {}) {
   if (!renderer || !mounted || !cam) return null;
+  const ar = opts.aspectRatio || (16 / 9), W = 1600, H = Math.round(W / ar);
   const hidden = [];
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
+  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio();
+  const sz = new THREE.Vector2(); renderer.getSize(sz);
+  scene.fog = null; renderer.toneMappingExposure = 1.32;
+  // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
+  // lässt aber die gerichteten Schatten als Tiefencue stehen.
+  const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false); cam.aspect = ar; cam.updateProjectionMatrix();
   let url = null;
-  try { renderer.render(scene, cam); url = renderer.domElement.toDataURL("image/png"); } catch (e) {}
-  hidden.forEach(o => o.visible = true);
-  if (dp) dp.style.display = dpPrev || "";
+  try {
+    await ensureAO();
+    if (_composer) { _composer.setSize(W, H); if (_ssao) _ssao.setSize(W, H); _composer.render(); }
+    else renderer.render(scene, cam);
+    url = renderer.domElement.toDataURL("image/png");
+  } catch (e) {
+    try { renderer.render(scene, cam); url = renderer.domElement.toDataURL("image/png"); } catch (_) {}
+  }
+  // Zustand wiederherstellen
+  scene.remove(fill);
+  scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
+  hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
+  if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
   return url;
 }
 

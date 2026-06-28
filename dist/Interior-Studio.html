@@ -1384,9 +1384,10 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
 
             <div class="foto-block">
               <span class="eyebrow">Fotoreal-Ansicht · KI, geometrie-treu</span>
-              <input type="text" id="fotoStyle" placeholder="Stil (optional), z. B. „skandinavisch, Eiche, warmes Licht“" />
+              <input type="text" id="fotoStyle" placeholder="Stil/Material (optional), z. B. „matter Kalkputz, Eiche, warmes Nordlicht“" />
+              <label class="btn btn-ghost foto-ref-btn"><span class="ic" data-icon="image"></span> <span id="fotoRefLabel">Stil-Referenzbild (optional)</span><input type="file" id="fotoRef" accept="image/png,image/jpeg,image/webp" hidden /></label>
               <button class="btn btn-accent btn-lg" id="fotoBtn"><span class="ic" data-icon="sparkles"></span> Aktuelle Ansicht fotoreal rendern</button>
-              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera) und macht daraus ein fotorealistisches Bild — Maße &amp; Perspektive bleiben. Gemini- oder OpenAI-Key nötig.</p>
+              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera, exakt 16:9, gebackenes AO) und lässt Gemini/OpenAI nur Material &amp; Licht ergänzen — Maße &amp; Perspektive bleiben. 4K. Key nötig.</p>
             </div>
           </div>
 
@@ -1928,7 +1929,10 @@ window.__IS_BUILTIN_CATALOGS__ = {"wohnen-basis": {"schema": "interior-studio.ca
         fd.append("size", size);
         fd.append("quality", quality);
         fd.append("n", "1");
-        fd.append("image", inlineToBlob(images[0]), "vorlage.png");
+        fd.append("input_fidelity", "high");   // erhält Struktur/Geometrie der Vorlage deutlich besser (Recherche)
+        // Struktur-Bild zuerst (höchste Detailtreue gilt fürs erste Bild); optionale Stil-Referenz danach.
+        if (images.length > 1) images.forEach((im, i) => fd.append("image[]", inlineToBlob(im), (i ? "ref" : "vorlage") + i + ".png"));
+        else fd.append("image", inlineToBlob(images[0]), "vorlage.png");
         resp = await fetch(EDIT, { method: "POST", headers: { Authorization: "Bearer " + key }, body: fd });
       } else {
         resp = await fetch(GEN, {
@@ -3294,13 +3298,21 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
      Nimmt die AKTUELLE Ansicht des Parametric-Viewers (mm-genaue Geometrie + Kamera) als
      Struktur-Vorlage und lässt Gemini/OpenAI daraus ein Foto rendern, das Maße & Perspektive
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
-  function fotoPrompt(style) {
-    return "Photorealistic interior photograph of EXACTLY this room. Keep the identical geometry, "
-      + "wall positions, window and door openings, proportions and camera perspective from the provided "
-      + "structural 3D render — do not move, add, remove or resize anything. Replace the plain materials with "
-      + "realistic ones and add natural, physically plausible lighting with soft shadows. "
-      + (style ? ("Interior style: " + style + ". ") : "Warm, inviting, high-end interior design. ")
-      + "Architectural interior photography, ultra realistic, high detail, natural daylight, no text, no labels.";
+  // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
+  // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
+  function fotoPrompt(style, hasRef) {
+    return "Photorealistic interior photograph generated FROM the provided architectural render. "
+      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall positions and thicknesses, room proportions, ceiling height, "
+      + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
+      + "Do NOT move, add, remove, resize, crop, re-align or re-interpret any wall, opening, edge or structural element, and do not change the viewpoint. "
+      + "Keep the existing light direction and shadows. "
+      + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
+      + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
+      + "Materials & mood: " + (style || "matte white plaster walls, wide warm oak plank floor, satin white ceiling, soft natural daylight") + ". "
+      + "Do NOT add furniture, people, plants, signage or any object that is not present in the input. "
+      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
+      + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
+      + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
   }
   async function photorealView() {
     if (!(window.Parametric && window.Parametric.snapshot)) { if (window.toast) toast("Maß-Viewer nicht verfügbar.", "err"); return; }
@@ -3309,14 +3321,17 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       if (window.toast) toast((window.ImageGen ? window.ImageGen.activeLabel() : "Bild") + "-Key fehlt — in Einstellungen eintragen.", "err");
       if (window.showPanel) window.showPanel("settings"); return;
     }
-    const shot = window.Parametric.snapshot();
-    if (!shot) { if (window.toast) toast("Konnte die Ansicht nicht erfassen.", "err"); return; }
-    const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
     const btn = $("#fotoBtn"); if (btn) btn.disabled = true;
     fotoOverlay("loading");
     try {
-      const inline = window.ImageGen.dataUrlToInline(shot);
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style), aspect: "16:9", resolution: "2K", images: inline ? [inline] : [] });
+      const shot = await window.Parametric.snapshot({ aspectRatio: 16 / 9 });   // exakt 16:9 → kein Recompose-Drift
+      if (!shot) { fotoOverlay("error", null, null, "Konnte die Ansicht nicht erfassen."); return; }
+      const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
+      const refInp = $("#fotoRef"); const refFile = refInp && refInp.files[0];
+      const images = [];
+      const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
+      if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1), aspect: "16:9", resolution: "4K", images });
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
@@ -3377,6 +3392,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
+    const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }
 
@@ -3778,17 +3794,56 @@ function addDimLabel(w, exact) {
 
 function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }); }
 
-// Sauberer Schnappschuss der AKTUELLEN Ansicht (exakte Geometrie + Kamera) als data-URL —
-// Maßlabels/D-Pad fürs Foto kurz ausblenden. Dient als Struktur-Vorlage für den Fotoreal-Pass.
-function snapshot() {
+// Struktur-Vorlage für den Fotoreal-Pass (Recherche: bake ControlNet-Cues in EIN RGB-Bild).
+// → exaktes Seitenverhältnis (kein Recompose-Drift), KEIN Nebel, helleres Licht, gebackenes AO
+//   (SSAO best-effort), Maßlabels/D-Pad aus. async wegen optionalem SSAO-Lazy-Import.
+let _composer = null, _ssao = null, _aoTried = false;
+async function ensureAO() {
+  if (_composer || _aoTried) return;
+  _aoTried = true;
+  try {
+    const [EC, RP, SS, OP] = await Promise.all([
+      import("three/addons/postprocessing/EffectComposer.js"),
+      import("three/addons/postprocessing/RenderPass.js"),
+      import("three/addons/postprocessing/SSAOPass.js"),
+      import("three/addons/postprocessing/OutputPass.js"),
+    ]);
+    _composer = new EC.EffectComposer(renderer);
+    _composer.addPass(new RP.RenderPass(scene, cam));
+    _ssao = new SS.SSAOPass(scene, cam, 1600, 900);
+    _ssao.kernelRadius = 0.5; _ssao.minDistance = 0.0015; _ssao.maxDistance = 0.12;
+    _composer.addPass(_ssao);
+    _composer.addPass(new OP.OutputPass());
+  } catch (e) { _composer = null; }   // SSAO nicht verfügbar → planer Render-Fallback
+}
+async function snapshot(opts = {}) {
   if (!renderer || !mounted || !cam) return null;
+  const ar = opts.aspectRatio || (16 / 9), W = 1600, H = Math.round(W / ar);
   const hidden = [];
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
+  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio();
+  const sz = new THREE.Vector2(); renderer.getSize(sz);
+  scene.fog = null; renderer.toneMappingExposure = 1.32;
+  // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
+  // lässt aber die gerichteten Schatten als Tiefencue stehen.
+  const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false); cam.aspect = ar; cam.updateProjectionMatrix();
   let url = null;
-  try { renderer.render(scene, cam); url = renderer.domElement.toDataURL("image/png"); } catch (e) {}
-  hidden.forEach(o => o.visible = true);
-  if (dp) dp.style.display = dpPrev || "";
+  try {
+    await ensureAO();
+    if (_composer) { _composer.setSize(W, H); if (_ssao) _ssao.setSize(W, H); _composer.render(); }
+    else renderer.render(scene, cam);
+    url = renderer.domElement.toDataURL("image/png");
+  } catch (e) {
+    try { renderer.render(scene, cam); url = renderer.domElement.toDataURL("image/png"); } catch (_) {}
+  }
+  // Zustand wiederherstellen
+  scene.remove(fill);
+  scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
+  hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
+  if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
   return url;
 }
 

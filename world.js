@@ -203,13 +203,21 @@
      Nimmt die AKTUELLE Ansicht des Parametric-Viewers (mm-genaue Geometrie + Kamera) als
      Struktur-Vorlage und lässt Gemini/OpenAI daraus ein Foto rendern, das Maße & Perspektive
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
-  function fotoPrompt(style) {
-    return "Photorealistic interior photograph of EXACTLY this room. Keep the identical geometry, "
-      + "wall positions, window and door openings, proportions and camera perspective from the provided "
-      + "structural 3D render — do not move, add, remove or resize anything. Replace the plain materials with "
-      + "realistic ones and add natural, physically plausible lighting with soft shadows. "
-      + (style ? ("Interior style: " + style + ". ") : "Warm, inviting, high-end interior design. ")
-      + "Architectural interior photography, ultra realistic, high detail, natural daylight, no text, no labels.";
+  // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
+  // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
+  function fotoPrompt(style, hasRef) {
+    return "Photorealistic interior photograph generated FROM the provided architectural render. "
+      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall positions and thicknesses, room proportions, ceiling height, "
+      + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
+      + "Do NOT move, add, remove, resize, crop, re-align or re-interpret any wall, opening, edge or structural element, and do not change the viewpoint. "
+      + "Keep the existing light direction and shadows. "
+      + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
+      + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
+      + "Materials & mood: " + (style || "matte white plaster walls, wide warm oak plank floor, satin white ceiling, soft natural daylight") + ". "
+      + "Do NOT add furniture, people, plants, signage or any object that is not present in the input. "
+      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
+      + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
+      + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
   }
   async function photorealView() {
     if (!(window.Parametric && window.Parametric.snapshot)) { if (window.toast) toast("Maß-Viewer nicht verfügbar.", "err"); return; }
@@ -218,14 +226,17 @@
       if (window.toast) toast((window.ImageGen ? window.ImageGen.activeLabel() : "Bild") + "-Key fehlt — in Einstellungen eintragen.", "err");
       if (window.showPanel) window.showPanel("settings"); return;
     }
-    const shot = window.Parametric.snapshot();
-    if (!shot) { if (window.toast) toast("Konnte die Ansicht nicht erfassen.", "err"); return; }
-    const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
     const btn = $("#fotoBtn"); if (btn) btn.disabled = true;
     fotoOverlay("loading");
     try {
-      const inline = window.ImageGen.dataUrlToInline(shot);
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style), aspect: "16:9", resolution: "2K", images: inline ? [inline] : [] });
+      const shot = await window.Parametric.snapshot({ aspectRatio: 16 / 9 });   // exakt 16:9 → kein Recompose-Drift
+      if (!shot) { fotoOverlay("error", null, null, "Konnte die Ansicht nicht erfassen."); return; }
+      const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
+      const refInp = $("#fotoRef"); const refFile = refInp && refInp.files[0];
+      const images = [];
+      const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
+      if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1), aspect: "16:9", resolution: "4K", images });
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
@@ -286,6 +297,7 @@
     const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
+    const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }
 

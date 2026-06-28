@@ -49,7 +49,10 @@
         fd.append("size", size);
         fd.append("quality", quality);
         fd.append("n", "1");
-        fd.append("image", inlineToBlob(images[0]), "vorlage.png");
+        fd.append("input_fidelity", "high");   // erhält Struktur/Geometrie der Vorlage deutlich besser (Recherche)
+        // Struktur-Bild zuerst (höchste Detailtreue gilt fürs erste Bild); optionale Stil-Referenz danach.
+        if (images.length > 1) images.forEach((im, i) => fd.append("image[]", inlineToBlob(im), (i ? "ref" : "vorlage") + i + ".png"));
+        else fd.append("image", inlineToBlob(images[0]), "vorlage.png");
         resp = await fetch(EDIT, { method: "POST", headers: { Authorization: "Bearer " + key }, body: fd });
       } else {
         resp = await fetch(GEN, {

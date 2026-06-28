@@ -353,9 +353,10 @@
 
             <div class="foto-block">
               <span class="eyebrow">Fotoreal-Ansicht · KI, geometrie-treu</span>
-              <input type="text" id="fotoStyle" placeholder="Stil (optional), z. B. „skandinavisch, Eiche, warmes Licht“" />
+              <input type="text" id="fotoStyle" placeholder="Stil/Material (optional), z. B. „matter Kalkputz, Eiche, warmes Nordlicht“" />
+              <label class="btn btn-ghost foto-ref-btn"><span class="ic" data-icon="image"></span> <span id="fotoRefLabel">Stil-Referenzbild (optional)</span><input type="file" id="fotoRef" accept="image/png,image/jpeg,image/webp" hidden /></label>
               <button class="btn btn-accent btn-lg" id="fotoBtn"><span class="ic" data-icon="sparkles"></span> Aktuelle Ansicht fotoreal rendern</button>
-              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera) und macht daraus ein fotorealistisches Bild — Maße &amp; Perspektive bleiben. Gemini- oder OpenAI-Key nötig.</p>
+              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera, exakt 16:9, gebackenes AO) und lässt Gemini/OpenAI nur Material &amp; Licht ergänzen — Maße &amp; Perspektive bleiben. 4K. Key nötig.</p>
             </div>
           </div>
 
