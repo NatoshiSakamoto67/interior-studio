@@ -120,6 +120,8 @@
     const r = e.target.closest("[data-goto]"); if (!r) return;
     e.preventDefault(); showPanel(r.getAttribute("data-goto"));
   });
+  // Immer sichtbarer Hilfe-Knopf im Kopf → Unterlagen aktiv + Hilfe zeigen (Zurück führt sauber nach Unterlagen)
+  { const hb = $("#helpBtn"); if (hb) hb.onclick = () => { showTab("docs"); showPanel("help"); }; }
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
