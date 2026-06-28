@@ -96,18 +96,11 @@
     refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
   };
 
-  /* ---------- Start / Werkzeugkasten ---------- */
-  // Die Reiterleiste ist der „Werkzeugkasten" — auf der Startseite versteckt, in jedem Werkzeug sichtbar.
-  function setToolsVisible(on) {
-    const nav = $("#tabs"), tg = $("#toolsToggle");
-    if (nav) nav.hidden = !on;
-    if (tg) tg.setAttribute("aria-expanded", String(!!on));
-    document.body.classList.toggle("tools-open", !!on);
-  }
+  /* ---------- Start / Reiter ---------- */
   // Panel zeigen OHNE den aktiven Reiter zu wechseln (für eingebettete Unter-Ansichten)
   function showPanel(name) {
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
-    setToolsVisible(name !== "home");   // Start = aufgeräumt; jedes Werkzeug zeigt die Reiterleiste
+    // Startseite ist kein Reiter → keine Markierung; Reiterleiste bleibt immer sichtbar.
     if (name === "home") $$(".tab").forEach(t => { t.classList.remove("is-active"); t.removeAttribute("aria-current"); });
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
@@ -133,13 +126,8 @@
     // Auf echte Reiter wechseln wir MIT Markierung; Unter-Ansichten (arch/gallery/help) nur einblenden.
     if ($(`.tab[data-tab="${target}"]`)) showTab(target); else showPanel(target);
   });
-  // Kopf: Logo → Start, „Werkzeuge" blendet die Reiterleiste ein/aus.
+  // Kopf: Logo → Startseite.
   if ($("#goHome")) $("#goHome").onclick = () => showPanel("home");
-  if ($("#toolsToggle")) $("#toolsToggle").onclick = () => {
-    const open = $("#tabs") && $("#tabs").hidden;   // gerade versteckt → jetzt zeigen
-    setToolsVisible(open);
-    if (open && !$(".tab.is-active")) showTab("studio");   // erstes Werkzeug öffnen, damit etwas passiert
-  };
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {

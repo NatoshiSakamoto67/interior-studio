@@ -683,18 +683,10 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
    STARTSEITE — „roter Faden" (Home). Eine Eingabe, drei Türen,
    Ergebnisse direkt im Verlauf. Werkzeuge stecken im Werkzeugkasten.
    ============================================================ */
-/* Kopf: Logo wird Knopf, „Werkzeuge" blendet die Reiterleiste ein/aus */
+/* Kopf: Logo wird Knopf (→ Startseite). Reiterleiste bleibt immer sichtbar. */
 .brand{background:none;border:0;cursor:pointer;font:inherit;color:inherit;text-align:left;padding:0;border-radius:11px;transition:.15s var(--ease)}
 .brand:hover{opacity:.85}
 .brand:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.tools-toggle{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.04);border:1px solid var(--glass-line);
-  color:var(--muted);border-radius:11px;padding:8px 13px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.15s var(--ease)}
-.tools-toggle:hover{color:var(--text);border-color:var(--accent)}
-.tools-toggle .icon{width:1em;height:1em}
-.tools-toggle .tt-caret{transition:transform .2s var(--ease);opacity:.8}
-.tools-toggle[aria-expanded="true"]{color:var(--text);border-color:var(--glass-line);background:rgba(255,255,255,.07)}
-.tools-toggle[aria-expanded="true"] .tt-caret{transform:rotate(180deg)}
-.key-btn{margin-left:auto}
 
 section[data-panel="home"]{overflow-y:auto}
 .home-wrap{max-width:760px;margin:0 auto;padding:clamp(28px,5vh,72px) 22px 80px;display:flex;flex-direction:column;gap:22px;min-height:100%}
@@ -772,12 +764,6 @@ section[data-panel="home"]{overflow-y:auto}
 .home-card-acts .btn{padding:8px 12px;font-size:13px}
 .home-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .home-actions .btn{padding:8px 13px;font-size:13px}
-
-/* Quiet-Footer: Werkzeug-Direktlinks */
-.home-foot{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;justify-content:center;margin-top:6px;
-  padding-top:18px;border-top:1px solid var(--glass-line)}
-.home-foot .link{background:none;border:none;color:var(--muted);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:4px 2px;transition:.13s}
-.home-foot .link:hover{color:var(--accent)}
 
 @media (max-width:640px){
   .quick-doors{grid-template-columns:1fr}
