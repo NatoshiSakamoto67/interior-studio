@@ -104,12 +104,75 @@ Gib NUR dieses JSON zurück.`;
     return model;
   }
 
+  // ---- Prüf-Loop: Maßbild aus dem Modell zeichnen (selbstgezeichnetes Canvas = nicht getaint, file://-fest) ----
+  function drawMassbild(model) {
+    const st = (model.storeys || [])[0] || {}, walls = st.walls || [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const ext = p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); };
+    walls.forEach(w => { ext(w.start); ext(w.end); });
+    (st.rooms || []).forEach(r => (r.polygon || []).forEach(ext));
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 1000; maxY = 1000; }
+    const W = 920, H = 680, pad = 60;
+    const s = Math.min((W - 2 * pad) / Math.max(1, maxX - minX), (H - 2 * pad) / Math.max(1, maxY - minY));
+    const tx = x => pad + (x - minX) * s, ty = y => pad + (y - minY) * s;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "#f3f0ea";
+    (st.rooms || []).forEach(r => { const poly = r.polygon || []; if (poly.length < 3) return; g.beginPath(); poly.forEach((p, i) => { i ? g.lineTo(tx(p.x), ty(p.y)) : g.moveTo(tx(p.x), ty(p.y)); }); g.closePath(); g.fill(); });
+    g.strokeStyle = "#222"; g.lineWidth = 2; g.font = "13px system-ui,sans-serif";
+    walls.forEach(w => {
+      g.beginPath(); g.moveTo(tx(w.start.x), ty(w.start.y)); g.lineTo(tx(w.end.x), ty(w.end.y)); g.stroke();
+      const lenM = len(w) / 1000, mx = tx((w.start.x + w.end.x) / 2), my = ty((w.start.y + w.end.y) / 2);
+      g.fillStyle = "#7a4a1e"; g.fillText(lenM.toFixed(2).replace(".", ",") + " m", mx, my - 8);
+    });
+    g.fillStyle = "#1769aa";
+    (st.openings || []).forEach(o => {
+      const w = walls.find(x => x.id === o.wallId); if (!w) return;
+      const L = len(w) || 1, t = ((o.offsetMm || 0) + (o.widthMm || 0) / 2) / L;
+      const ox = w.start.x + (w.end.x - w.start.x) * t, oy = w.start.y + (w.end.y - w.start.y) * t;
+      g.beginPath(); g.arc(tx(ox), ty(oy), 5, 0, Math.PI * 2); g.fill();
+      g.fillText((o.type === "window" ? "F" : "T") + (o.widthMm ? " " + o.widthMm : ""), tx(ox), ty(oy) - 13);
+    });
+    g.fillStyle = "#333"; g.font = "bold 14px system-ui,sans-serif";
+    (st.rooms || []).forEach(r => { const poly = r.polygon || []; if (!poly.length) return; let cx = 0, cy = 0; poly.forEach(p => { cx += p.x; cy += p.y; }); cx /= poly.length; cy /= poly.length; g.fillText(r.name || "", tx(cx), ty(cy)); });
+    g.fillStyle = "#888"; g.font = "12px system-ui,sans-serif"; g.textAlign = "left";
+    g.fillText("Maßbild aus dem extrahierten Modell (Wandlängen in m · F=Fenster · T=Tür)", 12, H - 14);
+    const m = /^data:([^;]+);base64,(.*)$/.exec(c.toDataURL("image/png"));
+    return m ? { mime: m[1], base64: m[2] } : null;
+  }
+
+  const VERIFY_SYS = `Du prüfst, ob ein aus einem Grundriss extrahiertes Maß-Modell zum Originalplan passt. Du bekommst ZWEI Bilder: (1) den ORIGINAL-Grundriss, (2) ein MASSBILD aus dem extrahierten Modell (Wandlängen in m · F=Fenster · T=Tür) — plus etwas Modell-Text. Vergleiche SEMANTISCH und melde Abweichungen.
+
+Prüfe: Stimmt Raumzahl und -anordnung? Fehlen Wände/Türen/Fenster oder sind welche zu viel? Passen die Längen plausibel zu den Maßketten im Original? Erfinde keine Maße — zeigt der Plan etwas nicht, ist es KEINE Abweichung.
+
+Gib AUSSCHLIESSLICH dieses JSON zurück:
+{"ok":true,"summary":"kurze Gesamteinschätzung","deviations":[{"location":"z. B. Südwand / Wohnzimmer","expected":"was der Plan zeigt","got":"was das Modell hat","kind":"laenge|fehlend|zusatz|tuer|fenster|raum|position","severity":"hoch|mittel|niedrig","fix":"konkreter Korrekturhinweis"}],"missing":["was im Modell fehlt"]}`;
+
+  async function verify(planInline, model) {
+    if (!window.Claude) throw new Error("Claude-Modul nicht geladen.");
+    const mb = drawMassbild(model);
+    if (!mb) throw new Error("Maßbild konnte nicht erzeugt werden.");
+    const st = (model.storeys || [])[0] || {};
+    const txt = "Modell: " + (st.walls || []).length + " Wände, Räume: " + (st.rooms || []).map(r => r.name).filter(Boolean).join(", ") + ". Bild 1 = Original-Grundriss, Bild 2 = Maßbild aus dem Modell.";
+    const content = [
+      { type: "image", source: { type: "base64", media_type: planInline.mime, data: planInline.base64 } },
+      { type: "image", source: { type: "base64", media_type: mb.mime, data: mb.base64 } },
+      { type: "text", text: txt }
+    ];
+    const out = await window.Claude.call({ system: VERIFY_SYS, content, maxTokens: 3000 });
+    return window.Claude.parseJSON(out);
+  }
+
   window.Measure = {
     DEMO,
     wallLength: len,
     roomArea: polygonAreaMm2,
     validate,
     extractFromPlan,
+    drawMassbild,
+    verify,
     mm: v => v / 1000   // mm → Meter (für die 3D-Geometrie)
   };
 })();

@@ -66,15 +66,34 @@
     try {
       const inline = await window.ImageGen.fileToInline(file);
       const model = await window.Measure.extractFromPlan(inline);
-      const v = window.Measure.validate(model);
-      if (window.SplatViewer) window.SplatViewer.stop();
-      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
-      const sh = $("#splatHost"); if (sh) sh.hidden = true;
-      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
-      report(summary(model, v), false);
+      lastPlan = inline; lastModel = model;
+      mountModel(model, window.Measure.validate(model));
+      const vb = $("#measureVerifyBtn"); if (vb) vb.hidden = false;
     } catch (e) {
       report('Konnte das Modell nicht bauen: ' + esc(e.message || "Fehler"), true);
     } finally { if (btn) btn.disabled = false; }
+  }
+
+  let lastPlan = null, lastModel = null;
+  function verifyReport(rep) {
+    const devs = (rep && rep.deviations) || [], miss = (rep && rep.missing) || [];
+    const none = rep && rep.ok && !devs.length && !miss.length;
+    let h = '<div class="mr-h">Prüfung: ' + (none ? '✓ keine Abweichungen gefunden' : (devs.length + miss.length) + ' Punkte') + '</div>';
+    if (rep && rep.summary) h += '<div class="muted small">' + esc(rep.summary) + '</div>';
+    if (devs.length) h += '<ul class="mr-devs">' + devs.slice(0, 20).map(d => '<li class="sev-' + esc(d.severity || "") + '"><b>' + esc(d.location || "") + '</b>: ' + esc(d.expected || "") + ' → <i>' + esc(d.got || "") + '</i>' + (d.fix ? ' — ' + esc(d.fix) : "") + '</li>').join("") + '</ul>';
+    if (miss.length) h += '<details class="mr-warn"><summary>Fehlt im Modell (' + miss.length + ')</summary><ul>' + miss.slice(0, 20).map(m => '<li>' + esc(m) + '</li>').join("") + '</ul></details>';
+    return h;
+  }
+  async function verifyAgainstPlan() {
+    if (!lastPlan || !lastModel) { if (window.toast) toast("Erst ein Modell aus einem Grundriss bauen.", "err"); return; }
+    if (!(window.IS && window.IS.ckey)) { if (window.toast) toast("Claude-Key fehlt (Schlüssel-Symbol).", "err"); return; }
+    const btn = $("#measureVerifyBtn"); if (btn) btn.disabled = true;
+    report('<span class="muted small">Claude vergleicht das Modell gegen den Plan … (~10–20 s)</span>', false);
+    try {
+      const rep = await window.Measure.verify(lastPlan, lastModel);
+      report(verifyReport(rep), false);
+    } catch (e) { report('Prüfung fehlgeschlagen: ' + esc(e.message || "Fehler"), true); }
+    finally { if (btn) btn.disabled = false; }
   }
 
   function mountModel(model, v) {
@@ -227,6 +246,7 @@
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
+    const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     wired = true;
   }
 
