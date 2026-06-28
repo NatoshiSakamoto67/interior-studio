@@ -77,6 +77,43 @@
     } finally { if (btn) btn.disabled = false; }
   }
 
+  function mountModel(model, v) {
+    if (window.SplatViewer) window.SplatViewer.stop();
+    const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+    const sh = $("#splatHost"); if (sh) sh.hidden = true;
+    const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
+    report(summary(model, v), false);
+  }
+
+  let cadAnalysis = null;
+  async function analyzeCad() {
+    const inp = $("#cadFile"); const file = inp && inp.files[0];
+    if (!file) return;
+    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten und erneut wählen.", "err"); return; }
+    report('<span class="muted small">DXF wird gelesen …</span>', false);
+    try {
+      const text = await file.text();
+      cadAnalysis = window.CAD.analyze(text);
+      const sel = $("#cadLayerSel");
+      if (sel) {
+        const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
+        sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
+          cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
+      }
+      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
+      report('<span class="muted small">DXF gelesen: ' + cadAnalysis.layers.length + ' Ebenen. Wand-Ebene wählen → „CAD als Modell bauen".</span>', false);
+    } catch (e) { cadAnalysis = null; report('DXF konnte nicht gelesen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+  function buildCad() {
+    if (!cadAnalysis) { if (window.toast) toast("Erst eine DXF-Datei wählen.", "err"); return; }
+    if (!(window.Parametric && window.Parametric.available() && window.CAD && window.Measure)) { if (window.toast) toast("CAD-Bauer nicht verfügbar.", "err"); return; }
+    try {
+      const sel = $("#cadLayerSel"); const layer = sel ? sel.value : "*";
+      const model = window.CAD.toModel(cadAnalysis, layer);
+      mountModel(model, window.Measure.validate(model));
+    } catch (e) { report('Konnte das CAD-Modell nicht bauen: ' + esc(e.message || "Fehler"), true); }
+  }
+
   async function checkBackend() {
     const el = $("#worldBackend"); if (!el) return;
     el.innerHTML = '<span class="muted small">Backend wird geprüft …</span>';
@@ -171,6 +208,8 @@
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
     const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
     const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
+    const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
+    const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     wired = true;
   }
 

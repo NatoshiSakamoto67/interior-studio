@@ -126,6 +126,13 @@ function build(model, container) {
     const ceil = new THREE.Mesh(fg.clone(), ceilMat); ceil.rotation.x = -Math.PI / 2; ceil.position.y = H0; group.add(ceil);
   });
 
+  // Ohne Raum-Polygone (z. B. DXF-Import) → Boden/Decke aus der Wand-Bounding-Box
+  if (!(st.rooms || []).length && isFinite(minX) && maxX > minX) {
+    const fw = (maxX - minX) + 0.4, fd = (maxZ - minZ) + 0.4, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), floorMat); floor.position.set(cx, -0.02, cz); floor.receiveShadow = true; group.add(floor);
+    const ceil = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), ceilMat); ceil.position.set(cx, H0, cz); group.add(ceil);
+  }
+
   // Kamera in den ersten Raum
   const r0 = (st.rooms || [])[0];
   if (r0 && r0.polygon && r0.polygon.length) {

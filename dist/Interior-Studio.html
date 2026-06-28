@@ -954,9 +954,20 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
               <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
             </label>
             <button class="btn btn-accent btn-lg" id="measureBuildBtn"><span class="ic" data-icon="ruler"></span> Aus Grundriss bauen</button>
+
+            <div class="cad-import">
+              <label class="fld"><span>… oder CAD-Datei (.dxf) — höchste Präzision, ohne KI</span>
+                <input type="file" id="cadFile" accept=".dxf" />
+              </label>
+              <div id="cadLayers" hidden>
+                <label class="fld"><span>Wand-Ebene</span><select id="cadLayerSel"></select></label>
+                <button class="btn btn-accent" id="cadBuildBtn"><span class="ic" data-icon="ruler"></span> CAD als Modell bauen</button>
+              </div>
+            </div>
+
             <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
             <div class="world-measure-report" id="measureReport" hidden></div>
-            <p class="hint">Braucht den Claude-Key (Schlüssel-Symbol). Nächste Stufen: CAD-Import (DXF/IFC), Prüf-Loop, Fotoreal.</p>
+            <p class="hint">Bild-Grundriss braucht den Claude-Key · DXF läuft ohne Key. Positionen aus CAD sind exakt; Wandstärken werden als Standard angenommen (bläulich markiert). Nächste Stufen: IFC, Prüf-Loop, Fotoreal.</p>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>
@@ -2872,6 +2883,43 @@ Gib NUR dieses JSON zurück.`;
     } finally { if (btn) btn.disabled = false; }
   }
 
+  function mountModel(model, v) {
+    if (window.SplatViewer) window.SplatViewer.stop();
+    const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+    const sh = $("#splatHost"); if (sh) sh.hidden = true;
+    const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
+    report(summary(model, v), false);
+  }
+
+  let cadAnalysis = null;
+  async function analyzeCad() {
+    const inp = $("#cadFile"); const file = inp && inp.files[0];
+    if (!file) return;
+    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten und erneut wählen.", "err"); return; }
+    report('<span class="muted small">DXF wird gelesen …</span>', false);
+    try {
+      const text = await file.text();
+      cadAnalysis = window.CAD.analyze(text);
+      const sel = $("#cadLayerSel");
+      if (sel) {
+        const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
+        sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
+          cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
+      }
+      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
+      report('<span class="muted small">DXF gelesen: ' + cadAnalysis.layers.length + ' Ebenen. Wand-Ebene wählen → „CAD als Modell bauen".</span>', false);
+    } catch (e) { cadAnalysis = null; report('DXF konnte nicht gelesen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+  function buildCad() {
+    if (!cadAnalysis) { if (window.toast) toast("Erst eine DXF-Datei wählen.", "err"); return; }
+    if (!(window.Parametric && window.Parametric.available() && window.CAD && window.Measure)) { if (window.toast) toast("CAD-Bauer nicht verfügbar.", "err"); return; }
+    try {
+      const sel = $("#cadLayerSel"); const layer = sel ? sel.value : "*";
+      const model = window.CAD.toModel(cadAnalysis, layer);
+      mountModel(model, window.Measure.validate(model));
+    } catch (e) { report('Konnte das CAD-Modell nicht bauen: ' + esc(e.message || "Fehler"), true); }
+  }
+
   async function checkBackend() {
     const el = $("#worldBackend"); if (!el) return;
     el.innerHTML = '<span class="muted small">Backend wird geprüft …</span>';
@@ -2966,6 +3014,8 @@ Gib NUR dieses JSON zurück.`;
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
     const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
     const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
+    const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
+    const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     wired = true;
   }
 
@@ -2983,7 +3033,8 @@ Gib NUR dieses JSON zurück.`;
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"
+      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
+      "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm"
     }
   }
   </script>
@@ -3282,6 +3333,13 @@ function build(model, container) {
     const ceil = new THREE.Mesh(fg.clone(), ceilMat); ceil.rotation.x = -Math.PI / 2; ceil.position.y = H0; group.add(ceil);
   });
 
+  // Ohne Raum-Polygone (z. B. DXF-Import) → Boden/Decke aus der Wand-Bounding-Box
+  if (!(st.rooms || []).length && isFinite(minX) && maxX > minX) {
+    const fw = (maxX - minX) + 0.4, fd = (maxZ - minZ) + 0.4, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), floorMat); floor.position.set(cx, -0.02, cz); floor.receiveShadow = true; group.add(floor);
+    const ceil = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), ceilMat); ceil.position.set(cx, H0, cz); group.add(ceil);
+  }
+
   // Kamera in den ersten Raum
   const r0 = (st.rooms || [])[0];
   if (r0 && r0.polygon && r0.polygon.length) {
@@ -3357,6 +3415,83 @@ function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(grou
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
 window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
+
+</script>
+  <script type="module">
+/* Interior Studio — CAD-Import (DXF) auf der ESM-Spur.
+   Parst eine DXF-Datei zu EXAKTEN mm-Wänden (Positionen aus CAD = millimetergenau).
+   Einheit aus $INSUNITS. Ebenen-Auswahl, damit nur Wände (nicht Möbel/Maße/Text) gebaut werden.
+   Wandstärke/Höhe trägt DXF nicht semantisch → bleiben null (parametric.js markiert sie ehrlich als angenommen).
+   API: window.CAD.analyze(text) · toModel(analysis, layerName|null) · guessWallLayer(layers). */
+import DxfParser from "dxf-parser";
+
+// $INSUNITS → mm pro Zeichnungseinheit (0/undef → mm angenommen)
+function unitScale(header) {
+  const u = header && header["$INSUNITS"];
+  return ({ 1: 25.4, 4: 1, 5: 10, 6: 1000, 8: 0.0254 })[u] || 1;
+}
+
+function lineSeg(e) {
+  if (e.vertices && e.vertices.length >= 2) return [e.vertices[0], e.vertices[1]];
+  if (e.start && e.end) return [e.start, e.end];
+  return null;
+}
+
+function segmentsOf(dxf) {
+  const segs = [];
+  (dxf.entities || []).forEach(e => {
+    const layer = e.layer || "0";
+    if (e.type === "LINE") {
+      const s = lineSeg(e); if (s) segs.push({ layer, a: s[0], b: s[1] });
+    } else if ((e.type === "LWPOLYLINE" || e.type === "POLYLINE") && e.vertices && e.vertices.length >= 2) {
+      for (let i = 0; i < e.vertices.length - 1; i++) segs.push({ layer, a: e.vertices[i], b: e.vertices[i + 1] });
+      if (e.shape || e.closed) segs.push({ layer, a: e.vertices[e.vertices.length - 1], b: e.vertices[0] });
+    }
+  });
+  return segs.filter(s => s.a && s.b && isFinite(s.a.x) && isFinite(s.a.y) && isFinite(s.b.x) && isFinite(s.b.y));
+}
+
+function analyze(text) {
+  const dxf = new DxfParser().parseSync(text);
+  const scale = unitScale(dxf.header);
+  const segs = segmentsOf(dxf);
+  if (!segs.length) throw new Error("Keine Linien/Polylinien in der DXF gefunden.");
+  const byLayer = {};
+  segs.forEach(s => { byLayer[s.layer] = (byLayer[s.layer] || 0) + 1; });
+  const layers = Object.keys(byLayer).map(name => ({ name, segs: byLayer[name] })).sort((a, b) => b.segs - a.segs);
+  return { scale, segs, layers, hasUnit: !!(dxf.header && dxf.header["$INSUNITS"]) };
+}
+
+function guessWallLayer(layers) {
+  const m = (layers || []).find(l => /wall|wand|mauer|tragwand|aussen|außen/i.test(l.name));
+  return m ? m.name : ((layers && layers[0] && layers[0].name) || "*");
+}
+
+function toModel(an, layerName) {
+  const scale = an.scale;
+  const segs = (layerName && layerName !== "*") ? an.segs.filter(s => s.layer === layerName) : an.segs;
+  if (!segs.length) throw new Error("Keine Linien auf dieser Ebene.");
+  let minX = Infinity, minY = Infinity, maxY = -Infinity;
+  segs.forEach(s => { minX = Math.min(minX, s.a.x, s.b.x); minY = Math.min(minY, s.a.y, s.b.y); maxY = Math.max(maxY, s.a.y, s.b.y); });
+  const px = v => Math.round((v - minX) * scale);
+  const py = v => Math.round((maxY - v) * scale);   // DXF y↑ → Plan y↓ (konsistent mit Claude-Pfad)
+  const walls = segs.map((s, i) => ({
+    id: "w" + i, start: { x: px(s.a.x), y: py(s.a.y) }, end: { x: px(s.b.x), y: py(s.b.y) },
+    thicknessMm: null, heightMm: null, type: "loadbearing", conf: 1
+  })).filter(w => Math.hypot(w.end.x - w.start.x, w.end.y - w.start.y) >= 50);   // <5 cm = Rauschen
+  if (!walls.length) throw new Error("Keine brauchbaren Wandlinien (zu kurz).");
+  const unc = [{ field: "thicknessMm", reason: "Wandstärken aus DXF nicht semantisch ableitbar — Standard angenommen" }];
+  if (!an.hasUnit) unc.push({ field: "unit", reason: "DXF ohne $INSUNITS — Einheit als mm angenommen" });
+  return {
+    schema: "interior-studio.measure/v1", unit: "mm",
+    provenance: { kind: "dxf", precision: "exact", confidence: 1, warnings: an.hasUnit ? [] : ["DXF trug keine Einheit — als mm interpretiert."] },
+    project: { title: "CAD-Import (DXF)", northDeg: 0 },
+    uncertain: unc,
+    storeys: [{ id: "eg", name: "DXF", level: 0, elevationMm: 0, ceilingHeightMm: null, walls, openings: [], rooms: [] }]
+  };
+}
+
+window.CAD = { analyze, toModel, guessWallLayer };
 
 </script>
   <script>

@@ -294,9 +294,20 @@
               <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
             </label>
             <button class="btn btn-accent btn-lg" id="measureBuildBtn"><span class="ic" data-icon="ruler"></span> Aus Grundriss bauen</button>
+
+            <div class="cad-import">
+              <label class="fld"><span>… oder CAD-Datei (.dxf) — höchste Präzision, ohne KI</span>
+                <input type="file" id="cadFile" accept=".dxf" />
+              </label>
+              <div id="cadLayers" hidden>
+                <label class="fld"><span>Wand-Ebene</span><select id="cadLayerSel"></select></label>
+                <button class="btn btn-accent" id="cadBuildBtn"><span class="ic" data-icon="ruler"></span> CAD als Modell bauen</button>
+              </div>
+            </div>
+
             <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
             <div class="world-measure-report" id="measureReport" hidden></div>
-            <p class="hint">Braucht den Claude-Key (Schlüssel-Symbol). Nächste Stufen: CAD-Import (DXF/IFC), Prüf-Loop, Fotoreal.</p>
+            <p class="hint">Bild-Grundriss braucht den Claude-Key · DXF läuft ohne Key. Positionen aus CAD sind exakt; Wandstärken werden als Standard angenommen (bläulich markiert). Nächste Stufen: IFC, Prüf-Loop, Fotoreal.</p>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>
@@ -450,12 +461,14 @@
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"
+      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
+      "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm"
     }
   }
   </script>
   <script type="module" src="splatviewer.js"></script>
   <script type="module" src="parametric.js"></script>
+  <script type="module" src="cad.js"></script>
   <script src="app.js"></script>
   <script>
     /* Service Worker nur im sicheren Kontext (https / localhost) → Handy: installierbar & offline.
