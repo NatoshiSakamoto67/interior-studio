@@ -10,6 +10,8 @@ const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
+let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
+const spawn = { x: 0, z: 0 };   // Innen-Startpunkt fürs Begehen
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
@@ -20,7 +22,7 @@ function mount(container) {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.15;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -33,7 +35,7 @@ function mount(container) {
   cam = new THREE.PerspectiveCamera(68, aspect(), 0.05, 400);
   cam.position.set(0, EYE, 0);
 
-  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x20191c, 0.6));
+  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x20191c, 0.85));
   const d = new THREE.DirectionalLight(0xfff2e6, 1.3);
   d.position.set(6, 12, 7); d.castShadow = true;
   d.shadow.mapSize.set(1024, 1024); d.shadow.camera.far = 60;
@@ -163,13 +165,28 @@ function build(model, container) {
     const ceil = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), ceilMat); ceil.position.set(cx, H0, cz); group.add(ceil);
   }
 
-  // Kamera in den ersten Raum
-  const r0 = (st.rooms || [])[0];
-  if (r0 && r0.polygon && r0.polygon.length) {
-    let cx = 0, cz = 0; r0.polygon.forEach(p => { cx += mm(p.x); cz += mm(p.y); });
-    cam.position.set(cx / r0.polygon.length, EYE, cz / r0.polygon.length);
-  } else if (isFinite(minX)) cam.position.set((minX + maxX) / 2, EYE, (minZ + maxZ) / 2);
-  look.yaw = 0; look.pitch = 0; applyLook();
+  // Innenraum (Maß-Modell) → Augenhöhe in der Ecke, quer durch den Raum blicken (sofort begehbar).
+  // Ein geschlossener Raum mit Decke eignet sich nicht für die Außen-Übersicht (man sähe nur die Decke).
+  if (isFinite(minX) && maxX > minX) {
+    const ux = maxX - minX, uz = maxZ - minZ;
+    cam.position.set(minX + Math.min(0.9, ux * 0.15), EYE, minZ + Math.min(0.9, uz * 0.15));
+    const dir = new THREE.Vector3(maxX - cam.position.x, 0, maxZ - cam.position.z).normalize();
+    look.yaw = Math.atan2(-dir.x, -dir.z); look.pitch = -0.05;
+  } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; }
+  walked = true; applyLook();
+}
+
+// Kamera schräg von außen-oben auf das Modell richten (Übersicht); Innen-Startpunkt fürs Begehen merken.
+function frameView(box, spX, spZ) {
+  const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.z, 2);
+  const camPos = new THREE.Vector3(c.x - span * 0.5, box.max.y + span * 0.5 + 1.4, c.z + span * 0.92);
+  cam.position.copy(camPos);
+  const dir = c.clone().sub(camPos).normalize();
+  look.pitch = Math.max(-Math.PI / 2 + 0.05, Math.asin(Math.max(-1, Math.min(1, dir.y))));
+  look.yaw = Math.atan2(-dir.x, -dir.z);
+  spawn.x = spX; spawn.z = spZ; walked = false;
+  applyLook();
 }
 
 function addDimLabel(w, exact) {
@@ -214,8 +231,13 @@ function step(dt) {
   let f = 0, s = 0;
   if (keys["w"] || keys["arrowup"]) f += 1; if (keys["s"] || keys["arrowdown"]) f -= 1;
   if (keys["d"] || keys["arrowright"]) s += 1; if (keys["a"] || keys["arrowleft"]) s -= 1;
-  if (f || s) { const sy = Math.sin(look.yaw), cy = Math.cos(look.yaw), v = SPEED * dt; cam.position.x += (-sy * f + cy * s) * v; cam.position.z += (-cy * f - sy * s) * v; }
-  cam.position.y = EYE; applyLook();
+  if (f || s) {
+    if (!walked) { walked = true; cam.position.set(spawn.x, EYE, spawn.z); }   // erstes Gehen → rein in den Raum
+    const sy = Math.sin(look.yaw), cy = Math.cos(look.yaw), v = SPEED * dt;
+    cam.position.x += (-sy * f + cy * s) * v; cam.position.z += (-cy * f - sy * s) * v;
+  }
+  if (walked) cam.position.y = EYE;   // beim Begehen auf Augenhöhe; in der Übersicht frei
+  applyLook();
 }
 function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
 function makeDpad(hostEl, keyObj) {
@@ -247,9 +269,8 @@ function buildGroup(extGroup, container) {
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
-    cam.position.set(c.x, box.min.y + EYE, c.z);
-  } else cam.position.set(0, EYE, 0);
-  look.yaw = 0; look.pitch = 0; applyLook();
+    frameView(box, c.x, c.z);                 // Übersicht über das ganze Gebäude, dann begehbar
+  } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
 window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };

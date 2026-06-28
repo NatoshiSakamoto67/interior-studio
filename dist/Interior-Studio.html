@@ -1,4 +1,4 @@
-<!-- Interior Studio — Einzeldatei-Build, generiert 2026-06-28 von tools/build-single.py. Selbsttragend: per Doppelklick (file://) lauffähig, über WhatsApp/USB verschickbar. Quelle: github-Repo. -->
+<!-- Interior Studio — Einzeldatei-Build, generiert 2026-06-29 von tools/build-single.py. Selbsttragend: per Doppelklick (file://) lauffähig, über WhatsApp/USB verschickbar. Quelle: github-Repo. -->
 <!doctype html>
 <html lang="de">
 <head>
@@ -1352,9 +1352,14 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
               </label>
             </div>
 
+            <span class="eyebrow">Sofort ausprobieren (ohne eigene Datei)</span>
+            <div class="row2">
+              <button class="btn" id="demoCadBtn"><span class="ic" data-icon="ruler"></span> Demo-CAD (.dxf)</button>
+              <button class="btn" id="demoIfcBtn"><span class="ic" data-icon="house"></span> Demo-IFC (Haus)</button>
+            </div>
             <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
             <div class="world-measure-report" id="measureReport" hidden></div>
-            <p class="hint">Bild-Grundriss braucht den Claude-Key · DXF läuft ohne Key. Positionen aus CAD sind exakt; Wandstärken werden als Standard angenommen (bläulich markiert). Nächste Stufen: IFC, Prüf-Loop, Fotoreal.</p>
+            <p class="hint">DXF/IFC laufen ohne Key (Demo-Knöpfe: mitgelieferte Beispiele). Bild-Grundriss braucht den Claude-Key. Positionen aus CAD sind exakt; Wandstärken bei DXF als Standard angenommen (bläulich markiert).</p>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>
@@ -3181,15 +3186,42 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     try {
       const text = await file.text();
       cadAnalysis = window.CAD.analyze(text);
-      const sel = $("#cadLayerSel");
-      if (sel) {
-        const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
-        sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
-          cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
-      }
+      populateCadLayers();
       const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
       report('<span class="muted small">DXF gelesen: ' + cadAnalysis.layers.length + ' Ebenen. Wand-Ebene wählen → „CAD als Modell bauen".</span>', false);
     } catch (e) { cadAnalysis = null; report('DXF konnte nicht gelesen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+  function populateCadLayers() {
+    const sel = $("#cadLayerSel"); if (!sel || !cadAnalysis) return;
+    const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
+    sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
+      cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
+  }
+  async function loadDemoCad() {
+    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten.", "err"); return; }
+    try {
+      report('<span class="muted small">Demo-CAD (.dxf) wird geladen …</span>', false);
+      const r = await fetch("examples/demo-grundriss.dxf", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo-DXF nur in der gehosteten Version (localhost/Pages).");
+      cadAnalysis = window.CAD.analyze(await r.text());
+      populateCadLayers();
+      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
+      buildCad();
+    } catch (e) { cadAnalysis = null; report('Demo-CAD nicht ladbar: ' + esc(e.message || "Fehler"), true); }
+  }
+  async function loadDemoIfc() {
+    if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    report('<span class="muted small">Demo-IFC (Haus) wird geladen — WASM + ~2,5 MB, einige Sekunden …</span>', false);
+    try {
+      const r = await fetch("examples/fzk-haus.ifc", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo-IFC nur in der gehosteten Version (localhost/Pages).");
+      const res = await window.IFC.loadIFC(await r.arrayBuffer(), msg => report('<span class="muted small">' + esc(msg) + '</span>', false));
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
+      report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie' + (res.scaled ? ' · mm→m' : '') + '. Reinklicken + WASD = begehen.</div>', false);
+    } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
   function buildCad() {
     if (!cadAnalysis) { if (window.toast) toast("Erst eine DXF-Datei wählen.", "err"); return; }
@@ -3315,6 +3347,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
+    const dc = $("#demoCadBtn"); if (dc) dc.onclick = loadDemoCad;
+    const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     wired = true;
   }
@@ -3519,6 +3553,8 @@ const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
+let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
+const spawn = { x: 0, z: 0 };   // Innen-Startpunkt fürs Begehen
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
@@ -3529,7 +3565,7 @@ function mount(container) {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.15;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3542,7 +3578,7 @@ function mount(container) {
   cam = new THREE.PerspectiveCamera(68, aspect(), 0.05, 400);
   cam.position.set(0, EYE, 0);
 
-  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x20191c, 0.6));
+  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x20191c, 0.85));
   const d = new THREE.DirectionalLight(0xfff2e6, 1.3);
   d.position.set(6, 12, 7); d.castShadow = true;
   d.shadow.mapSize.set(1024, 1024); d.shadow.camera.far = 60;
@@ -3672,13 +3708,28 @@ function build(model, container) {
     const ceil = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), ceilMat); ceil.position.set(cx, H0, cz); group.add(ceil);
   }
 
-  // Kamera in den ersten Raum
-  const r0 = (st.rooms || [])[0];
-  if (r0 && r0.polygon && r0.polygon.length) {
-    let cx = 0, cz = 0; r0.polygon.forEach(p => { cx += mm(p.x); cz += mm(p.y); });
-    cam.position.set(cx / r0.polygon.length, EYE, cz / r0.polygon.length);
-  } else if (isFinite(minX)) cam.position.set((minX + maxX) / 2, EYE, (minZ + maxZ) / 2);
-  look.yaw = 0; look.pitch = 0; applyLook();
+  // Innenraum (Maß-Modell) → Augenhöhe in der Ecke, quer durch den Raum blicken (sofort begehbar).
+  // Ein geschlossener Raum mit Decke eignet sich nicht für die Außen-Übersicht (man sähe nur die Decke).
+  if (isFinite(minX) && maxX > minX) {
+    const ux = maxX - minX, uz = maxZ - minZ;
+    cam.position.set(minX + Math.min(0.9, ux * 0.15), EYE, minZ + Math.min(0.9, uz * 0.15));
+    const dir = new THREE.Vector3(maxX - cam.position.x, 0, maxZ - cam.position.z).normalize();
+    look.yaw = Math.atan2(-dir.x, -dir.z); look.pitch = -0.05;
+  } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; }
+  walked = true; applyLook();
+}
+
+// Kamera schräg von außen-oben auf das Modell richten (Übersicht); Innen-Startpunkt fürs Begehen merken.
+function frameView(box, spX, spZ) {
+  const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.z, 2);
+  const camPos = new THREE.Vector3(c.x - span * 0.5, box.max.y + span * 0.5 + 1.4, c.z + span * 0.92);
+  cam.position.copy(camPos);
+  const dir = c.clone().sub(camPos).normalize();
+  look.pitch = Math.max(-Math.PI / 2 + 0.05, Math.asin(Math.max(-1, Math.min(1, dir.y))));
+  look.yaw = Math.atan2(-dir.x, -dir.z);
+  spawn.x = spX; spawn.z = spZ; walked = false;
+  applyLook();
 }
 
 function addDimLabel(w, exact) {
@@ -3723,8 +3774,13 @@ function step(dt) {
   let f = 0, s = 0;
   if (keys["w"] || keys["arrowup"]) f += 1; if (keys["s"] || keys["arrowdown"]) f -= 1;
   if (keys["d"] || keys["arrowright"]) s += 1; if (keys["a"] || keys["arrowleft"]) s -= 1;
-  if (f || s) { const sy = Math.sin(look.yaw), cy = Math.cos(look.yaw), v = SPEED * dt; cam.position.x += (-sy * f + cy * s) * v; cam.position.z += (-cy * f - sy * s) * v; }
-  cam.position.y = EYE; applyLook();
+  if (f || s) {
+    if (!walked) { walked = true; cam.position.set(spawn.x, EYE, spawn.z); }   // erstes Gehen → rein in den Raum
+    const sy = Math.sin(look.yaw), cy = Math.cos(look.yaw), v = SPEED * dt;
+    cam.position.x += (-sy * f + cy * s) * v; cam.position.z += (-cy * f - sy * s) * v;
+  }
+  if (walked) cam.position.y = EYE;   // beim Begehen auf Augenhöhe; in der Übersicht frei
+  applyLook();
 }
 function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
 function makeDpad(hostEl, keyObj) {
@@ -3756,9 +3812,8 @@ function buildGroup(extGroup, container) {
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
-    cam.position.set(c.x, box.min.y + EYE, c.z);
-  } else cam.position.set(0, EYE, 0);
-  look.yaw = 0; look.pitch = 0; applyLook();
+    frameView(box, c.x, c.z);                 // Übersicht über das ganze Gebäude, dann begehbar
+  } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
 window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };

@@ -124,15 +124,42 @@
     try {
       const text = await file.text();
       cadAnalysis = window.CAD.analyze(text);
-      const sel = $("#cadLayerSel");
-      if (sel) {
-        const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
-        sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
-          cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
-      }
+      populateCadLayers();
       const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
       report('<span class="muted small">DXF gelesen: ' + cadAnalysis.layers.length + ' Ebenen. Wand-Ebene wählen → „CAD als Modell bauen".</span>', false);
     } catch (e) { cadAnalysis = null; report('DXF konnte nicht gelesen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+  function populateCadLayers() {
+    const sel = $("#cadLayerSel"); if (!sel || !cadAnalysis) return;
+    const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
+    sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
+      cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
+  }
+  async function loadDemoCad() {
+    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten.", "err"); return; }
+    try {
+      report('<span class="muted small">Demo-CAD (.dxf) wird geladen …</span>', false);
+      const r = await fetch("examples/demo-grundriss.dxf", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo-DXF nur in der gehosteten Version (localhost/Pages).");
+      cadAnalysis = window.CAD.analyze(await r.text());
+      populateCadLayers();
+      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
+      buildCad();
+    } catch (e) { cadAnalysis = null; report('Demo-CAD nicht ladbar: ' + esc(e.message || "Fehler"), true); }
+  }
+  async function loadDemoIfc() {
+    if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    report('<span class="muted small">Demo-IFC (Haus) wird geladen — WASM + ~2,5 MB, einige Sekunden …</span>', false);
+    try {
+      const r = await fetch("examples/fzk-haus.ifc", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo-IFC nur in der gehosteten Version (localhost/Pages).");
+      const res = await window.IFC.loadIFC(await r.arrayBuffer(), msg => report('<span class="muted small">' + esc(msg) + '</span>', false));
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
+      report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie' + (res.scaled ? ' · mm→m' : '') + '. Reinklicken + WASD = begehen.</div>', false);
+    } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
   function buildCad() {
     if (!cadAnalysis) { if (window.toast) toast("Erst eine DXF-Datei wählen.", "err"); return; }
@@ -258,6 +285,8 @@
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
+    const dc = $("#demoCadBtn"); if (dc) dc.onclick = loadDemoCad;
+    const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     wired = true;
   }
