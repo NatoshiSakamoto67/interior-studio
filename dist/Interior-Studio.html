@@ -715,7 +715,6 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
-    <button class="key-btn" id="helpBtn" title="Hilfe & Beispiele"><span class="ic" data-icon="circle-help"></span> Hilfe</button>
     <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
   </header>
 
@@ -3885,8 +3884,6 @@ window.IFC = { loadIFC };
     const r = e.target.closest("[data-goto]"); if (!r) return;
     e.preventDefault(); showPanel(r.getAttribute("data-goto"));
   });
-  // Immer sichtbarer Hilfe-Knopf im Kopf → Unterlagen aktiv + Hilfe zeigen (Zurück führt sauber nach Unterlagen)
-  { const hb = $("#helpBtn"); if (hb) hb.onclick = () => { showTab("docs"); showPanel("help"); }; }
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
