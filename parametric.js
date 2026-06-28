@@ -11,6 +11,7 @@ let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
+let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
 const spawn = { x: 0, z: 0 };   // Innen-Startpunkt fürs Begehen
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
@@ -95,6 +96,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
+  lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
@@ -236,9 +238,12 @@ async function snapshot(opts = {}) {
   const hidden = [];
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
-  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio();
+  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio(), prevBg = scene.background;
   const sz = new THREE.Vector2(); renderer.getSize(sz);
   scene.fog = null; renderer.toneMappingExposure = 1.32;
+  // Heller Hintergrund: Lücken (über Wänden / durch Öffnungen) lesen als hell statt schwarz →
+  // kein „schwarze Decke / Nachthimmel"-Artefakt, und außen ein photoreal-tauglicher heller Kontext.
+  scene.background = new THREE.Color(0xe9e3d7);
   // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
   // lässt aber die gerichteten Schatten als Tiefencue stehen.
   const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
@@ -254,7 +259,7 @@ async function snapshot(opts = {}) {
   }
   // Zustand wiederherstellen
   scene.remove(fill);
-  scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
   if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
@@ -318,7 +323,7 @@ function buildGroup(extGroup, container) {
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
   group = extGroup; scene.add(group);
-  lastAssumptions = [];
+  lastAssumptions = []; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
@@ -326,4 +331,4 @@ function buildGroup(extGroup, container) {
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, assumptions: () => lastAssumptions.slice() };
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };

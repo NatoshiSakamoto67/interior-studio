@@ -205,16 +205,25 @@
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
-  function fotoPrompt(style, hasRef) {
-    return "Photorealistic interior photograph generated FROM the provided architectural render. "
-      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall positions and thicknesses, room proportions, ceiling height, "
+  function fotoPrompt(style, hasRef, kind) {
+    const building = kind === "building";
+    const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
+    const dfltMat = building
+      ? "warm plaster facade, clay roof tiles, oak window and door frames, clear glazing"
+      : "matte white plaster walls, wide warm oak plank floor, satin white plaster ceiling, soft natural daylight";
+    const enclosure = building
+      ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
+      : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
+    return "Photorealistic " + subject + " generated FROM the provided architectural render. "
+      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall/element positions and thicknesses, proportions, heights, "
       + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
       + "Do NOT move, add, remove, resize, crop, re-align or re-interpret any wall, opening, edge or structural element, and do not change the viewpoint. "
       + "Keep the existing light direction and shadows. "
       + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
       + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
-      + "Materials & mood: " + (style || "matte white plaster walls, wide warm oak plank floor, satin white ceiling, soft natural daylight") + ". "
-      + "Do NOT add furniture, people, plants, signage or any object that is not present in the input. "
+      + enclosure
+      + "Materials & mood: " + (style || dfltMat) + ". "
+      + "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. "
       + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
       + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
       + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
@@ -236,7 +245,8 @@
       const images = [];
       const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
       if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1), aspect: "16:9", resolution: "4K", images });
+      const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1, kind), aspect: "16:9", resolution: "4K", images });
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }

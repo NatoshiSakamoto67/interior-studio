@@ -3300,16 +3300,25 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
-  function fotoPrompt(style, hasRef) {
-    return "Photorealistic interior photograph generated FROM the provided architectural render. "
-      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall positions and thicknesses, room proportions, ceiling height, "
+  function fotoPrompt(style, hasRef, kind) {
+    const building = kind === "building";
+    const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
+    const dfltMat = building
+      ? "warm plaster facade, clay roof tiles, oak window and door frames, clear glazing"
+      : "matte white plaster walls, wide warm oak plank floor, satin white plaster ceiling, soft natural daylight";
+    const enclosure = building
+      ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
+      : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
+    return "Photorealistic " + subject + " generated FROM the provided architectural render. "
+      + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall/element positions and thicknesses, proportions, heights, "
       + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
       + "Do NOT move, add, remove, resize, crop, re-align or re-interpret any wall, opening, edge or structural element, and do not change the viewpoint. "
       + "Keep the existing light direction and shadows. "
       + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
       + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
-      + "Materials & mood: " + (style || "matte white plaster walls, wide warm oak plank floor, satin white ceiling, soft natural daylight") + ". "
-      + "Do NOT add furniture, people, plants, signage or any object that is not present in the input. "
+      + enclosure
+      + "Materials & mood: " + (style || dfltMat) + ". "
+      + "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. "
       + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
       + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
       + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
@@ -3331,7 +3340,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const images = [];
       const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
       if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1), aspect: "16:9", resolution: "4K", images });
+      const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1, kind), aspect: "16:9", resolution: "4K", images });
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
@@ -3597,6 +3607,7 @@ let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
+let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
 const spawn = { x: 0, z: 0 };   // Innen-Startpunkt fürs Begehen
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
@@ -3681,6 +3692,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
+  lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
@@ -3822,9 +3834,12 @@ async function snapshot(opts = {}) {
   const hidden = [];
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
-  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio();
+  const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio(), prevBg = scene.background;
   const sz = new THREE.Vector2(); renderer.getSize(sz);
   scene.fog = null; renderer.toneMappingExposure = 1.32;
+  // Heller Hintergrund: Lücken (über Wänden / durch Öffnungen) lesen als hell statt schwarz →
+  // kein „schwarze Decke / Nachthimmel"-Artefakt, und außen ein photoreal-tauglicher heller Kontext.
+  scene.background = new THREE.Color(0xe9e3d7);
   // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
   // lässt aber die gerichteten Schatten als Tiefencue stehen.
   const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
@@ -3840,7 +3855,7 @@ async function snapshot(opts = {}) {
   }
   // Zustand wiederherstellen
   scene.remove(fill);
-  scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
   if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
@@ -3904,7 +3919,7 @@ function buildGroup(extGroup, container) {
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
   group = extGroup; scene.add(group);
-  lastAssumptions = [];
+  lastAssumptions = []; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
@@ -3912,7 +3927,7 @@ function buildGroup(extGroup, container) {
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, assumptions: () => lastAssumptions.slice() };
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
 
 </script>
   <script type="module">
