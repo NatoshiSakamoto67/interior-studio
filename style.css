@@ -678,3 +678,116 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
   .toast,.docs-read-inner{animation:none}
   .spin,.spinner{animation:none}
 }
+
+/* ============================================================
+   STARTSEITE — „roter Faden" (Home). Eine Eingabe, drei Türen,
+   Ergebnisse direkt im Verlauf. Werkzeuge stecken im Werkzeugkasten.
+   ============================================================ */
+/* Kopf: Logo wird Knopf, „Werkzeuge" blendet die Reiterleiste ein/aus */
+.brand{background:none;border:0;cursor:pointer;font:inherit;color:inherit;text-align:left;padding:0;border-radius:11px;transition:.15s var(--ease)}
+.brand:hover{opacity:.85}
+.brand:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.tools-toggle{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.04);border:1px solid var(--glass-line);
+  color:var(--muted);border-radius:11px;padding:8px 13px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.15s var(--ease)}
+.tools-toggle:hover{color:var(--text);border-color:var(--accent)}
+.tools-toggle .icon{width:1em;height:1em}
+.tools-toggle .tt-caret{transition:transform .2s var(--ease);opacity:.8}
+.tools-toggle[aria-expanded="true"]{color:var(--text);border-color:var(--glass-line);background:rgba(255,255,255,.07)}
+.tools-toggle[aria-expanded="true"] .tt-caret{transform:rotate(180deg)}
+.key-btn{margin-left:auto}
+
+section[data-panel="home"]{overflow-y:auto}
+.home-wrap{max-width:760px;margin:0 auto;padding:clamp(28px,5vh,72px) 22px 80px;display:flex;flex-direction:column;gap:22px;min-height:100%}
+.home-hero{text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.home-hero .eyebrow{color:var(--accent2)}
+.home-h1{font-family:var(--font-display);font-weight:700;letter-spacing:-.038em;line-height:1.0;margin:2px 0 0;
+  font-size:clamp(2.5rem,1.4rem+5vw,4.4rem)}
+.home-h1 em{font-style:italic;font-weight:600;color:var(--accent);font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;letter-spacing:-.02em}
+.home-lede{max-width:50ch;color:var(--muted);font-size:clamp(.98rem,.92rem+.3vw,1.12rem);line-height:1.55;margin:0}
+
+/* Composer — Glas-Kasten mit Akzent-Ring, der „Sag was du willst"-Eingang */
+.composer{width:100%}
+.composer-box{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);
+  border:1px solid var(--glass-line);border-radius:var(--radius);padding:8px 8px 8px;box-shadow:var(--shadow-soft);
+  transition:.18s var(--ease)}
+.composer-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px rgba(227,160,111,.14),var(--shadow-soft)}
+.composer-box.is-drag{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(156,196,172,.18)}
+.composer-box textarea{width:100%;background:transparent;border:none;min-height:56px;padding:12px 12px 6px;font-size:16px;line-height:1.5;resize:none}
+.composer-box textarea:focus,.composer-box textarea:focus-visible{outline:none;box-shadow:none;border:none}
+.composer-bar{display:flex;align-items:center;gap:8px;padding:4px 4px 2px}
+.composer-spacer{flex:1}
+.composer-clip{padding:8px 12px;font-size:13px;color:var(--muted)}
+.composer-clip:hover{color:var(--text)}
+.composer-send{padding:9px 18px}
+.composer-attach{padding:6px 6px 0;display:flex}
+.attach-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid var(--glass-line);
+  border-radius:10px;padding:5px 6px 5px 5px;max-width:100%}
+.attach-chip img{width:34px;height:34px;object-fit:cover;border-radius:7px;flex:none}
+.attach-chip .attach-ic{display:grid;place-items:center;width:30px;height:30px;color:var(--accent)}
+.attach-chip .attach-ic .icon{width:18px;height:18px}
+.attach-name{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+.attach-x{flex:none;background:none;border:none;color:var(--faint);cursor:pointer;display:grid;place-items:center;width:24px;height:24px;border-radius:6px}
+.attach-x:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.attach-x .icon{width:15px;height:15px}
+
+/* Trenner */
+.home-or{display:flex;align-items:center;gap:14px;color:var(--faint);font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:700}
+.home-or::before,.home-or::after{content:"";flex:1;height:1px;background:var(--glass-line)}
+
+/* Drei Türen — Bento-Karten mit Ehrlichkeits-Chip */
+.quick-doors{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.door{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;cursor:pointer;font:inherit;
+  background:rgba(255,255,255,.035);border:1px solid var(--glass-line);border-radius:var(--radius);padding:16px 15px 15px;
+  color:var(--text);transition:.18s var(--ease);box-shadow:var(--shadow-soft);overflow:hidden}
+.door:hover{border-color:var(--accent);transform:translateY(-2px);background:rgba(255,255,255,.055)}
+.door:active{transform:translateY(0)}
+.door.is-active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(227,160,111,.16),var(--shadow-soft)}
+.door .door-ic{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;margin-bottom:8px;
+  background:rgba(227,160,111,.12);color:var(--accent)}
+.door .door-ic .icon{width:21px;height:21px}
+.door b{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.door .door-sub{font-size:12.5px;color:var(--muted);line-height:1.35}
+.door .door-chip{margin-top:9px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  border-radius:7px;padding:3px 8px}
+.door .chip-free{color:var(--accent2);background:rgba(156,196,172,.14);border:1px solid rgba(156,196,172,.3)}
+.door .chip-key{color:var(--accent);background:rgba(227,160,111,.12);border:1px solid rgba(227,160,111,.28)}
+/* „Start hier" — die kostenlose Demo-Tür bekommt mehr Gewicht */
+.door[data-door="demo"]{background:linear-gradient(150deg,rgba(156,196,172,.12),rgba(255,255,255,.03))}
+.door[data-door="demo"] .door-ic{background:rgba(156,196,172,.16);color:var(--accent2)}
+
+/* Verlauf — der rote Faden als Chat-Strang */
+.home-thread{display:flex;flex-direction:column;gap:11px;margin-top:4px}
+.home-msg{max-width:90%;border-radius:14px;padding:11px 14px;font-size:14px;line-height:1.5;animation:tin .3s var(--ease) both}
+.home-msg.bot{align-self:flex-start;background:rgba(255,255,255,.045);border:1px solid var(--glass-line);color:var(--text)}
+.home-msg.bot .icon{width:1em;height:1em;color:var(--accent);vertical-align:-2px}
+.home-msg.me{align-self:flex-end;background:linear-gradient(135deg,rgba(227,160,111,.2),rgba(227,160,111,.12));
+  border:1px solid rgba(227,160,111,.3);color:var(--text);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.home-msg.me .msg-thumb{width:38px;height:38px;object-fit:cover;border-radius:8px}
+.home-msg.me .msg-file{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.home-msg.me .msg-file .icon{width:1em;height:1em;color:var(--accent)}
+.home-msg.err{align-self:flex-start;background:rgba(224,101,79,.12);border:1px solid rgba(224,101,79,.4);color:#f0b8ac}
+.home-card{margin-top:10px;border:1px solid var(--glass-line);border-radius:12px;overflow:hidden;background:rgba(0,0,0,.2);max-width:420px}
+.home-card img{display:block;width:100%;height:auto}
+.home-card-acts{display:flex;gap:8px;padding:9px}
+.home-card-acts .btn{padding:8px 12px;font-size:13px}
+.home-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.home-actions .btn{padding:8px 13px;font-size:13px}
+
+/* Quiet-Footer: Werkzeug-Direktlinks */
+.home-foot{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;justify-content:center;margin-top:6px;
+  padding-top:18px;border-top:1px solid var(--glass-line)}
+.home-foot .link{background:none;border:none;color:var(--muted);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:4px 2px;transition:.13s}
+.home-foot .link:hover{color:var(--accent)}
+
+@media (max-width:640px){
+  .quick-doors{grid-template-columns:1fr}
+  .door{flex-direction:row;align-items:center;gap:12px;padding:13px 14px}
+  .door .door-ic{margin-bottom:0}
+  .door .door-chip{margin-top:0;margin-left:auto;align-self:center}
+  .home-wrap{padding-top:26px;gap:18px}
+  .home-msg{max-width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .door:hover{transform:none}
+  .home-msg{animation:none}
+}

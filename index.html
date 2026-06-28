@@ -19,23 +19,26 @@
 <body>
   <!-- Kopf -->
   <header class="top">
-    <div class="brand">
+    <button class="brand" id="goHome" type="button" title="Zur Startseite">
       <span class="brand-mark">IS</span>
       <div class="brand-txt">
         <strong>Interior&nbsp;Studio</strong>
         <span>KI-Raumdesign · Panorama-Begehung · Möbelkatalog</span>
       </div>
-    </div>
-    <nav class="tabs" id="tabs" aria-label="Bereiche">
+    </button>
+    <button class="tools-toggle" id="toolsToggle" type="button" aria-expanded="false" aria-controls="tabs" title="Werkzeugkasten ein-/ausblenden">
+      <span class="ic" data-icon="layout-grid"></span> Werkzeuge <span class="ic tt-caret" data-icon="chevron-down"></span>
+    </button>
+    <nav class="tabs" id="tabs" aria-label="Werkzeuge" hidden>
       <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
-      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> Studio</button>
+      <button class="tab" data-tab="studio"><span class="ic" data-icon="palette"></span> Studio</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="world"><span class="ic" data-icon="house"></span> Welt 3D<span class="tab-beta">Beta</span></button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
-    <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
+    <button class="key-btn" id="openKey" title="API-Schlüssel"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
   </header>
 
   <!-- Hinweisbanner ohne Key -->
@@ -56,6 +59,67 @@
   <div id="buildBar" class="build-bar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
   <main class="stage">
+
+    <!-- ===================== START: ROTER FADEN (Home) ===================== -->
+    <section class="panel is-active" data-panel="home">
+      <div class="home-wrap">
+        <div class="home-hero">
+          <span class="eyebrow">Interior Studio</span>
+          <h1 class="home-h1">Sag, was du<br><em>bauen</em> willst.</h1>
+          <p class="home-lede">Beschreibe einen Raum oder eine ganze Wohnung — oder zieh einen <b>Grundriss</b> hierher. Der Architekt versteht, was zu tun ist, plant die Räume und macht alles begehbar.</p>
+        </div>
+
+        <form class="composer" id="composer" autocomplete="off">
+          <div class="composer-box" id="composerBox">
+            <div class="composer-attach" id="composerAttach" hidden></div>
+            <textarea id="askText" rows="2" aria-label="Was möchtest du bauen?"
+              placeholder="z. B. „Helles skandinavisches Wohnzimmer mit Eiche" — oder „Bau diese 4-Zimmer-Wohnung nach" und Grundriss anhängen …"></textarea>
+            <div class="composer-bar">
+              <label class="btn btn-ghost composer-clip" title="Grundriss, Raumfoto, CAD (.dxf) oder IFC (.ifc) anhängen">
+                <span class="ic" data-icon="paperclip"></span> Anhängen
+                <input type="file" id="askFile" accept="image/png,image/jpeg,image/webp,.dxf,.ifc" hidden />
+              </label>
+              <span class="composer-spacer"></span>
+              <button class="btn btn-accent composer-send" id="askSend" type="submit"><span class="ic" data-icon="arrow-up"></span> Los</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="home-or"><span>oder direkt loslegen</span></div>
+
+        <div class="quick-doors">
+          <button class="door" data-door="demo" type="button">
+            <span class="door-ic ic" data-icon="play"></span>
+            <b>Demo begehen</b>
+            <span class="door-sub">Beispiel-Wohnung, sofort</span>
+            <span class="door-chip chip-free">ohne Schlüssel</span>
+          </button>
+          <button class="door" data-door="image" type="button">
+            <span class="door-ic ic" data-icon="image"></span>
+            <b>Stil-Bild erzeugen</b>
+            <span class="door-sub">Ein Raum aus Text oder Foto</span>
+            <span class="door-chip chip-key">Gemini-Key</span>
+          </button>
+          <button class="door" data-door="apartment" type="button">
+            <span class="door-ic ic" data-icon="building-2"></span>
+            <b>Wohnung bauen</b>
+            <span class="door-sub">Grundriss → begehbar</span>
+            <span class="door-chip chip-key">Claude + Gemini</span>
+          </button>
+        </div>
+
+        <div class="home-thread" id="homeThread" hidden aria-live="polite"></div>
+
+        <div class="home-foot">
+          <span class="muted small">Mehr Werkzeuge:</span>
+          <button class="link" data-goto="projects">Projekte</button>
+          <button class="link" data-goto="gallery">Galerie</button>
+          <button class="link" data-goto="studio">Studio</button>
+          <button class="link" data-goto="katalog">Kataloge</button>
+          <button class="link" data-goto="docs">Unterlagen &amp; Hilfe</button>
+        </div>
+      </div>
+    </section>
 
     <!-- ===================== TAB: PROJEKTE ===================== -->
     <section class="panel" data-panel="projects">
@@ -78,14 +142,13 @@
     </section>
 
     <!-- ===================== TAB: KI-STUDIO ===================== -->
-    <section class="panel is-active" data-panel="studio">
+    <section class="panel" data-panel="studio">
       <div class="studio-grid">
         <aside class="controls">
           <h2 class="eyebrow">Was möchtest du machen?</h2>
           <div class="seg" id="studioMode">
             <button class="seg-b is-active" data-mode="generate" aria-pressed="true">Bild erzeugen</button>
             <button class="seg-b" data-mode="redesign" aria-pressed="false">Raum redesignen</button>
-            <button class="seg-b" data-mode="apartment" aria-pressed="false">Wohnung aus Grundriss</button>
           </div>
 
           <label class="fld" id="uploadFld" hidden>
@@ -112,12 +175,9 @@
           <div class="row2" id="studioParams">
             <label class="fld"><span>Format</span>
               <select id="aspect">
-                <option value="16:9">16:9 (quer)</option>
-                <option value="3:2">3:2</option>
-                <option value="4:3">4:3</option>
-                <option value="1:1" selected>1:1</option>
-                <option value="3:4">3:4 (hoch)</option>
-                <option value="9:16">9:16 (Handy)</option>
+                <option value="16:9">Quer (16:9)</option>
+                <option value="1:1" selected>Quadrat (1:1)</option>
+                <option value="9:16">Hoch (9:16)</option>
               </select>
             </label>
             <label class="fld"><span>Auflösung</span>
@@ -192,11 +252,6 @@
             </div>
           </div>
           <div class="minimap" id="miniMap" hidden></div>
-          <div id="model3dHost" class="canvas3d model3d-host" hidden></div>
-          <div class="view-toggle seg" id="viewToggle" hidden>
-            <button class="seg-b is-active vt-b" data-view="pano" aria-pressed="true">Panorama</button>
-            <button class="seg-b vt-b" data-view="3d" aria-pressed="false">3D-Modell</button>
-          </div>
           <div class="vp-bar">
             <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
             <button class="btn btn-ghost" id="resetView">Blick zurück</button>
@@ -258,24 +313,12 @@
       <div class="world-grid">
         <aside class="world-side">
           <span class="eyebrow">Welt 3D · Beta</span>
-          <h2>Begeh deinen Raum — in echt</h2>
-          <p class="muted small">Aus einem Raumfoto eine fotorealistische, <b>frei begehbare</b> 3D-Welt (Gaussian Splatting, World Labs Marble). Oder öffne eine fertige Splat-Datei — das läuft komplett offline.</p>
+          <h2>Millimetergenaues 3D — frei begehbar</h2>
+          <p class="muted small">Aus <b>echten Maßen</b> (Grundriss mit Bemaßung, CAD oder IFC) ein präzises, frei begehbares Modell. Oder öffne eine fertige Gaussian-Splat-Datei — beides läuft offline im Browser.</p>
 
           <div class="seg" id="worldMode">
-            <button class="seg-b is-active" data-wmode="generate" aria-pressed="true">Aus Foto</button>
+            <button class="seg-b is-active" data-wmode="measure" aria-pressed="true">Maß-Modell</button>
             <button class="seg-b" data-wmode="open" aria-pressed="false">Splat-Datei</button>
-            <button class="seg-b" data-wmode="measure" aria-pressed="false">Maß-Modell</button>
-          </div>
-
-          <div id="worldGenerate">
-            <label class="fld">
-              <span>Raumfoto oder 360°-Panorama</span>
-              <input type="file" id="worldFile" accept="image/png,image/jpeg,image/webp" />
-              <div class="thumb" id="worldThumb" hidden><img alt="Quelle" /></div>
-            </label>
-            <button class="btn btn-accent btn-lg" id="worldGenBtn"><span class="ic" data-icon="sparkles"></span> Welt erzeugen</button>
-            <div class="world-backend" id="worldBackend"></div>
-            <p class="hint">Erzeugt serverseitig via World-Labs-Marble (Backend nötig). Dauer: Sekunden bis Minuten.</p>
           </div>
 
           <div id="worldOpen" hidden>
@@ -287,7 +330,7 @@
             <button class="btn btn-ghost" id="worldDemo"><span class="ic" data-icon="play"></span> Beispiel-Welt laden (Demo)</button>
           </div>
 
-          <div id="worldMeasure" hidden>
+          <div id="worldMeasure">
             <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b>. Lade einen Grundriss MIT eingetragener Bemaßung — Claude liest die Maße (rät nie; Unsicheres = „unbekannt").</p>
             <label class="fld"><span>Grundriss mit Bemaßung (Bild/Foto)</span>
               <input type="file" id="measureFile" accept="image/png,image/jpeg,image/webp" />
@@ -326,7 +369,7 @@
           <div id="paramHost" class="canvas3d" hidden></div>
           <div class="world-empty" id="worldEmpty">
             <div class="empty-ic" data-icon="house"></div>
-            Noch keine Welt geladen.<br>Erzeuge eine aus einem Foto — oder öffne eine Splat-Datei.
+            Noch keine Welt geladen.<br>Bau ein Maß-Modell aus Grundriss/CAD/IFC — oder öffne eine Splat-Datei.
           </div>
           <div class="vp-bar">
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
@@ -460,7 +503,6 @@
   <script src="docs-data.js"></script>
   <script src="docs.js"></script>
   <script src="vendor/three.min.js"></script>
-  <script src="model3d.js"></script>
   <script src="measure.js"></script>
   <script src="world.js"></script>
   <!-- Welt 3D (Beta): Gaussian-Splat-Viewer = Spark + modernes three als ES-Modul,
@@ -482,6 +524,7 @@
   <script type="module" src="cad.js"></script>
   <script type="module" src="ifc.js"></script>
   <script src="app.js"></script>
+  <script src="assistant.js"></script>
   <script>
     /* Service Worker nur im sicheren Kontext (https / localhost) → Handy: installierbar & offline.
        Über LAN-IP (http) nicht aktiv, aber die App läuft dort trotzdem voll (Persistenz via IndexedDB). */

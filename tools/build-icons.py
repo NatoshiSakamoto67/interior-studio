@@ -29,6 +29,8 @@ ICONS = [
     "share-2", "file-down", "folder", "camera", "settings",
     # Projektbaum
     "chevron-right", "chevron-down", "folder-plus", "square-pen", "trash-2",
+    # Startseite / roter Faden
+    "paperclip", "arrow-up", "layout-grid", "file",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent

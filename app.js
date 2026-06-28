@@ -96,14 +96,24 @@
     refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
   };
 
-  /* ---------- Tabs ---------- */
+  /* ---------- Start / Werkzeugkasten ---------- */
+  // Die Reiterleiste ist der „Werkzeugkasten" — auf der Startseite versteckt, in jedem Werkzeug sichtbar.
+  function setToolsVisible(on) {
+    const nav = $("#tabs"), tg = $("#toolsToggle");
+    if (nav) nav.hidden = !on;
+    if (tg) tg.setAttribute("aria-expanded", String(!!on));
+    document.body.classList.toggle("tools-open", !!on);
+  }
   // Panel zeigen OHNE den aktiven Reiter zu wechseln (für eingebettete Unter-Ansichten)
   function showPanel(name) {
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
+    setToolsVisible(name !== "home");   // Start = aufgeräumt; jedes Werkzeug zeigt die Reiterleiste
+    if (name === "home") $$(".tab").forEach(t => { t.classList.remove("is-active"); t.removeAttribute("aria-current"); });
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
     if (name === "docs" && window.Docs) window.Docs.render();
     if (window.World) { if (name === "world") window.World.enter(); else window.World.leave(); }
+    if (name === "home") window.scrollTo({ top: 0 });
   }
   function showTab(name) {
     $$(".tab").forEach(t => {
@@ -115,11 +125,21 @@
   }
   window.showPanel = showPanel;
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
-  // 6-Reiter-Routing: Architekt unter Studio, Galerie unter Projekte, Hilfe unter Unterlagen (data-goto)
+  // Reiter-Routing: Architekt unter Studio, Galerie unter Projekte, Hilfe unter Unterlagen (data-goto)
   document.addEventListener("click", e => {
     const r = e.target.closest("[data-goto]"); if (!r) return;
-    e.preventDefault(); showPanel(r.getAttribute("data-goto"));
+    e.preventDefault();
+    const target = r.getAttribute("data-goto");
+    // Auf echte Reiter wechseln wir MIT Markierung; Unter-Ansichten (arch/gallery/help) nur einblenden.
+    if ($(`.tab[data-tab="${target}"]`)) showTab(target); else showPanel(target);
   });
+  // Kopf: Logo → Start, „Werkzeuge" blendet die Reiterleiste ein/aus.
+  if ($("#goHome")) $("#goHome").onclick = () => showPanel("home");
+  if ($("#toolsToggle")) $("#toolsToggle").onclick = () => {
+    const open = $("#tabs") && $("#tabs").hidden;   // gerade versteckt → jetzt zeigen
+    setToolsVisible(open);
+    if (open && !$(".tab.is-active")) showTab("studio");   // erstes Werkzeug öffnen, damit etwas passiert
+  };
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
@@ -205,22 +225,6 @@
     });
   }
   function pickedStudioUrl() { const im = $('#tourStudioSrc img[data-pick="1"]') || $("#tourStudioSrc img.sel") || $("#tourStudioSrc img"); return im ? im.src : (IS.gallery[0] && IS.gallery[0].url); }
-
-  /* ---------- Voice (JARVIS) ---------- */
-  function addVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    [["#genBtn", "#prompt"], ["#tourGen", "#tourPrompt"]].forEach(([btnSel, fldSel]) => {
-      const host = $(btnSel); if (!host) return;
-      const btn = document.createElement("button"); btn.className = "btn btn-ghost"; btn.type = "button"; btn.innerHTML = Icons.svg("mic") + " Sprechen"; btn.style.marginTop = "-6px";
-      host.insertAdjacentElement("beforebegin", btn);
-      const rec = new SR(); rec.lang = "de-DE"; rec.interimResults = false;
-      btn.onclick = () => { btn.textContent = "● Hört zu …"; try { rec.start(); } catch {} };
-      rec.onresult = e => { const txt = e.results[0][0].transcript; const p = $(fldSel); p.value = (p.value.trim() ? p.value.trim() + " " : "") + txt; };
-      rec.onerror = () => toast("Spracherkennung nicht verfügbar.");
-      rec.onend = () => btn.innerHTML = Icons.svg("mic") + " Sprechen";
-    });
-  }
 
   /* ================= BEGEHUNG (Panorama-Tour) ================= */
   function ensureTour() {
@@ -441,44 +445,10 @@
     e.preventDefault(); window.Tour.nudge(m[0], m[1], m[2]);
   });
 
-  /* ---------- 3D-Modell (Phase 2: echtes Begehen aus dem Grundriss) ---------- */
-  function current3DPlan() {
-    const st = window.Tour ? window.Tour.stations() : [];
-    // Panorama je Raum finden (für die echte Farbpalette im 3D): erst per Index, dann per id.
-    const imgFor = (room, i) => {
-      if (st[i] && st[i].id === room.id && st[i].img) return st[i].img;
-      const m = st.find(s => s.id === room.id);
-      return (m && m.img) || (st[i] && st[i].img) || null;
-    };
-    if (lastPlan && lastPlan.rooms && lastPlan.rooms.length)
-      return { ...lastPlan, rooms: lastPlan.rooms.map((r, i) => ({ ...r, img: r.img || imgFor(r, i) })) };
-    if (!st.length) return null;
-    return { rooms: st.map((nd, i) => ({ id: nd.id || ("r" + i), name: nd.label, neighbors: (nd.links || []).map(l => (st[l.to] && st[l.to].id) || ("r" + l.to)), box: tourPos[i] ? { x: tourPos[i].x, y: tourPos[i].y, w: tourPos[i].w, h: tourPos[i].h } : null, floor: tourPos[i] ? tourPos[i].floor : 0, img: nd.img })) };
-  }
-  function setView(v) {
-    const m3d = $("#model3dHost");
-    $$("#viewToggle .vt-b").forEach(x => { const on = x.dataset.view === v; x.classList.toggle("is-active", on); x.setAttribute("aria-pressed", on); });
-    if (v === "3d") {
-      const plan = current3DPlan();
-      if (!plan) { toast("Erst eine Wohnung bauen oder die Demo laden.", "err"); return setView("pano"); }
-      if (!window.Model3D) { toast("3D-Engine nicht verfügbar.", "err"); return setView("pano"); }
-      m3d.hidden = false;
-      if (!window.Model3D.ready()) window.Model3D.init(m3d);
-      window.Model3D.build(plan); window.Model3D.start();
-      const hint = $(".vp-hint"); if (hint) hint.textContent = "3D: ins Bild klicken für Maus-Blick · WASD/Pfeile = gehen · Esc löst die Maus";
-    } else {
-      if (window.Model3D) window.Model3D.stop();
-      m3d.hidden = true;
-      if (tourReady) window.Tour.resize();
-      const hint = $(".vp-hint"); if (hint) hint.textContent = "Ziehen: umsehen · Scroll: zoomen · Pin antippen = Möbel-Details";
-    }
-  }
-  $$("#viewToggle .vt-b").forEach(b => b.onclick = () => setView(b.dataset.view));
-  window.addEventListener("resize", () => { if (window.Model3D && window.Model3D.ready() && !$("#model3dHost").hidden) window.Model3D.resize(); });
-
   // Offline-Demo (ohne Key): echtes Panorama + vorplatzierte Pins
   function byId(id) { return (window.CATALOG || []).find(c => c.id === id); }
-  $("#loadDemo").onclick = () => {
+  function loadDemo() {
+    showTab("walk");
     ensureTour();
     if (window.Projects) window.Projects.startNew();   // Demo-Interaktionen überschreiben kein echtes Projekt
     const P = (id, yaw, pitch) => ({ yaw, pitch, item: byId(id) });
@@ -500,7 +470,8 @@
     $("#tourEmpty").hidden = true; $("#pinTools").hidden = false; $("#tourNext").hidden = false;
     setTimeout(renderStationNav, 80); renderProjects();
     toast("Demo geladen — ziehen zum Umsehen, Boden-Pfeil = in den nächsten Raum.", "ok");
-  };
+  }
+  if ($("#loadDemo")) $("#loadDemo").onclick = loadDemo;
 
   // Pin setzen + Produktauswahl
   let placing = false;
@@ -717,7 +688,7 @@ Regeln:
     } catch (e) { toast("Speichern fehlgeschlagen: " + (e.message || ""), "err"); }
     finally { btn.disabled = false; btn.innerHTML = Icons.svg("download") + " Exportieren"; }
   }
-  function restoreProject(obj) {
+  function restoreProject(obj, navigate = true) {
     if (!obj || obj.schema !== "interior-studio.project/v1" || !Array.isArray(obj.nodes) || !obj.nodes.length)
       throw new Error("Keine gültige Projekt-Datei.");
     ensureTour();
@@ -729,8 +700,8 @@ Regeln:
     $("#budgetIn").value = obj.budget || "";
     renderCart(); renderStationNav(); renderMiniMap();
     $("#tourEmpty").hidden = true; $("#pinTools").hidden = false; $("#tourNext").hidden = false;
-    renderProjects(); showTab("walk");
-    toast("Projekt „" + projectTitle + "“ geladen.", "ok");
+    renderProjects();
+    if (navigate) { showTab("walk"); toast("Projekt „" + projectTitle + "“ geladen.", "ok"); }
   }
   async function openProject() {
     try {
@@ -785,7 +756,7 @@ Regeln:
       ? "Pfeil = auf/zu · Projekt anklicken = begehen · Symbole = umbenennen/löschen · per Drag&Drop in Ordner ziehen. Automatisch gespeichert."
       : "Achtung: dauerhaftes Speichern hier nicht möglich (file://) — bitte exportieren.";
     if (!projects.length && !folders.length) {
-      box.innerHTML = '<div class="empty">Noch keine Projekte. Bau im <b>KI-Studio → „Wohnung aus Grundriss"</b> eine Wohnung — sie erscheint dann automatisch hier und ist jederzeit wieder begehbar.</div>';
+      box.innerHTML = '<div class="empty">Noch keine Projekte. Sag auf der <b>Startseite</b>, was du bauen willst (oder häng einen Grundriss an) — die fertige Wohnung erscheint dann automatisch hier und ist jederzeit wieder begehbar.</div>';
       return;
     }
     const subFolders = pid => folders.filter(f => (f.parentId || null) === pid);
@@ -991,10 +962,10 @@ Regeln:
       </ol>
 
       <h3>2) ${I("building-2")} Wohnung aus Grundriss — das Herzstück</h3>
-      <p>Im <b>KI-Studio</b> den Modus <b>„Wohnung aus Grundriss"</b> wählen (oder den Tab <b>${I("building-2")} Architekt</b>). Lade ein Foto/Scan deines <b>Grundrisses</b> hoch und beschreibe den gewünschten Stil (z. B. „moderne Luxus-Ästhetik, Marmor, Messing, indirekte Beleuchtung"). Claude liest den Plan, legt die <b>tatsächlichen Räume</b> an (1:1 nach Aufteilung &amp; Türen) und rendert pro Raum ein 360°-Panorama — am Ende ist alles <b>begehbar</b>. Ohne Grundriss reicht auch eine reine Beschreibung.</p>
+      <p>Auf der <b>Startseite</b> einfach sagen, was du willst — z. B. „Bau diese Wohnung nach" — und den <b>Grundriss anhängen</b> (Foto/Scan). Beschreibe dazu den Stil (z. B. „moderne Luxus-Ästhetik, Marmor, Messing, indirekte Beleuchtung"). Claude liest den Plan, legt die <b>tatsächlichen Räume</b> an (1:1 nach Aufteilung &amp; Türen) und rendert pro Raum ein 360°-Panorama — am Ende ist alles <b>begehbar</b>. Ohne Grundriss reicht auch eine reine Beschreibung. Für volle Kontrolle: <b>${I("settings")} Werkzeuge → ${I("building-2")} Architekt</b>.</p>
 
       <h3>3) Einzelne Bilder erzeugen oder einen Raum redesignen</h3>
-      <p>Im <b>KI-Studio</b>: <b>„Bild erzeugen"</b> für neue Räume/Website-Bilder, oder <b>„Raum redesignen"</b> → eigenes Foto hochladen + Anweisung (Wände/Fenster bleiben, nur neu eingerichtet). Stil-Vorlagen anklicken, ${I("mic")} zum Diktieren. Jedes Ergebnis hat einen Button <b>${I("compass")} Als Begehung</b>.</p>
+      <p>Auf der <b>Startseite</b> beschreiben → es entsteht ein <b>Stil-Bild</b>; häng ein eigenes Foto an, um einen Raum <b>umzugestalten</b> (Wände/Fenster bleiben, nur neu eingerichtet). Mehr Einstellungen (Format, Engine, Stil-Vorlagen) im <b>${I("palette")} Studio</b>. Jedes Ergebnis hat einen Button <b>${I("compass")} Begehen</b>.</p>
       <div class="ex-grid">${ex}</div>
       <p class="muted">Klick eine Vorlage, um sie ins Studio zu laden.</p>
 
@@ -1030,7 +1001,7 @@ Regeln:
     window.Catalogs.onChange(renderCatList);
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
-  refreshKeyState(); renderHelp(); addVoice(); addFullscreen(); renderCart(); refreshStudioSrc();
+  refreshKeyState(); renderHelp(); addFullscreen(); renderCart(); refreshStudioSrc();
   // Bild-Engine-Auswahl (Nano Banana / ChatGPT)
   (function wireImgProvider() {
     const sel = $("#imgProvider"); if (!sel) return;
@@ -1048,8 +1019,8 @@ Regeln:
   if (window.Projects) {
     window.Projects.onChange(renderProjects);
     window.Projects.init().then(() => {
-      const id = window.Projects.current();   // zuletzt offenes Projekt beim Laden automatisch wieder aufmachen → „nichts verschwunden"
-      if (id) window.Projects.load(id).then(b => { if (b) { try { restoreProject(b); } catch (e) {} } });
+      const id = window.Projects.current();   // zuletzt offenes Projekt still im Hintergrund laden → bleibt aber auf der Startseite
+      if (id) window.Projects.load(id).then(b => { if (b) { try { restoreProject(b, false); } catch (e) {} } });
     });
   } else { renderProjects(); }
   if (window.Gallery) window.Gallery.onChange(renderGallery);
@@ -1057,4 +1028,20 @@ Regeln:
   window.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
   window.addEventListener("pagehide", flushSave);
   requestAnimationFrame(miniDirLoop);   // Kompass-Pfeil der Mini-Karte mit dem Blick mitdrehen
+
+  /* ---------- Brücke für die Startseite (assistant.js) ----------
+     Genau die Aktionen, die der „rote Faden" braucht — nichts mehr. */
+  window.Studio = {
+    buildApartment,                       // (briefText, planInline) → plant, rendert, macht begehbar
+    startTourFromImage,                   // (dataUrl, prompt) → Einzelbild begehbar machen
+    loadDemo,                             // () → Offline-Demo-Begehung (ohne Key)
+    addToGallery,                         // (url, kind, prompt) → persistente Mediengalerie
+    showTab, showPanel, openKey, toast,
+    hasGemini: () => !!IS.key,
+    hasClaude: () => !!IS.ckey,
+    generate: (o) => window.ImageGen.generate(o),
+    fileToInline: (f) => window.Banana.fileToInline(f),
+    dataUrlToInline: (u) => window.Banana.dataUrlToInline(u),
+    esc, icon: (n, o) => Icons.svg(n, o)
+  };
 })();
