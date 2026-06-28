@@ -114,6 +114,22 @@
     } catch (e) { report('Konnte das CAD-Modell nicht bauen: ' + esc(e.message || "Fehler"), true); }
   }
 
+  async function buildIfc() {
+    const inp = $("#ifcFile"); const file = inp && inp.files[0];
+    if (!file) return;
+    if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    report('<span class="muted small">IFC wird geladen (WASM, beim 1. Mal etwas größer) …</span>', false);
+    try {
+      const buf = await file.arrayBuffer();
+      const res = await window.IFC.loadIFC(buf, msg => report('<span class="muted small">' + esc(msg) + '</span>', false));
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
+      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume)' + (res.scaled ? ' · Einheit mm→m skaliert' : '') + '.</div>', false);
+    } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+
   async function checkBackend() {
     const el = $("#worldBackend"); if (!el) return;
     el.innerHTML = '<span class="muted small">Backend wird geprüft …</span>';
@@ -210,6 +226,7 @@
     const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
+    const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
     wired = true;
   }
 

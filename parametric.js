@@ -207,4 +207,19 @@ function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (docum
 function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
-window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
+// Fertige three.js-Gruppe (z. B. echte IFC-Geometrie) übernehmen und begehbar machen
+function buildGroup(extGroup, container) {
+  if (container) mount(container);
+  if (!mounted) return;
+  if (group) { scene.remove(group); disposeGroup(group); }
+  group = extGroup; scene.add(group);
+  lastAssumptions = [];
+  const box = new THREE.Box3().setFromObject(group);
+  if (!box.isEmpty() && isFinite(box.min.x)) {
+    const c = box.getCenter(new THREE.Vector3());
+    cam.position.set(c.x, box.min.y + EYE, c.z);
+  } else cam.position.set(0, EYE, 0);
+  look.yaw = 0; look.pitch = 0; applyLook();
+}
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };

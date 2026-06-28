@@ -963,6 +963,9 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
                 <label class="fld"><span>Wand-Ebene</span><select id="cadLayerSel"></select></label>
                 <button class="btn btn-accent" id="cadBuildBtn"><span class="ic" data-icon="ruler"></span> CAD als Modell bauen</button>
               </div>
+              <label class="fld" style="margin-top:8px"><span>… oder IFC (.ifc) — Beta, echte Wände/Türen/Fenster/Räume</span>
+                <input type="file" id="ifcFile" accept=".ifc" />
+              </label>
             </div>
 
             <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
@@ -2920,6 +2923,22 @@ Gib NUR dieses JSON zurück.`;
     } catch (e) { report('Konnte das CAD-Modell nicht bauen: ' + esc(e.message || "Fehler"), true); }
   }
 
+  async function buildIfc() {
+    const inp = $("#ifcFile"); const file = inp && inp.files[0];
+    if (!file) return;
+    if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    report('<span class="muted small">IFC wird geladen (WASM, beim 1. Mal etwas größer) …</span>', false);
+    try {
+      const buf = await file.arrayBuffer();
+      const res = await window.IFC.loadIFC(buf, msg => report('<span class="muted small">' + esc(msg) + '</span>', false));
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
+      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume)' + (res.scaled ? ' · Einheit mm→m skaliert' : '') + '.</div>', false);
+    } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
+  }
+
   async function checkBackend() {
     const el = $("#worldBackend"); if (!el) return;
     el.innerHTML = '<span class="muted small">Backend wird geprüft …</span>';
@@ -3016,6 +3035,7 @@ Gib NUR dieses JSON zurück.`;
     const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
+    const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
     wired = true;
   }
 
@@ -3034,7 +3054,8 @@ Gib NUR dieses JSON zurück.`;
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
       "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
-      "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm"
+      "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm",
+      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js"
     }
   }
   </script>
@@ -3414,7 +3435,22 @@ function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (docum
 function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
-window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
+// Fertige three.js-Gruppe (z. B. echte IFC-Geometrie) übernehmen und begehbar machen
+function buildGroup(extGroup, container) {
+  if (container) mount(container);
+  if (!mounted) return;
+  if (group) { scene.remove(group); disposeGroup(group); }
+  group = extGroup; scene.add(group);
+  lastAssumptions = [];
+  const box = new THREE.Box3().setFromObject(group);
+  if (!box.isEmpty() && isFinite(box.min.x)) {
+    const c = box.getCenter(new THREE.Vector3());
+    cam.position.set(c.x, box.min.y + EYE, c.z);
+  } else cam.position.set(0, EYE, 0);
+  look.yaw = 0; look.pitch = 0; applyLook();
+}
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
 
 </script>
   <script type="module">
@@ -3492,6 +3528,80 @@ function toModel(an, layerName) {
 }
 
 window.CAD = { analyze, toModel, guessWallLayer };
+
+</script>
+  <script type="module">
+/* Interior Studio — IFC-Import (web-ifc, WASM) auf der ESM-Spur.
+   IFC trägt echte Geometrie + Einheiten: Wände, Türen, Fenster, Räume, Geschosse.
+   Wir laden die GEOMETRIE direkt als three.js-Meshes (das IST die exakte CAD-Geometrie) und
+   übergeben sie dem begehbaren Parametric-Viewer. web-ifc wird LAZY geladen (erst beim Import).
+   API: window.IFC.loadIFC(arrayBuffer, onProgress) → { group, meshCount, scaled }. */
+import * as THREE from "three";
+
+const WASM_BASE = "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/";
+let api = null;
+
+async function init(onProgress) {
+  if (api) return;
+  if (onProgress) onProgress("IFC-Engine wird geladen (WASM, beim 1. Mal größer) …");
+  const mod = await import("web-ifc");
+  const IfcAPI = mod.IfcAPI || (mod.default && mod.default.IfcAPI);
+  if (!IfcAPI) throw new Error("web-ifc: IfcAPI nicht gefunden.");
+  api = new IfcAPI();
+  api.SetWasmPath(WASM_BASE);
+  await api.Init();
+}
+
+async function loadIFC(arrayBuffer, onProgress) {
+  await init(onProgress);
+  if (onProgress) onProgress("IFC wird geöffnet …");
+  const modelID = api.OpenModel(new Uint8Array(arrayBuffer));
+  const group = new THREE.Group();
+  try {
+    api.StreamAllMeshes(modelID, (flatMesh) => {
+      const geos = flatMesh.geometries;
+      for (let i = 0; i < geos.size(); i++) {
+        const placed = geos.get(i);
+        const g = api.GetGeometry(modelID, placed.geometryExpressID);
+        const v = api.GetVertexArray(g.GetVertexData(), g.GetVertexDataSize());     // [px,py,pz,nx,ny,nz, …]
+        const ix = api.GetIndexArray(g.GetIndexData(), g.GetIndexDataSize());
+        const n = v.length / 6;
+        const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+        for (let k = 0, j = 0; j < n; k += 6, j += 1) {
+          pos[j * 3] = v[k]; pos[j * 3 + 1] = v[k + 1]; pos[j * 3 + 2] = v[k + 2];
+          nor[j * 3] = v[k + 3]; nor[j * 3 + 1] = v[k + 4]; nor[j * 3 + 2] = v[k + 5];
+        }
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geom.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+        geom.setIndex(new THREE.BufferAttribute(new Uint32Array(ix), 1));
+        const c = placed.color || { x: 0.85, y: 0.85, z: 0.82, w: 1 };
+        const mat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(c.x, c.y, c.z), roughness: 0.85, metalness: 0,
+          transparent: c.w < 0.99, opacity: c.w, side: THREE.DoubleSide
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.applyMatrix4(new THREE.Matrix4().fromArray(placed.flatTransformation));
+        mesh.castShadow = mesh.receiveShadow = true;
+        group.add(mesh);
+        g.delete();
+      }
+    });
+  } finally {
+    try { api.CloseModel(modelID); } catch (e) {}
+  }
+  if (!group.children.length) throw new Error("Keine Geometrie in der IFC gefunden.");
+
+  // Einheits-Heuristik: ist das Modell riesig (Tausende Einheiten groß), war es mm → in Meter skalieren.
+  let scaled = false;
+  const box = new THREE.Box3().setFromObject(group);
+  const size = box.getSize(new THREE.Vector3());
+  if (Math.max(size.x, size.y, size.z) > 500) { group.scale.setScalar(0.001); scaled = true; }
+
+  return { group, meshCount: group.children.length, scaled };
+}
+
+window.IFC = { loadIFC };
 
 </script>
   <script>
