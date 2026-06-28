@@ -262,8 +262,9 @@
           <p class="muted small">Aus einem Raumfoto eine fotorealistische, <b>frei begehbare</b> 3D-Welt (Gaussian Splatting, World Labs Marble). Oder öffne eine fertige Splat-Datei — das läuft komplett offline.</p>
 
           <div class="seg" id="worldMode">
-            <button class="seg-b is-active" data-wmode="generate" aria-pressed="true">Aus Foto erzeugen</button>
-            <button class="seg-b" data-wmode="open" aria-pressed="false">Splat-Datei öffnen</button>
+            <button class="seg-b is-active" data-wmode="generate" aria-pressed="true">Aus Foto</button>
+            <button class="seg-b" data-wmode="open" aria-pressed="false">Splat-Datei</button>
+            <button class="seg-b" data-wmode="measure" aria-pressed="false">Maß-Modell</button>
           </div>
 
           <div id="worldGenerate">
@@ -286,6 +287,12 @@
             <button class="btn btn-ghost" id="worldDemo"><span class="ic" data-icon="play"></span> Beispiel-Welt laden (Demo)</button>
           </div>
 
+          <div id="worldMeasure" hidden>
+            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b> (Grundriss mit Bemaßung oder CAD). Jede Wand zur exakten Größe, mit Fenster-/Türöffnungen und Maßangaben.</p>
+            <button class="btn btn-accent btn-lg" id="worldMeasureBtn"><span class="ic" data-icon="ruler"></span> Maß-Demo begehen</button>
+            <p class="hint">Nächste Stufe: dein Grundriss → Claude liest die Maße → exaktes Modell (in Arbeit).</p>
+          </div>
+
           <div class="world-progress" id="worldProgress" hidden>
             <div class="ampel-bar"><i id="worldBar"></i></div>
             <span class="muted small" id="worldStatus"></span>
@@ -294,6 +301,7 @@
 
         <div class="viewport world-viewport">
           <div id="splatHost" class="canvas3d"></div>
+          <div id="paramHost" class="canvas3d" hidden></div>
           <div class="world-empty" id="worldEmpty">
             <div class="empty-ic" data-icon="house"></div>
             Noch keine Welt geladen.<br>Erzeuge eine aus einem Foto — oder öffne eine Splat-Datei.
@@ -427,6 +435,7 @@
   <script src="docs.js"></script>
   <script src="vendor/three.min.js"></script>
   <script src="model3d.js"></script>
+  <script src="measure.js"></script>
   <script src="world.js"></script>
   <!-- Welt 3D (Beta): Gaussian-Splat-Viewer = Spark + modernes three als ES-Modul,
        bewusst ISOLIERT vom alten globalen window.THREE oben. Läuft über localhost/Launcher
@@ -440,6 +449,7 @@
   }
   </script>
   <script type="module" src="splatviewer.js"></script>
+  <script type="module" src="parametric.js"></script>
   <script src="app.js"></script>
   <script>
     /* Service Worker nur im sicheren Kontext (https / localhost) → Handy: installierbar & offline.

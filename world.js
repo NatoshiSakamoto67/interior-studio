@@ -10,9 +10,24 @@
 
   function setMode(m) {
     $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
-    const gen = $("#worldGenerate"), op = $("#worldOpen");
+    const gen = $("#worldGenerate"), op = $("#worldOpen"), me = $("#worldMeasure");
     if (gen) gen.hidden = m !== "generate";
     if (op) op.hidden = m !== "open";
+    if (me) me.hidden = m !== "measure";
+    if (m !== "measure") {
+      if (window.Parametric) window.Parametric.stop();
+      const ph = $("#paramHost"); if (ph) ph.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = false;
+    }
+  }
+
+  // Maß-Modell (parametrisch, mm-genau) im eigenen Host mounten
+  function mountMeasure() {
+    if (!(window.Parametric && window.Parametric.available())) { if (window.toast) toast("Maß-Modell nicht verfügbar.", "err"); return; }
+    if (window.SplatViewer) window.SplatViewer.stop();
+    const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+    const sh = $("#splatHost"); if (sh) sh.hidden = true;
+    const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
   }
 
   async function checkBackend() {
@@ -106,11 +121,12 @@
     const g = $("#worldGenBtn"); if (g) g.onclick = generate;
     const sf = $("#worldSplatFile"); if (sf) sf.onchange = () => { if (sf.files[0]) loadSplat(sf.files[0]); };
     const dm = $("#worldDemo"); if (dm) dm.onclick = () => { progress(20, "Beispiel-Welt wird geladen …"); loadSplat("https://media.reshot.ai/models/nike_next/model.splat"); };
+    const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
     wired = true;
   }
 
   function enter() { wire(); checkBackend(); }
-  function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); } catch (e) {} }
+  function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); if (window.Parametric) window.Parametric.stop(); } catch (e) {} }
 
   window.World = { enter, leave };
 })();
