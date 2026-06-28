@@ -350,6 +350,13 @@
             <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
             <div class="world-measure-report" id="measureReport" hidden></div>
             <p class="hint">DXF/IFC laufen ohne Key (Demo-Knöpfe: mitgelieferte Beispiele). Bild-Grundriss braucht den Claude-Key. Positionen aus CAD sind exakt; Wandstärken bei DXF als Standard angenommen (bläulich markiert).</p>
+
+            <div class="foto-block">
+              <span class="eyebrow">Fotoreal-Ansicht · KI, geometrie-treu</span>
+              <input type="text" id="fotoStyle" placeholder="Stil (optional), z. B. „skandinavisch, Eiche, warmes Licht“" />
+              <button class="btn btn-accent btn-lg" id="fotoBtn"><span class="ic" data-icon="sparkles"></span> Aktuelle Ansicht fotoreal rendern</button>
+              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera) und macht daraus ein fotorealistisches Bild — Maße &amp; Perspektive bleiben. Gemini- oder OpenAI-Key nötig.</p>
+            </div>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>
@@ -368,6 +375,7 @@
           <div class="vp-bar">
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
+          <div class="foto-overlay" id="fotoOverlay" hidden></div>
         </div>
       </div>
     </section>

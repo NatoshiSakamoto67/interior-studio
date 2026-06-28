@@ -6,8 +6,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const BACKEND = (localStorage.getItem("is_world_backend") || "http://localhost:8799").replace(/\/$/, "");
-  let wired = false, pollTimer = null, srcFile = null;
+  let wired = false;
 
   function setMode(m) {
     $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
@@ -187,28 +186,6 @@
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
   }
 
-  async function checkBackend() {
-    const el = $("#worldBackend"); if (!el) return;
-    el.innerHTML = '<span class="muted small">Backend wird geprüft …</span>';
-    try {
-      const r = await fetch(BACKEND + "/api/health", { cache: "no-store" });
-      const j = await r.json();
-      el.innerHTML = j.marbleConfigured
-        ? '<span class="dot ok"></span><span class="muted small">Backend bereit · Marble-Key gesetzt</span>'
-        : '<span class="dot warn"></span><span class="muted small">Backend läuft, aber kein Marble-Key (<code>backend/.env</code>)</span>';
-    } catch (e) {
-      el.innerHTML = '<span class="dot err"></span><span class="muted small">Backend nicht erreichbar — <code>backend/run.command</code> starten. Offline geht „Splat-Datei öffnen".</span>';
-    }
-  }
-
-  function preview(file) {
-    srcFile = file || null;
-    const t = $("#worldThumb"); if (!t) return;
-    if (!file) { t.hidden = true; return; }
-    t.querySelector("img").src = URL.createObjectURL(file);
-    t.hidden = false;
-  }
-
   function progress(pct, msg) {
     const p = $("#worldProgress"); if (p) p.hidden = false;
     const bar = $("#worldBar"); if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
@@ -222,38 +199,60 @@
     return false;
   }
 
-  async function safeMsg(r) { try { const j = await r.json(); return j.detail || j.message || ("HTTP " + r.status); } catch { return "HTTP " + r.status; } }
-
-  async function generate() {
-    if (!srcFile) { if (window.toast) toast("Erst ein Raumfoto oder Panorama wählen.", "err"); return; }
-    if (!ensureViewer()) return;
-    progress(4, "Welt-Auftrag wird gesendet …");
-    let jobId;
-    try {
-      const fd = new FormData();
-      fd.append("image", srcFile, srcFile.name || "room.jpg");
-      const r = await fetch(BACKEND + "/api/world", { method: "POST", body: fd });
-      if (!r.ok) throw new Error(await safeMsg(r));
-      jobId = (await r.json()).jobId;
-    } catch (e) {
-      hideProgress(); if (window.toast) toast("Start fehlgeschlagen: " + e.message, "err"); checkBackend(); return;
-    }
-    poll(jobId);
+  /* ---------- Fotoreal-Pass: exakte Geometrie (3D-Viewer) → fotorealistisches Bild ----------
+     Nimmt die AKTUELLE Ansicht des Parametric-Viewers (mm-genaue Geometrie + Kamera) als
+     Struktur-Vorlage und lässt Gemini/OpenAI daraus ein Foto rendern, das Maße & Perspektive
+     respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
+  function fotoPrompt(style) {
+    return "Photorealistic interior photograph of EXACTLY this room. Keep the identical geometry, "
+      + "wall positions, window and door openings, proportions and camera perspective from the provided "
+      + "structural 3D render — do not move, add, remove or resize anything. Replace the plain materials with "
+      + "realistic ones and add natural, physically plausible lighting with soft shadows. "
+      + (style ? ("Interior style: " + style + ". ") : "Warm, inviting, high-end interior design. ")
+      + "Architectural interior photography, ultra realistic, high detail, natural daylight, no text, no labels.";
   }
-
-  function poll(jobId) {
-    clearTimeout(pollTimer);
-    const tick = async () => {
-      try {
-        const r = await fetch(BACKEND + "/api/world/" + jobId, { cache: "no-store" });
-        const j = await r.json();
-        progress(j.progress || 10, j.message || "Welt wird erzeugt …");
-        if (j.status === "done") { await loadSplat(BACKEND + "/api/world/" + jobId + "/splat"); progress(100, "Welt fertig — los geht's."); return; }
-        if (j.status === "error") { hideProgress(); if (window.toast) toast("Fehler: " + j.message, "err"); return; }
-        pollTimer = setTimeout(tick, 2000);
-      } catch (e) { pollTimer = setTimeout(tick, 3000); }
-    };
-    tick();
+  async function photorealView() {
+    if (!(window.Parametric && window.Parametric.snapshot)) { if (window.toast) toast("Maß-Viewer nicht verfügbar.", "err"); return; }
+    if (!(window.Parametric.hasModel && window.Parametric.hasModel())) { if (window.toast) toast("Erst ein Modell bauen/laden (CAD, IFC oder Demo).", "err"); return; }
+    if (!(window.ImageGen && window.ImageGen.activeKeyOk())) {
+      if (window.toast) toast((window.ImageGen ? window.ImageGen.activeLabel() : "Bild") + "-Key fehlt — in Einstellungen eintragen.", "err");
+      if (window.showPanel) window.showPanel("settings"); return;
+    }
+    const shot = window.Parametric.snapshot();
+    if (!shot) { if (window.toast) toast("Konnte die Ansicht nicht erfassen.", "err"); return; }
+    const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
+    const btn = $("#fotoBtn"); if (btn) btn.disabled = true;
+    fotoOverlay("loading");
+    try {
+      const inline = window.ImageGen.dataUrlToInline(shot);
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style), aspect: "16:9", resolution: "2K", images: inline ? [inline] : [] });
+      fotoOverlay("done", res.url, shot);
+      if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
+    } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
+    finally { if (btn) btn.disabled = false; }
+  }
+  function fotoOverlay(state, url, structUrl, errMsg) {
+    const ov = $("#fotoOverlay"); if (!ov) return;
+    const I = n => (window.Icons ? window.Icons.svg(n) : "");
+    ov.hidden = false;
+    if (state === "loading") {
+      ov.innerHTML = '<div class="foto-card"><div class="foto-load">' + (window.Icons ? window.Icons.svg("loader-circle", { cls: "spin" }) : "") + ' Fotorealistische Ansicht wird gerendert … (~10–25 s)</div></div>';
+    } else if (state === "error") {
+      ov.innerHTML = '<div class="foto-card"><div class="foto-err">Fehlgeschlagen: ' + esc(errMsg) + '</div><div class="foto-acts"><button class="btn" data-foto="close">Schließen</button></div></div>';
+    } else {
+      ov.innerHTML = '<div class="foto-card foto-result">'
+        + '<img class="foto-img" src="' + url + '" alt="Fotorealistische Ansicht der exakten Geometrie"/>'
+        + (structUrl ? '<img class="foto-struct" src="' + structUrl + '" title="Struktur: die exakte Geometrie" alt="Strukturvorlage"/>' : '')
+        + '<div class="foto-acts">'
+        + '<a class="btn btn-accent" download="fotoreal.png" href="' + url + '">' + I("download") + ' Herunterladen</a>'
+        + '<button class="btn" data-foto="again">' + I("rotate-cw") + ' Neu rendern</button>'
+        + '<button class="btn btn-ghost" data-foto="close">Schließen</button>'
+        + '</div></div>';
+    }
+    $$('[data-foto]', ov).forEach(b => b.onclick = () => {
+      if (b.dataset.foto === "close") { ov.hidden = true; ov.innerHTML = ""; }
+      else if (b.dataset.foto === "again") photorealView();
+    });
   }
 
   async function loadSplat(urlOrFile) {
@@ -274,8 +273,6 @@
   function wire() {
     if (wired) return;
     $$("#worldMode .seg-b").forEach(b => b.onclick = () => setMode(b.dataset.wmode));
-    const f = $("#worldFile"); if (f) f.onchange = () => preview(f.files[0]);
-    const g = $("#worldGenBtn"); if (g) g.onclick = generate;
     const sf = $("#worldSplatFile"); if (sf) sf.onchange = () => { if (sf.files[0]) loadSplat(sf.files[0]); };
     const dm = $("#worldDemo"); if (dm) dm.onclick = () => { progress(20, "Beispiel-Welt wird geladen …"); loadSplat("https://media.reshot.ai/models/nike_next/model.splat"); };
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
@@ -288,10 +285,11 @@
     const dc = $("#demoCadBtn"); if (dc) dc.onclick = loadDemoCad;
     const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
+    const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
     wired = true;
   }
 
-  function enter() { wire(); checkBackend(); }
+  function enter() { wire(); }
   function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); if (window.Parametric) window.Parametric.stop(); } catch (e) {} }
 
   window.World = { enter, leave };

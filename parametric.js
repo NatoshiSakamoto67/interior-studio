@@ -19,7 +19,7 @@ const M = () => window.Measure;
 function mount(container) {
   if (mounted) { if (container && renderer && renderer.domElement.parentNode !== container) container.appendChild(renderer.domElement); return; }
   host = container;
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });   // preserve → snapshot() lesbar
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
@@ -208,6 +208,20 @@ function addDimLabel(w, exact) {
 
 function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }); }
 
+// Sauberer Schnappschuss der AKTUELLEN Ansicht (exakte Geometrie + Kamera) als data-URL —
+// Maßlabels/D-Pad fürs Foto kurz ausblenden. Dient als Struktur-Vorlage für den Fotoreal-Pass.
+function snapshot() {
+  if (!renderer || !mounted || !cam) return null;
+  const hidden = [];
+  if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
+  const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
+  let url = null;
+  try { renderer.render(scene, cam); url = renderer.domElement.toDataURL("image/png"); } catch (e) {}
+  hidden.forEach(o => o.visible = true);
+  if (dp) dp.style.display = dpPrev || "";
+  return url;
+}
+
 /* ---------- First-Person ---------- */
 function bindControls() {
   const cv = renderer.domElement;
@@ -273,4 +287,4 @@ function buildGroup(extGroup, container) {
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, assumptions: () => lastAssumptions.slice() };

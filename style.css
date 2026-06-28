@@ -1008,3 +1008,24 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
   .chip{min-height:40px;display:inline-flex;align-items:center}
   .room-chip{height:40px}
 }
+
+/* ============================================================
+   FOTOREAL-PASS — exakte Geometrie → KI-Foto (Welt 3D)
+   ============================================================ */
+.foto-block{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-3);padding-top:var(--sp-4);border-top:1px solid var(--line)}
+.foto-overlay{position:absolute;inset:0;z-index:14;display:flex;align-items:center;justify-content:center;
+  background:oklch(0% 0 0 / .6);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);padding:var(--sp-5)}
+.foto-card{position:relative;max-width:min(92%,1024px);max-height:92%;display:flex;flex-direction:column;gap:var(--sp-3);
+  background:var(--bg-1);border:1px solid var(--line-strong);border-radius:var(--r-lg);padding:var(--sp-4);box-shadow:var(--shadow-2)}
+.foto-load,.foto-err{display:flex;align-items:center;gap:9px;color:var(--text);font-size:14px;padding:var(--sp-4) var(--sp-2)}
+.foto-load .icon{width:1.2em;height:1.2em;color:var(--accent)}
+.foto-err{color:#f0b8ac}
+.foto-result{align-items:stretch}
+.foto-img{display:block;max-width:100%;max-height:68vh;width:auto;height:auto;object-fit:contain;border-radius:var(--r-sm);background:#000}
+.foto-struct{position:absolute;left:calc(var(--sp-4) + 10px);bottom:calc(var(--sp-4) + 58px);width:128px;height:auto;
+  border:2px solid var(--line-strong);border-radius:var(--r-xs);box-shadow:var(--shadow-1);opacity:.92}
+.foto-acts{display:flex;gap:var(--sp-2);flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:560px){
+  .foto-struct{width:84px;left:auto;right:calc(var(--sp-4) + 6px);bottom:calc(var(--sp-4) + 52px)}
+  .foto-img{max-height:54vh}
+}
