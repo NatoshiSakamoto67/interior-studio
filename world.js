@@ -56,15 +56,12 @@
     return h;
   }
 
-  async function buildFromPlan() {
-    const inp = $("#measureFile"); const file = inp && inp.files[0];
-    if (!file) { if (window.toast) toast("Erst einen Grundriss mit Maßen wählen.", "err"); return; }
-    if (!(window.IS && window.IS.ckey)) { if (window.toast) toast("Claude-Key fehlt — oben unter dem Schlüssel-Symbol eintragen.", "err"); return; }
+  async function runExtraction(inline) {
+    if (!(window.IS && window.IS.ckey)) { if (window.toast) toast("Claude-Key fehlt — oben unter dem Schlüssel-Symbol eintragen.", "err"); report('Claude-Key fehlt — oben rechts unter „Key" eintragen, dann erneut.', true); return; }
     if (!(window.Parametric && window.Parametric.available() && window.Measure)) { if (window.toast) toast("Maß-Bauer nicht verfügbar.", "err"); return; }
     report('<span class="muted small">Claude liest die Maße aus dem Grundriss … (~10–30 s)</span>', false);
     const btn = $("#measureBuildBtn"); if (btn) btn.disabled = true;
     try {
-      const inline = await window.ImageGen.fileToInline(file);
       const model = await window.Measure.extractFromPlan(inline);
       lastPlan = inline; lastModel = model;
       mountModel(model, window.Measure.validate(model));
@@ -72,6 +69,20 @@
     } catch (e) {
       report('Konnte das Modell nicht bauen: ' + esc(e.message || "Fehler"), true);
     } finally { if (btn) btn.disabled = false; }
+  }
+  async function buildFromPlan() {
+    const inp = $("#measureFile"); const file = inp && inp.files[0];
+    if (!file) { if (window.toast) toast("Erst einen Grundriss mit Maßen wählen.", "err"); return; }
+    runExtraction(await window.ImageGen.fileToInline(file));
+  }
+  async function loadDemoGrundriss() {
+    try {
+      report('<span class="muted small">Demo-Grundriss wird geladen …</span>', false);
+      const r = await fetch("examples/demo-grundriss.png", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo-Bild nicht gefunden (nur in der gehosteten Version).");
+      const inline = await window.ImageGen.fileToInline(await r.blob());
+      runExtraction(inline);
+    } catch (e) { report('Demo-Grundriss nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
 
   let lastPlan = null, lastModel = null;
@@ -243,6 +254,7 @@
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
     const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
     const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
+    const mdb = $("#measureDemoBtn"); if (mdb) mdb.onclick = loadDemoGrundriss;
     const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
