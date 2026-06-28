@@ -3380,6 +3380,34 @@ function setupEnv() {
   } catch (e) { /* Bonus */ }
 }
 
+/* ---------- Fotoreal v1: prozedurale Material-Texturen (offline, geometrie-treu) ---------- */
+let _tex = null;
+function noiseTex(base, amt) {
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const g = c.getContext("2d"); g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+  const im = g.getImageData(0, 0, 256, 256), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(im, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function woodTex() {
+  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+  g.fillStyle = "#8a6f4f"; g.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < 256; y += 30) {
+    g.fillStyle = "rgba(40,26,12,0.28)"; g.fillRect(0, y, 256, 1.5);   // Dielenfuge
+    for (let k = 0; k < 24; k++) {
+      g.strokeStyle = "rgba(" + (120 + (Math.random() * 40 | 0)) + "," + (95 + (Math.random() * 26 | 0)) + "," + (60 + (Math.random() * 26 | 0)) + ",0.22)";
+      g.beginPath(); const yy = y + 3 + Math.random() * 24; g.moveTo(0, yy); g.bezierCurveTo(85, yy + (Math.random() - 0.5) * 3, 170, yy + (Math.random() - 0.5) * 3, 256, yy); g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(0.6, 0.6); return t;
+}
+function textures() {
+  if (_tex) return _tex;
+  _tex = { wall: noiseTex("#e9e5dd", 14), wallA: noiseTex("#b9c0cc", 14), floor: woodTex(), ceil: noiseTex("#f2efe9", 8) };
+  return _tex;
+}
+
 /* ---------- exakte Geometrie ---------- */
 function build(model, container) {
   if (container) mount(container);
@@ -3392,8 +3420,10 @@ function build(model, container) {
   const exactModel = ((model.provenance || {}).precision === "exact");
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
   const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.92, metalness: 0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+  const TX = textures();   // Fotoreal v1: Putz/Holz-Texturen auf die exakte Geometrie
+  wallMat.map = TX.wall; wallAssumedMat.map = TX.wallA; floorMat.map = TX.floor; ceilMat.map = TX.ceil;
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
