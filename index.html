@@ -33,6 +33,7 @@
       <button class="tab" data-tab="world"><span class="ic" data-icon="house"></span> Welt 3D<span class="tab-beta">Beta</span></button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
+      <button class="tab" data-tab="settings"><span class="ic" data-icon="settings"></span> Einstellungen</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
     <button class="key-btn" id="openKey" title="API-Schlüssel"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
@@ -133,7 +134,7 @@
     <section class="panel" data-panel="studio">
       <div class="studio-grid">
         <aside class="controls">
-          <h2 class="eyebrow">Was möchtest du machen?</h2>
+          <div class="rail-head"><span class="eyebrow">Studio</span><h2>Was möchtest du machen?</h2></div>
           <div class="seg" id="studioMode">
             <button class="seg-b is-active" data-mode="generate" aria-pressed="true">Bild erzeugen</button>
             <button class="seg-b" data-mode="redesign" aria-pressed="false">Raum redesignen</button>
@@ -231,25 +232,8 @@
     <!-- ===================== TAB: BEGEHUNG ===================== -->
     <section class="panel" data-panel="walk">
       <div class="walk-grid">
-        <div class="viewport">
-          <div id="tourHost" class="canvas3d tour-host" tabindex="0" role="application" aria-label="Panorama-Begehung. Pfeiltasten: umsehen. Plus/Minus: zoomen.">
-            <div class="tour-empty" id="tourEmpty">
-              <div class="empty-ic" data-icon="compass"></div>
-              Noch keine Begehung. Erzeuge rechts einen <b>Panorama-Standort</b> — aus Text, einem Raumfoto oder einem KI-Studio-Ergebnis.
-              <button class="btn btn-accent" id="loadDemo" style="margin-top:6px"><span class="ic" data-icon="play"></span> Demo-Begehung ansehen (ohne Key)</button>
-            </div>
-          </div>
-          <div class="minimap" id="miniMap" hidden></div>
-          <div class="vp-bar">
-            <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
-            <button class="btn btn-ghost" id="resetView">Blick zurück</button>
-            <div class="stations" id="stationNav"></div>
-            <span class="vp-hint">Ziehen: umsehen · Scroll: zoomen · Pin antippen = Möbel-Details</span>
-          </div>
-        </div>
-
         <aside class="walk-side">
-          <span class="eyebrow">Standort erzeugen</span>
+          <div class="rail-head"><span class="eyebrow">Begehung</span><h2>Standort erzeugen</h2></div>
           <div class="seg" id="tourMode">
             <button class="seg-b is-active" data-src="text" aria-pressed="true">Aus Text</button>
             <button class="seg-b" data-src="photo" aria-pressed="false">Aus Foto</button>
@@ -293,6 +277,23 @@
             <ul id="cartList" class="cart-list"><li class="muted">noch leer</li></ul>
           </div>
         </aside>
+
+        <div class="viewport">
+          <div id="tourHost" class="canvas3d tour-host" tabindex="0" role="application" aria-label="Panorama-Begehung. Pfeiltasten: umsehen. Plus/Minus: zoomen.">
+            <div class="tour-empty" id="tourEmpty">
+              <div class="empty-ic" data-icon="compass"></div>
+              Noch keine Begehung. Erzeuge links einen <b>Panorama-Standort</b> — aus Text, einem Raumfoto oder einem KI-Studio-Ergebnis.
+              <button class="btn btn-accent" id="loadDemo" style="margin-top:6px"><span class="ic" data-icon="play"></span> Demo-Begehung ansehen (ohne Key)</button>
+            </div>
+          </div>
+          <div class="minimap" id="miniMap" hidden></div>
+          <div class="vp-bar">
+            <button class="btn btn-ghost" id="autoRotBtn"><span class="ic" data-icon="rotate-cw"></span> Auto-Drehung</button>
+            <button class="btn btn-ghost" id="resetView">Blick zurück</button>
+            <div class="stations" id="stationNav"></div>
+            <span class="vp-hint">Ziehen: umsehen · Scroll: zoomen · Pin antippen = Möbel-Details</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -413,51 +414,89 @@
     <section class="panel" data-panel="docs">
       <div id="docsRoot" class="docs-wrap"><!-- gefüllt von docs.js --></div>
     </section>
-  </main>
 
-  <!-- Key-Modal -->
-  <div class="modal" id="keyModal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle">
-      <button class="modal-x" id="keyClose" aria-label="Schließen"><span class="ic" data-icon="x"></span></button>
-      <h3 id="keyModalTitle">Gemini-API-Key (Nano Banana)</h3>
-      <p class="muted">Trag deinen Key von <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> ein. Er wird <b>nur lokal in deinem Browser</b> gespeichert (localStorage) und geht ausschließlich an Googles API. Die Bildgenerierung läuft über ein Google-Cloud-Projekt mit aktiviertem Billing.</p>
-      <label class="fld"><span>API-Key</span>
-        <input type="password" id="keyInput" placeholder="API-Key einfügen" autocomplete="off" />
-      </label>
-      <label class="fld"><span>Bild-Modell (Gemini)</span>
-        <input type="text" id="modelInput" value="gemini-3.1-flash-image-preview" />
-        <small class="muted">Höchste Qualität: <code>gemini-3.1-flash-image-preview</code> (Nano Banana 2).</small>
-      </label>
+    <!-- ===================== TAB: EINSTELLUNGEN ===================== -->
+    <section class="panel" data-panel="settings">
+      <div class="set-wrap">
+        <div class="set-head">
+          <span class="eyebrow">Einstellungen</span>
+          <h2>Aussehen &amp; Schlüssel</h2>
+          <p class="muted small">Eine Stelle für alles: Erscheinungsbild, deine API-Schlüssel und Datenschutz. Alle Schlüssel bleiben ausschließlich lokal in deinem Browser.</p>
+        </div>
 
-      <hr class="modal-sep" />
-      <p class="muted small"><b>Architekt (Claude)</b> — das Gehirn, das Grundrisse liest und die Wohnung plant. Key von <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>, bleibt nur lokal.</p>
-      <label class="fld"><span>Anthropic-Key</span>
-        <input type="password" id="ckeyInput" placeholder="sk-ant-…" autocomplete="off" />
-      </label>
-      <label class="fld"><span>Claude-Modell</span>
-        <select id="cmodelInput">
-          <option value="claude-opus-4-8">Opus 4.8 — beste Qualität</option>
-          <option value="claude-sonnet-4-6">Sonnet 4.6 — günstig &amp; schnell</option>
-          <option value="claude-haiku-4-5">Haiku 4.5 — am günstigsten</option>
-        </select>
-      </label>
+        <!-- Aussehen: Theme + Akzent (GK-DNA) -->
+        <div class="set-box">
+          <span class="set-box-h">Aussehen</span>
+          <div class="set-row">
+            <span class="set-ic ic" data-icon="eye"></span>
+            <div class="set-txt"><b>Erscheinungsbild</b><span>Dunkler Operator-Look oder helles Papier.</span></div>
+            <div class="seg" id="themeSeg">
+              <button class="seg-b is-active" data-theme="dark" aria-pressed="true">Dunkel</button>
+              <button class="seg-b" data-theme="light" aria-pressed="false">Hell</button>
+            </div>
+          </div>
+          <div class="set-row">
+            <span class="set-ic ic" data-icon="palette"></span>
+            <div class="set-txt"><b>Akzentfarbe</b><span>Färbt Knöpfe, Fokus &amp; Hervorhebungen — überall live.</span></div>
+          </div>
+          <div class="accent-picker" id="accentPicker">
+            <button class="accent-sw on" data-rgb="227 160 111" style="background:#e3a06f" aria-label="Terrakotta" title="Terrakotta"></button>
+            <button class="accent-sw" data-rgb="201 168 96" style="background:#c9a860" aria-label="Messing" title="Messing"></button>
+            <button class="accent-sw" data-rgb="140 178 150" style="background:#8cb296" aria-label="Salbei" title="Salbei"></button>
+            <button class="accent-sw" data-rgb="198 122 96" style="background:#c67a60" aria-label="Lehm" title="Lehm"></button>
+            <button class="accent-sw" data-rgb="116 176 174" style="background:#74b0ae" aria-label="Teal" title="Teal"></button>
+            <button class="accent-sw" data-rgb="146 152 214" style="background:#9298d6" aria-label="Indigo" title="Indigo"></button>
+            <label class="accent-sw" title="Eigene Farbe" style="background:conic-gradient(from 0deg,#e3a06f,#8cb296,#74b0ae,#9298d6,#c67a60,#e3a06f);display:grid;place-items:center">
+              <input type="color" id="accentCustom" value="#e3a06f" aria-label="Eigene Akzentfarbe" />
+            </label>
+          </div>
+        </div>
 
-      <hr class="modal-sep" />
-      <p class="muted small"><b>ChatGPT (OpenAI)</b> — optionale zweite Bild-Engine (oft sehr hohe Qualität). Key von <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>, bleibt nur lokal im Browser.</p>
-      <label class="fld"><span>OpenAI-Key</span>
-        <input type="password" id="okeyInput" placeholder="sk-…" autocomplete="off" />
-      </label>
-      <label class="fld"><span>Bild-Modell (OpenAI)</span>
-        <input type="text" id="omodelInput" value="gpt-image-1" />
-        <small class="muted">Standard: <code>gpt-image-1</code> (höchste Qualität).</small>
-      </label>
+        <!-- API-Schlüssel (aus dem alten Modal hierher) -->
+        <div class="set-box">
+          <span class="set-box-h">API-Schlüssel · BYOK</span>
+          <div class="set-fields">
+            <label class="fld"><span>Gemini-Key — Bilder &amp; Panoramen · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Key holen</a></span>
+              <input type="password" id="keyInput" placeholder="API-Key einfügen" autocomplete="off" />
+            </label>
+            <label class="fld"><span>Bild-Modell (Gemini)</span>
+              <input type="text" id="modelInput" value="gemini-3.1-flash-image-preview" />
+            </label>
+            <label class="fld"><span>Claude-Key — Architekt liest Grundrisse · <a href="https://console.anthropic.com" target="_blank" rel="noopener">Key holen</a></span>
+              <input type="password" id="ckeyInput" placeholder="sk-ant-…" autocomplete="off" />
+            </label>
+            <label class="fld"><span>Claude-Modell</span>
+              <select id="cmodelInput">
+                <option value="claude-opus-4-8">Opus 4.8 — beste Qualität</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6 — günstig &amp; schnell</option>
+                <option value="claude-haiku-4-5">Haiku 4.5 — am günstigsten</option>
+              </select>
+            </label>
+            <label class="fld"><span>OpenAI-Key — optionale zweite Bild-Engine · <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Key holen</a></span>
+              <input type="password" id="okeyInput" placeholder="sk-…" autocomplete="off" />
+            </label>
+            <label class="fld"><span>Bild-Modell (OpenAI)</span>
+              <input type="text" id="omodelInput" value="gpt-image-1" />
+            </label>
+          </div>
+          <div class="row2">
+            <button class="btn btn-accent" id="keySave"><span class="ic" data-icon="check"></span> Schlüssel speichern</button>
+            <button class="btn btn-ghost" id="keyForget">Schlüssel entfernen</button>
+          </div>
+        </div>
 
-      <div class="row2">
-        <button class="btn btn-accent" id="keySave">Speichern</button>
-        <button class="btn btn-ghost" id="keyForget">Keys entfernen</button>
+        <!-- Daten & Privatsphäre -->
+        <div class="set-box">
+          <span class="set-box-h">Daten &amp; Privatsphäre</span>
+          <div class="set-row">
+            <span class="set-ic ic" data-icon="usb"></span>
+            <div class="set-txt"><b>Lokal &amp; offline</b><span>Schlüssel &amp; Projekte bleiben in diesem Browser. Bilder gehen nur an die von dir gewählte KI (Google/Anthropic/OpenAI). Kein Konto, kein Server.</span></div>
+          </div>
+          <p class="set-note">Die Demo-Begehung läuft ganz ohne Schlüssel. Beim direkten Öffnen als Einzeldatei (file://) merkt sich der Browser die Schlüssel teils nicht über Neustarts — dann den Launcher (localhost) nutzen.</p>
+        </div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <!-- Produkt-Picker fürs Pin-Setzen -->
   <div class="modal" id="pickModal" hidden>

@@ -52,7 +52,7 @@
     if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch {} }
   }
   document.addEventListener("keydown", e => {
-    const m = !$("#keyModal").hidden ? $("#keyModal") : (!$("#pickModal").hidden ? $("#pickModal") : null);
+    const m = (!$("#pickModal").hidden) ? $("#pickModal") : null;   // Key-Modal → eigener Reiter „Einstellungen"
     if (!m) return;
     if (e.key === "Escape") { e.preventDefault(); closeModal(m.id); return; }
     if (e.key === "Tab") {
@@ -66,22 +66,20 @@
   // Tippen/Klick auf den Hintergrund (außerhalb der Karte) schließt das Modal — Sicherheitsnetz, v. a. Handy.
   $$(".modal").forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModal(m.id); }));
 
-  /* ---------- Key ---------- */
+  /* ---------- Schlüssel (jetzt im Einstellungen-Reiter) ---------- */
   function refreshKeyState() {
     const ok = !!IS.key || !!IS.okey;
     $("#keyState").innerHTML = ok ? 'Key ' + Icons.svg("check", { cls: "ic-ok" }) : "Key";
     $("#openKey").classList.toggle("ok", ok);
     $("#needkey").hidden = ok;
   }
-  function openKey() {
+  function fillKeyFields() {
     $("#keyInput").value = IS.key; $("#modelInput").value = IS.model;
     $("#ckeyInput").value = IS.ckey; $("#cmodelInput").value = IS.cmodel;
     $("#okeyInput").value = IS.okey; $("#omodelInput").value = IS.omodel;
-    openModal("keyModal");
   }
-  $("#openKey").onclick = openKey; $("#needkeyBtn").onclick = openKey;
-  $("#keyClose").onclick = () => closeModal("keyModal");
-  $("#keyModal").onclick = e => { if (e.target.id === "keyModal") closeModal("keyModal"); };
+  function openKey() { fillKeyFields(); showTab("settings"); setTimeout(() => { const f = $("#keyInput"); if (f && !IS.key) f.focus(); }, 80); }
+  $("#openKey").onclick = openKey; if ($("#needkeyBtn")) $("#needkeyBtn").onclick = openKey;
   $("#keySave").onclick = () => {
     IS.key = $("#keyInput").value.trim(); IS.model = $("#modelInput").value.trim() || IS.model;
     IS.ckey = $("#ckeyInput").value.trim(); IS.cmodel = $("#cmodelInput").value || IS.cmodel;
@@ -89,12 +87,39 @@
     store.set("is_key", IS.key); store.set("is_model", IS.model);
     store.set("is_ckey", IS.ckey); store.set("is_cmodel", IS.cmodel);
     store.set("is_okey", IS.okey); store.set("is_omodel", IS.omodel);
-    closeModal("keyModal"); refreshKeyState(); toast("Keys gespeichert (nur lokal).", "ok");
+    refreshKeyState(); toast("Schlüssel gespeichert (nur lokal).", "ok");
   };
   $("#keyForget").onclick = () => {
     IS.key = ""; IS.ckey = ""; IS.okey = ""; store.del("is_key"); store.del("is_ckey"); store.del("is_okey");
-    refreshKeyState(); closeModal("keyModal"); toast("Keys entfernt.");
+    fillKeyFields(); refreshKeyState(); toast("Schlüssel entfernt.");
   };
+
+  /* ---------- Theme & Akzent (GK-DNA: live über CSS-Variablen) ---------- */
+  const ACCENT_DEFAULT = "227 160 111";
+  function applyTheme(mode) {
+    const m = mode === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", m);
+    store.set("is_theme", m);
+    $$("#themeSeg .seg-b").forEach(b => { const on = b.dataset.theme === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
+  }
+  function applyAccent(rgb) {
+    const v = (rgb || ACCENT_DEFAULT).trim();
+    document.documentElement.style.setProperty("--accent-rgb", v);
+    store.set("is_accent", v);
+    $$("#accentPicker .accent-sw[data-rgb]").forEach(s => s.classList.toggle("on", s.dataset.rgb === v));
+  }
+  function rgbToHex(rgb) { return "#" + rgb.trim().split(/\s+/).map(n => (+n).toString(16).padStart(2, "0")).join(""); }
+  function hexToRgb(hex) { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex); return m ? [1,2,3].map(i => parseInt(m[i],16)).join(" ") : ACCENT_DEFAULT; }
+  function wireSettings() {
+    $$("#themeSeg .seg-b").forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
+    $$("#accentPicker .accent-sw[data-rgb]").forEach(s => s.onclick = () => { applyAccent(s.dataset.rgb); const c = $("#accentCustom"); if (c) c.value = rgbToHex(s.dataset.rgb); });
+    const custom = $("#accentCustom");
+    if (custom) custom.oninput = () => applyAccent(hexToRgb(custom.value));
+    // gespeicherte Wahl anwenden
+    applyTheme(store.get("is_theme") || "dark");
+    applyAccent(store.get("is_accent") || ACCENT_DEFAULT);
+    const c = $("#accentCustom"); if (c) c.value = rgbToHex(store.get("is_accent") || ACCENT_DEFAULT);
+  }
 
   /* ---------- Start / Reiter ---------- */
   // Panel zeigen OHNE den aktiven Reiter zu wechseln (für eingebettete Unter-Ansichten)
@@ -105,6 +130,7 @@
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
     if (name === "docs" && window.Docs) window.Docs.render();
+    if (name === "settings") fillKeyFields();
     if (window.World) { if (name === "world") window.World.enter(); else window.World.leave(); }
     if (name === "home") window.scrollTo({ top: 0 });
   }
@@ -989,7 +1015,7 @@ Regeln:
     window.Catalogs.onChange(renderCatList);
     window.Catalogs.loadBuiltins().then(renderCatList);
   }
-  refreshKeyState(); renderHelp(); addFullscreen(); renderCart(); refreshStudioSrc();
+  refreshKeyState(); wireSettings(); renderHelp(); addFullscreen(); renderCart(); refreshStudioSrc();
   // Bild-Engine-Auswahl (Nano Banana / ChatGPT)
   (function wireImgProvider() {
     const sel = $("#imgProvider"); if (!sel) return;
