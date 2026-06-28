@@ -28,14 +28,11 @@
     </div>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
-      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
-      <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
+      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> Studio</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="world"><span class="ic" data-icon="house"></span> Welt 3D<span class="tab-beta">Beta</span></button>
-      <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
-      <button class="tab" data-tab="help"><span class="ic" data-icon="circle-help"></span> Beispiele &amp; Hilfe</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
     <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
@@ -72,6 +69,7 @@
             <button class="btn" id="projSave"><span class="ic" data-icon="download"></span> Exportieren</button>
             <button class="btn" id="projOpen"><span class="ic" data-icon="upload"></span> Importieren</button>
             <button class="btn btn-ghost" id="projNew"><span class="ic" data-icon="plus"></span> Neu / leeren</button>
+            <button class="btn btn-ghost" data-goto="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
           </div>
         </div>
         <div class="proj-tree" id="projTree"></div>
@@ -133,6 +131,7 @@
 
           <button class="btn btn-accent btn-lg" id="genBtn"><span class="ic" data-icon="sparkles"></span> Erzeugen</button>
           <p class="hint" id="genHint">Nutzt Nano Banana 2 (Gemini). Dauer ~5–20 s.</p>
+          <button class="btn btn-ghost" data-goto="arch"><span class="ic" data-icon="building-2"></span> Architekt-Dialog — Grundriss im Chat planen</button>
         </aside>
 
         <div class="results">
@@ -156,6 +155,7 @@
       <div class="arch-grid">
         <aside class="arch-chat">
           <div class="arch-head">
+            <button class="btn btn-ghost btn-back" data-goto="studio">← Studio</button>
             <span class="eyebrow">Architekt</span>
             <h2>Claude plant deine Wohnung</h2>
             <p class="muted small">Beschreibe eine Wohnung/Büroetage oder lade einen <b>Grundriss</b> hoch. Claude liest den Plan, legt die Räume an und steuert die Bildgenerierung — am Ende ist alles begehbar.</p>
@@ -339,6 +339,7 @@
     <section class="panel" data-panel="gallery">
       <div class="gal-wrap">
         <div class="gal-head">
+          <button class="btn btn-ghost btn-back" data-goto="projects">← Projekte</button>
           <span class="eyebrow">Galerie</span>
           <h2>Erzeugte Bilder &amp; Panoramen</h2>
           <p class="muted small">Jedes im KI-Studio erzeugte Bild und jedes Panorama landet hier — automatisch gespeichert. Wiederverwenden, herunterladen oder löschen.</p>
@@ -371,7 +372,10 @@
 
     <!-- ===================== TAB: HILFE ===================== -->
     <section class="panel" data-panel="help">
-      <div class="help" id="helpContent"><!-- gefüllt per JS --></div>
+      <div class="help">
+        <button class="btn btn-ghost btn-back" data-goto="docs">← Unterlagen</button>
+        <div id="helpContent"><!-- gefüllt per JS --></div>
+      </div>
     </section>
 
     <!-- ===================== TAB: UNTERLAGEN ===================== -->

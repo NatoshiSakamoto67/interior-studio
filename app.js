@@ -97,19 +97,29 @@
   };
 
   /* ---------- Tabs ---------- */
-  function showTab(name) {
-    $$(".tab").forEach(t => {
-      const on = t.dataset.tab === name;
-      t.classList.toggle("is-active", on);
-      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
-    });
+  // Panel zeigen OHNE den aktiven Reiter zu wechseln (für eingebettete Unter-Ansichten)
+  function showPanel(name) {
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
     if (name === "docs" && window.Docs) window.Docs.render();
     if (window.World) { if (name === "world") window.World.enter(); else window.World.leave(); }
   }
+  function showTab(name) {
+    $$(".tab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("is-active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
+    showPanel(name);
+  }
+  window.showPanel = showPanel;
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
+  // 6-Reiter-Routing: Architekt unter Studio, Galerie unter Projekte, Hilfe unter Unterlagen (data-goto)
+  document.addEventListener("click", e => {
+    const r = e.target.closest("[data-goto]"); if (!r) return;
+    e.preventDefault(); showPanel(r.getAttribute("data-goto"));
+  });
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {

@@ -129,6 +129,12 @@
         <div class="docs-nav-head"><span class="eyebrow">Unterlagen</span><h2>Projekt-Dossier</h2>
           <p class="muted small">Die Vision und die Pläne hinter Interior Studio — zum Lesen, Weiterdenken, Übernehmen oder Verwerfen.</p></div>
         ${nav}
+        <div class="docs-cat"><span class="docs-cat-h">Mehr</span>
+          <button class="docs-item" type="button" data-goto="help">
+            <span class="docs-item-ic">${Icons.svg("circle-help") || ""}</span>
+            <span class="docs-item-txt"><b>Beispiele &amp; Hilfe</b><span>So funktioniert's · fertige Prompts</span></span>
+          </button>
+        </div>
       </aside>
       <article class="docs-read" id="docsRead"><div class="docs-read-inner" id="docsReadInner"></div></article>`;
     root.querySelectorAll(".docs-item").forEach(b => b.onclick = () => open(b.dataset.id));

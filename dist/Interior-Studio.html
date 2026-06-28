@@ -605,6 +605,9 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
 .world-measure-report .mr-devs .sev-mittel::marker{color:var(--accent)}
 .world-measure-report .mr-devs b{color:var(--text)}
 .world-measure-report .mr-devs i{color:var(--accent)}
+/* Zurück-Knöpfe der eingebetteten Unter-Ansichten (6-Reiter-Routing) */
+.btn-back{align-self:flex-start;padding:5px 11px;font-size:12.5px;color:var(--muted);margin-bottom:8px;background:rgba(255,255,255,.04)}
+.btn-back:hover:not(:disabled){color:var(--text);border-color:var(--glass-line)}
 @media(max-width:900px){
   .world-grid{grid-template-columns:1fr;height:auto}
   .world-side{border-right:none;border-bottom:1px solid var(--glass-line)}
@@ -694,14 +697,11 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
     </div>
     <nav class="tabs" id="tabs" aria-label="Bereiche">
       <button class="tab" data-tab="projects"><span class="ic" data-icon="folders"></span> Projekte</button>
-      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> KI-Studio</button>
-      <button class="tab" data-tab="arch"><span class="ic" data-icon="building-2"></span> Architekt</button>
+      <button class="tab is-active" data-tab="studio" aria-current="page"><span class="ic" data-icon="palette"></span> Studio</button>
       <button class="tab" data-tab="walk"><span class="ic" data-icon="compass"></span> Begehung</button>
       <button class="tab" data-tab="world"><span class="ic" data-icon="house"></span> Welt 3D<span class="tab-beta">Beta</span></button>
-      <button class="tab" data-tab="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
       <button class="tab" data-tab="katalog"><span class="ic" data-icon="library"></span> Kataloge</button>
       <button class="tab" data-tab="docs"><span class="ic" data-icon="book-open"></span> Unterlagen</button>
-      <button class="tab" data-tab="help"><span class="ic" data-icon="circle-help"></span> Beispiele &amp; Hilfe</button>
     </nav>
     <span id="saveState" class="save-state" hidden></span>
     <button class="key-btn" id="openKey" title="Gemini-Key"><span class="ic" data-icon="key"></span> <span id="keyState">Key</span></button>
@@ -738,6 +738,7 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
             <button class="btn" id="projSave"><span class="ic" data-icon="download"></span> Exportieren</button>
             <button class="btn" id="projOpen"><span class="ic" data-icon="upload"></span> Importieren</button>
             <button class="btn btn-ghost" id="projNew"><span class="ic" data-icon="plus"></span> Neu / leeren</button>
+            <button class="btn btn-ghost" data-goto="gallery"><span class="ic" data-icon="image"></span> Galerie</button>
           </div>
         </div>
         <div class="proj-tree" id="projTree"></div>
@@ -799,6 +800,7 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
 
           <button class="btn btn-accent btn-lg" id="genBtn"><span class="ic" data-icon="sparkles"></span> Erzeugen</button>
           <p class="hint" id="genHint">Nutzt Nano Banana 2 (Gemini). Dauer ~5–20 s.</p>
+          <button class="btn btn-ghost" data-goto="arch"><span class="ic" data-icon="building-2"></span> Architekt-Dialog — Grundriss im Chat planen</button>
         </aside>
 
         <div class="results">
@@ -822,6 +824,7 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
       <div class="arch-grid">
         <aside class="arch-chat">
           <div class="arch-head">
+            <button class="btn btn-ghost btn-back" data-goto="studio">← Studio</button>
             <span class="eyebrow">Architekt</span>
             <h2>Claude plant deine Wohnung</h2>
             <p class="muted small">Beschreibe eine Wohnung/Büroetage oder lade einen <b>Grundriss</b> hoch. Claude liest den Plan, legt die Räume an und steuert die Bildgenerierung — am Ende ist alles begehbar.</p>
@@ -1005,6 +1008,7 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
     <section class="panel" data-panel="gallery">
       <div class="gal-wrap">
         <div class="gal-head">
+          <button class="btn btn-ghost btn-back" data-goto="projects">← Projekte</button>
           <span class="eyebrow">Galerie</span>
           <h2>Erzeugte Bilder &amp; Panoramen</h2>
           <p class="muted small">Jedes im KI-Studio erzeugte Bild und jedes Panorama landet hier — automatisch gespeichert. Wiederverwenden, herunterladen oder löschen.</p>
@@ -1037,7 +1041,10 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
 
     <!-- ===================== TAB: HILFE ===================== -->
     <section class="panel" data-panel="help">
-      <div class="help" id="helpContent"><!-- gefüllt per JS --></div>
+      <div class="help">
+        <button class="btn btn-ghost btn-back" data-goto="docs">← Unterlagen</button>
+        <div id="helpContent"><!-- gefüllt per JS --></div>
+      </div>
     </section>
 
     <!-- ===================== TAB: UNTERLAGEN ===================== -->
@@ -2360,6 +2367,12 @@ window.DOCS = [
         <div class="docs-nav-head"><span class="eyebrow">Unterlagen</span><h2>Projekt-Dossier</h2>
           <p class="muted small">Die Vision und die Pläne hinter Interior Studio — zum Lesen, Weiterdenken, Übernehmen oder Verwerfen.</p></div>
         ${nav}
+        <div class="docs-cat"><span class="docs-cat-h">Mehr</span>
+          <button class="docs-item" type="button" data-goto="help">
+            <span class="docs-item-ic">${Icons.svg("circle-help") || ""}</span>
+            <span class="docs-item-txt"><b>Beispiele &amp; Hilfe</b><span>So funktioniert's · fertige Prompts</span></span>
+          </button>
+        </div>
       </aside>
       <article class="docs-read" id="docsRead"><div class="docs-read-inner" id="docsReadInner"></div></article>`;
     root.querySelectorAll(".docs-item").forEach(b => b.onclick = () => open(b.dataset.id));
@@ -3838,19 +3851,29 @@ window.IFC = { loadIFC };
   };
 
   /* ---------- Tabs ---------- */
-  function showTab(name) {
-    $$(".tab").forEach(t => {
-      const on = t.dataset.tab === name;
-      t.classList.toggle("is-active", on);
-      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
-    });
+  // Panel zeigen OHNE den aktiven Reiter zu wechseln (für eingebettete Unter-Ansichten)
+  function showPanel(name) {
     $$(".panel").forEach(p => p.classList.toggle("is-active", p.dataset.panel === name));
     if (name === "walk") ensureTour();
     if (name === "gallery") renderGallery();
     if (name === "docs" && window.Docs) window.Docs.render();
     if (window.World) { if (name === "world") window.World.enter(); else window.World.leave(); }
   }
+  function showTab(name) {
+    $$(".tab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("is-active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
+    showPanel(name);
+  }
+  window.showPanel = showPanel;
   $$(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
+  // 6-Reiter-Routing: Architekt unter Studio, Galerie unter Projekte, Hilfe unter Unterlagen (data-goto)
+  document.addEventListener("click", e => {
+    const r = e.target.closest("[data-goto]"); if (!r) return;
+    e.preventDefault(); showPanel(r.getAttribute("data-goto"));
+  });
 
   /* ================= KI-STUDIO ================= */
   $$("#studioMode .seg-b").forEach(b => b.onclick = () => {
