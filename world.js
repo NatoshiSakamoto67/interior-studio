@@ -5,6 +5,7 @@
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const BACKEND = (localStorage.getItem("is_world_backend") || "http://localhost:8799").replace(/\/$/, "");
   let wired = false, pollTimer = null, srcFile = null;
 
@@ -28,6 +29,44 @@
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
+  }
+
+  function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
+
+  function summary(model, v) {
+    const st = (model.storeys || [])[0] || {};
+    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
+    const unc = (model.uncertain || []);
+    const warn = (((model.provenance || {}).warnings) || []).concat((v && v.warnings) || []);
+    let h = '<div class="mr-h">✓ Modell gebaut · ' + (st.walls || []).length + ' Wände · ' + (st.rooms || []).length + ' Räume</div>';
+    if (rooms) h += '<div class="muted small">' + rooms + '</div>';
+    h += '<div class="small mr-prec">Präzision: <b>' + esc((model.provenance || {}).precision || "?") + '</b>';
+    if (unc.length) h += ' · <span class="mr-unk">' + unc.length + ' unbekannte Maße</span>';
+    h += '</div>';
+    if (warn.length) h += '<details class="mr-warn"><summary>' + warn.length + ' Hinweise</summary><ul>' + warn.slice(0, 14).map(x => '<li>' + esc(typeof x === "string" ? x : JSON.stringify(x)) + '</li>').join("") + '</ul></details>';
+    if (unc.length) h += '<details class="mr-warn"><summary>Unbekannte Maße (nicht geraten)</summary><ul>' + unc.slice(0, 14).map(u => '<li>' + esc((u.field || "") + ": " + (u.reason || "")) + '</li>').join("") + '</ul></details>';
+    return h;
+  }
+
+  async function buildFromPlan() {
+    const inp = $("#measureFile"); const file = inp && inp.files[0];
+    if (!file) { if (window.toast) toast("Erst einen Grundriss mit Maßen wählen.", "err"); return; }
+    if (!(window.IS && window.IS.ckey)) { if (window.toast) toast("Claude-Key fehlt — oben unter dem Schlüssel-Symbol eintragen.", "err"); return; }
+    if (!(window.Parametric && window.Parametric.available() && window.Measure)) { if (window.toast) toast("Maß-Bauer nicht verfügbar.", "err"); return; }
+    report('<span class="muted small">Claude liest die Maße aus dem Grundriss … (~10–30 s)</span>', false);
+    const btn = $("#measureBuildBtn"); if (btn) btn.disabled = true;
+    try {
+      const inline = await window.ImageGen.fileToInline(file);
+      const model = await window.Measure.extractFromPlan(inline);
+      const v = window.Measure.validate(model);
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
+      report(summary(model, v), false);
+    } catch (e) {
+      report('Konnte das Modell nicht bauen: ' + esc(e.message || "Fehler"), true);
+    } finally { if (btn) btn.disabled = false; }
   }
 
   async function checkBackend() {
@@ -122,6 +161,8 @@
     const sf = $("#worldSplatFile"); if (sf) sf.onchange = () => { if (sf.files[0]) loadSplat(sf.files[0]); };
     const dm = $("#worldDemo"); if (dm) dm.onclick = () => { progress(20, "Beispiel-Welt wird geladen …"); loadSplat("https://media.reshot.ai/models/nike_next/model.splat"); };
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
+    const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
+    const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
     wired = true;
   }
 

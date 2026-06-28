@@ -74,14 +74,23 @@ function build(model, container) {
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
+  const storeyH = st.ceilingHeightMm || 2700;   // Default nur, wenn der Plan keine Höhe trägt
 
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
   (st.walls || []).forEach(w => {
-    const L = mm(M().wallLength(w)), H = mm(w.heightMm), T = mm(w.thicknessMm);
+    const Lmm = M().wallLength(w), Hmm = w.heightMm || storeyH, Tmm = w.thicknessMm || (w.type === "partition" ? 115 : 240);
+    const L = mm(Lmm), H = mm(Hmm), T = mm(Tmm);
+    if (!(L > 0 && H > 0)) return;
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(L, 0); shape.lineTo(L, H); shape.lineTo(0, H); shape.lineTo(0, 0);
     (byWall[w.id] || []).forEach(o => {
-      const x0 = mm(o.offsetMm), x1 = mm(o.offsetMm + o.widthMm), y0 = mm(o.sillMm || 0), y1 = mm((o.sillMm || 0) + o.heightMm);
+      if (!(o.widthMm > 0)) return;
+      const sill = o.sillMm != null ? o.sillMm : (o.type === "window" ? 900 : 0);
+      const oh = o.heightMm || (o.type === "window" ? 1300 : 2010);
+      const a0 = Math.max(0, o.offsetMm || 0), a1 = Math.min(Lmm - 1, a0 + o.widthMm);
+      const b0 = Math.max(0, sill), b1 = Math.min(Hmm - 1, b0 + oh);
+      if (!(a1 > a0 + 1 && b1 > b0 + 1)) return;   // passt nicht in die Wand → überspringen (validate meldet es)
+      const x0 = mm(a0), x1 = mm(a1), y0 = mm(b0), y1 = mm(b1);
       const hole = new THREE.Path(); hole.moveTo(x0, y0); hole.lineTo(x1, y0); hole.lineTo(x1, y1); hole.lineTo(x0, y1); hole.lineTo(x0, y0);
       shape.holes.push(hole);
     });

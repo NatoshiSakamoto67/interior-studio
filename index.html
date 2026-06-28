@@ -288,9 +288,15 @@
           </div>
 
           <div id="worldMeasure" hidden>
-            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b> (Grundriss mit Bemaßung oder CAD). Jede Wand zur exakten Größe, mit Fenster-/Türöffnungen und Maßangaben.</p>
-            <button class="btn btn-accent btn-lg" id="worldMeasureBtn"><span class="ic" data-icon="ruler"></span> Maß-Demo begehen</button>
-            <p class="hint">Nächste Stufe: dein Grundriss → Claude liest die Maße → exaktes Modell (in Arbeit).</p>
+            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b>. Lade einen Grundriss MIT eingetragener Bemaßung — Claude liest die Maße (rät nie; Unsicheres = „unbekannt").</p>
+            <label class="fld"><span>Grundriss mit Bemaßung (Bild/Foto)</span>
+              <input type="file" id="measureFile" accept="image/png,image/jpeg,image/webp" />
+              <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
+            </label>
+            <button class="btn btn-accent btn-lg" id="measureBuildBtn"><span class="ic" data-icon="ruler"></span> Aus Grundriss bauen</button>
+            <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
+            <div class="world-measure-report" id="measureReport" hidden></div>
+            <p class="hint">Braucht den Claude-Key (Schlüssel-Symbol). Nächste Stufen: CAD-Import (DXF/IFC), Prüf-Loop, Fotoreal.</p>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>

@@ -591,6 +591,14 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
 .world-backend .dot.err{background:#e0654f;box-shadow:0 0 0 3px rgba(224,101,79,.18)}
 .world-backend code{background:rgba(255,255,255,.06);border:1px solid var(--glass-line);border-radius:5px;padding:1px 5px;font-size:.9em}
 .world-progress{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.world-measure-report{font-size:13px;background:rgba(255,255,255,.035);border:1px solid var(--glass-line);border-radius:11px;padding:11px 13px;display:flex;flex-direction:column;gap:5px}
+.world-measure-report.is-err{border-color:rgba(224,101,79,.4);color:#f0b8ac}
+.world-measure-report .mr-h{font-weight:700;color:var(--text)}
+.world-measure-report .mr-unk{color:var(--accent);font-weight:600}
+.world-measure-report .mr-prec{margin-top:3px}
+.world-measure-report .mr-warn{margin-top:4px}
+.world-measure-report .mr-warn summary{cursor:pointer;color:var(--muted);font-size:12px}
+.world-measure-report .mr-warn ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:12px;display:flex;flex-direction:column;gap:3px}
 @media(max-width:900px){
   .world-grid{grid-template-columns:1fr;height:auto}
   .world-side{border-right:none;border-bottom:1px solid var(--glass-line)}
@@ -940,9 +948,15 @@ textarea,input[type=text],input[type=password],input[type=number],input[type=sea
           </div>
 
           <div id="worldMeasure" hidden>
-            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b> (Grundriss mit Bemaßung oder CAD). Jede Wand zur exakten Größe, mit Fenster-/Türöffnungen und Maßangaben.</p>
-            <button class="btn btn-accent btn-lg" id="worldMeasureBtn"><span class="ic" data-icon="ruler"></span> Maß-Demo begehen</button>
-            <p class="hint">Nächste Stufe: dein Grundriss → Claude liest die Maße → exaktes Modell (in Arbeit).</p>
+            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b>. Lade einen Grundriss MIT eingetragener Bemaßung — Claude liest die Maße (rät nie; Unsicheres = „unbekannt").</p>
+            <label class="fld"><span>Grundriss mit Bemaßung (Bild/Foto)</span>
+              <input type="file" id="measureFile" accept="image/png,image/jpeg,image/webp" />
+              <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
+            </label>
+            <button class="btn btn-accent btn-lg" id="measureBuildBtn"><span class="ic" data-icon="ruler"></span> Aus Grundriss bauen</button>
+            <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
+            <div class="world-measure-report" id="measureReport" hidden></div>
+            <p class="hint">Braucht den Claude-Key (Schlüssel-Symbol). Nächste Stufen: CAD-Import (DXF/IFC), Prüf-Loop, Fotoreal.</p>
           </div>
 
           <div class="world-progress" id="worldProgress" hidden>
@@ -2723,11 +2737,43 @@ window.DOCS = [
     return { ok: warn.length === 0, warnings: warn };
   }
 
+  // ---- Claude-Extraktion: bemaßter Grundriss → measure/v1 (NIE raten) ----
+  const MEASURE_SYS = `Du bist ein präziser Aufmaß-Extraktor für Architektur-Grundrisse. Du bekommst das Bild eines Grundrisses und gibst AUSSCHLIESSLICH gültiges JSON nach dem Schema "interior-studio.measure/v1" zurück — keine Erklärung, kein Text davor/danach.
+
+EISERNE REGELN:
+- Alle Längen sind GANZZAHLIGE MILLIMETER (Integer). "4,20 m" = 4200 · "3,6 m" = 3600 · "80 cm" = 800. Achte auf deutsche Komma-Dezimalzahlen und die Einheit (m/cm/mm).
+- Übernimm NUR Maße, die wirklich im Plan EINGETRAGEN sind (Maßketten/Bemaßung) oder aus einem klar angegebenen Maßstab ableitbar sind. ERFINDE oder SCHÄTZE NIEMALS ein Maß. Ist ein Wert nicht bestimmbar → null setzen UND in "uncertain" mit Grund eintragen. Lieber 20 unbekannte Werte als ein geratener.
+- Koordinaten: ein gemeinsamer mm-Plan-Frame, Ursprung oben-links an der äußeren Wandecke, x→rechts, y→nach unten. Wände (start/end) und Raum-Polygone im SELBEN Frame, konsistent.
+- Wände als Mittellinien (start/end). Eine geteilte Wand nur EINMAL. thicknessMm nur wenn erkennbar, sonst null+uncertain.
+- heightMm/ceilingHeightMm nur wenn angegeben, sonst null (Deckenhöhe steht selten im Grundriss).
+- Öffnungen: type door/window/passage · wallId (welche Wand) · offsetMm (entlang der Wand ab start bis zur näheren Laibung) · widthMm · heightMm (sonst null) · sillMm (Fensterbrüstung, sonst null).
+- Räume: polygon der INNEREN Ecken (selber Frame) · name · use.
+- Maßketten gegen das Gesamtmaß abgleichen; Abweichungen in provenance.warnings.
+- provenance.precision: "exact" (aus Bemaßung) | "calibrated" (aus Maßstab) | "estimated".
+
+SCHEMA-BEISPIEL (Struktur exakt so):
+{"schema":"interior-studio.measure/v1","unit":"mm","provenance":{"kind":"vision-dimensions","precision":"exact","confidence":0.0,"warnings":[]},"project":{"title":"","northDeg":0},"uncertain":[{"field":"","reason":""}],"storeys":[{"id":"eg","name":"Erdgeschoss","level":0,"elevationMm":0,"ceilingHeightMm":null,"walls":[{"id":"w1","start":{"x":0,"y":0},"end":{"x":4200,"y":0},"thicknessMm":240,"heightMm":null,"type":"exterior","conf":1.0}],"openings":[{"id":"win1","type":"window","wallId":"w1","offsetMm":1500,"widthMm":1200,"heightMm":null,"sillMm":null,"conf":0.8}],"rooms":[{"id":"r1","name":"Wohnzimmer","use":"living","polygon":[{"x":120,"y":120},{"x":4080,"y":120},{"x":4080,"y":3380},{"x":120,"y":3380}]}]}]}
+
+Gib NUR dieses JSON zurück.`;
+
+  async function extractFromPlan(inline) {
+    if (!window.Claude) throw new Error("Claude-Modul nicht geladen.");
+    const userText = "Lies diesen Grundriss. Extrahiere alle eingetragenen Maße exakt in measure/v1. Erfinde nichts — Unbestimmbares als null + uncertain markieren.";
+    const content = window.Claude.content(userText, inline);     // [Bild, Text]
+    const txt = await window.Claude.call({ system: MEASURE_SYS, content, maxTokens: 8000 });
+    const model = window.Claude.parseJSON(txt);
+    if (!model || model.schema !== "interior-studio.measure/v1" || !Array.isArray(model.storeys)) {
+      throw new Error("Claude lieferte kein gültiges Maß-Modell.");
+    }
+    return model;
+  }
+
   window.Measure = {
     DEMO,
     wallLength: len,
     roomArea: polygonAreaMm2,
     validate,
+    extractFromPlan,
     mm: v => v / 1000   // mm → Meter (für die 3D-Geometrie)
   };
 })();
@@ -2741,6 +2787,7 @@ window.DOCS = [
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const BACKEND = (localStorage.getItem("is_world_backend") || "http://localhost:8799").replace(/\/$/, "");
   let wired = false, pollTimer = null, srcFile = null;
 
@@ -2764,6 +2811,44 @@ window.DOCS = [
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
+  }
+
+  function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
+
+  function summary(model, v) {
+    const st = (model.storeys || [])[0] || {};
+    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
+    const unc = (model.uncertain || []);
+    const warn = (((model.provenance || {}).warnings) || []).concat((v && v.warnings) || []);
+    let h = '<div class="mr-h">✓ Modell gebaut · ' + (st.walls || []).length + ' Wände · ' + (st.rooms || []).length + ' Räume</div>';
+    if (rooms) h += '<div class="muted small">' + rooms + '</div>';
+    h += '<div class="small mr-prec">Präzision: <b>' + esc((model.provenance || {}).precision || "?") + '</b>';
+    if (unc.length) h += ' · <span class="mr-unk">' + unc.length + ' unbekannte Maße</span>';
+    h += '</div>';
+    if (warn.length) h += '<details class="mr-warn"><summary>' + warn.length + ' Hinweise</summary><ul>' + warn.slice(0, 14).map(x => '<li>' + esc(typeof x === "string" ? x : JSON.stringify(x)) + '</li>').join("") + '</ul></details>';
+    if (unc.length) h += '<details class="mr-warn"><summary>Unbekannte Maße (nicht geraten)</summary><ul>' + unc.slice(0, 14).map(u => '<li>' + esc((u.field || "") + ": " + (u.reason || "")) + '</li>').join("") + '</ul></details>';
+    return h;
+  }
+
+  async function buildFromPlan() {
+    const inp = $("#measureFile"); const file = inp && inp.files[0];
+    if (!file) { if (window.toast) toast("Erst einen Grundriss mit Maßen wählen.", "err"); return; }
+    if (!(window.IS && window.IS.ckey)) { if (window.toast) toast("Claude-Key fehlt — oben unter dem Schlüssel-Symbol eintragen.", "err"); return; }
+    if (!(window.Parametric && window.Parametric.available() && window.Measure)) { if (window.toast) toast("Maß-Bauer nicht verfügbar.", "err"); return; }
+    report('<span class="muted small">Claude liest die Maße aus dem Grundriss … (~10–30 s)</span>', false);
+    const btn = $("#measureBuildBtn"); if (btn) btn.disabled = true;
+    try {
+      const inline = await window.ImageGen.fileToInline(file);
+      const model = await window.Measure.extractFromPlan(inline);
+      const v = window.Measure.validate(model);
+      if (window.SplatViewer) window.SplatViewer.stop();
+      const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
+      const sh = $("#splatHost"); if (sh) sh.hidden = true;
+      const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
+      report(summary(model, v), false);
+    } catch (e) {
+      report('Konnte das Modell nicht bauen: ' + esc(e.message || "Fehler"), true);
+    } finally { if (btn) btn.disabled = false; }
   }
 
   async function checkBackend() {
@@ -2858,6 +2943,8 @@ window.DOCS = [
     const sf = $("#worldSplatFile"); if (sf) sf.onchange = () => { if (sf.files[0]) loadSplat(sf.files[0]); };
     const dm = $("#worldDemo"); if (dm) dm.onclick = () => { progress(20, "Beispiel-Welt wird geladen …"); loadSplat("https://media.reshot.ai/models/nike_next/model.splat"); };
     const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
+    const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
+    const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
     wired = true;
   }
 
@@ -3122,14 +3209,23 @@ function build(model, container) {
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
+  const storeyH = st.ceilingHeightMm || 2700;   // Default nur, wenn der Plan keine Höhe trägt
 
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
   (st.walls || []).forEach(w => {
-    const L = mm(M().wallLength(w)), H = mm(w.heightMm), T = mm(w.thicknessMm);
+    const Lmm = M().wallLength(w), Hmm = w.heightMm || storeyH, Tmm = w.thicknessMm || (w.type === "partition" ? 115 : 240);
+    const L = mm(Lmm), H = mm(Hmm), T = mm(Tmm);
+    if (!(L > 0 && H > 0)) return;
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(L, 0); shape.lineTo(L, H); shape.lineTo(0, H); shape.lineTo(0, 0);
     (byWall[w.id] || []).forEach(o => {
-      const x0 = mm(o.offsetMm), x1 = mm(o.offsetMm + o.widthMm), y0 = mm(o.sillMm || 0), y1 = mm((o.sillMm || 0) + o.heightMm);
+      if (!(o.widthMm > 0)) return;
+      const sill = o.sillMm != null ? o.sillMm : (o.type === "window" ? 900 : 0);
+      const oh = o.heightMm || (o.type === "window" ? 1300 : 2010);
+      const a0 = Math.max(0, o.offsetMm || 0), a1 = Math.min(Lmm - 1, a0 + o.widthMm);
+      const b0 = Math.max(0, sill), b1 = Math.min(Hmm - 1, b0 + oh);
+      if (!(a1 > a0 + 1 && b1 > b0 + 1)) return;   // passt nicht in die Wand → überspringen (validate meldet es)
+      const x0 = mm(a0), x1 = mm(a1), y0 = mm(b0), y1 = mm(b1);
       const hole = new THREE.Path(); hole.moveTo(x0, y0); hole.lineTo(x1, y0); hole.lineTo(x1, y1); hole.lineTo(x0, y1); hole.lineTo(x0, y0);
       shape.holes.push(hole);
     });
