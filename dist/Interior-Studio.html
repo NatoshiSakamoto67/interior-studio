@@ -2677,7 +2677,7 @@ window.DOCS = [
   <script>
 /* Interior Studio — Maß-Modell „interior-studio.measure/v1".
    Single Source of Truth für millimetergenaue Räume. ALLE Längen sind INTEGER-MILLIMETER.
-   Koordinaten in mm im storey-lokalen Plan-Frame (x→rechts, y→hinten). Wände als Mittellinien.
+   Koordinaten in mm im EINEN globalen Plan-Frame (x→rechts, y→nach unten). Wände als Mittellinien.
    Öffnungen referenzieren die Wand, die sie durchstoßen (offset entlang der Wand ab start).
    Provenance.precision: exact (CAD/Bemaßung) | calibrated (skaliert) | estimated (geschätzt).
    Dieses Modul ist provider-/lane-neutral (klassisches Script) — parametric.js (ESM) liest window.Measure. */
@@ -2710,7 +2710,12 @@ window.DOCS = [
   };
 
   // ---- Helfer ----
-  const len = w => Math.hypot(w.end.x - w.start.x, w.end.y - w.start.y);     // Wandlänge in mm
+  // Wandlänge in mm — defensiv: kaputte/fehlende Koordinaten → 0 (stromabwärts greifen die L>0-Guards)
+  const len = w => {
+    const s = w && w.start, e = w && w.end;
+    return (s && e && Number.isFinite(+s.x) && Number.isFinite(+s.y) && Number.isFinite(+e.x) && Number.isFinite(+e.y))
+      ? Math.hypot(+e.x - +s.x, +e.y - +s.y) : 0;
+  };
   function polygonAreaMm2(poly) {                                            // Gauß'sche Fläche (Betrag)
     let a = 0;
     for (let i = 0, n = poly.length; i < n; i++) { const p = poly[i], q = poly[(i + 1) % n]; a += p.x * q.y - q.x * p.y; }
@@ -2738,21 +2743,29 @@ window.DOCS = [
   }
 
   // ---- Claude-Extraktion: bemaßter Grundriss → measure/v1 (NIE raten) ----
-  const MEASURE_SYS = `Du bist ein präziser Aufmaß-Extraktor für Architektur-Grundrisse. Du bekommst das Bild eines Grundrisses und gibst AUSSCHLIESSLICH gültiges JSON nach dem Schema "interior-studio.measure/v1" zurück — keine Erklärung, kein Text davor/danach.
+  const MEASURE_SYS = `Du bist ein präziser Aufmaß-Extraktor für Architektur-Grundrisse. Eingabe: das Bild eines Grundrisses. Ausgabe: AUSSCHLIESSLICH gültiges JSON nach "interior-studio.measure/v1" — kein Text davor/danach.
 
-EISERNE REGELN:
-- Alle Längen sind GANZZAHLIGE MILLIMETER (Integer). "4,20 m" = 4200 · "3,6 m" = 3600 · "80 cm" = 800. Achte auf deutsche Komma-Dezimalzahlen und die Einheit (m/cm/mm).
-- Übernimm NUR Maße, die wirklich im Plan EINGETRAGEN sind (Maßketten/Bemaßung) oder aus einem klar angegebenen Maßstab ableitbar sind. ERFINDE oder SCHÄTZE NIEMALS ein Maß. Ist ein Wert nicht bestimmbar → null setzen UND in "uncertain" mit Grund eintragen. Lieber 20 unbekannte Werte als ein geratener.
-- Koordinaten: ein gemeinsamer mm-Plan-Frame, Ursprung oben-links an der äußeren Wandecke, x→rechts, y→nach unten. Wände (start/end) und Raum-Polygone im SELBEN Frame, konsistent.
-- Wände als Mittellinien (start/end). Eine geteilte Wand nur EINMAL. thicknessMm nur wenn erkennbar, sonst null+uncertain.
-- heightMm/ceilingHeightMm nur wenn angegeben, sonst null (Deckenhöhe steht selten im Grundriss).
-- Öffnungen: type door/window/passage · wallId (welche Wand) · offsetMm (entlang der Wand ab start bis zur näheren Laibung) · widthMm · heightMm (sonst null) · sillMm (Fensterbrüstung, sonst null).
-- Räume: polygon der INNEREN Ecken (selber Frame) · name · use.
-- Maßketten gegen das Gesamtmaß abgleichen; Abweichungen in provenance.warnings.
-- provenance.precision: "exact" (aus Bemaßung) | "calibrated" (aus Maßstab) | "estimated".
+RATEN IST VERBOTEN:
+- Übernimm NUR Maße, die im Plan als Bemaßung/Maßkette EINGETRAGEN und lesbar sind. Nicht direkt ablesbar → Zahl = null UND ein Eintrag in "uncertain" {field, reason}. Lieber 20 null-Werte als ein geratener.
+- Ein bloßes Maßstabsverhältnis ("1:50") OHNE messbaren Maßstabsbalken/bemaßte Referenzstrecke IM BILD ist KEINE gültige Quelle → solche Maße bleiben null.
+- precision: "exact" = alle übernommenen Werte direkt aus Bemaßung. "calibrated" = NUR wenn ein Maßstabsbalken/eine bemaßte Referenzstrecke IM BILD messbar ist (daraus berechnete Werte: conf ≤0.6). Es gibt KEIN "estimated".
+- conf je Wert = Belegbarkeit: 1.0 nur bei direkt abgelesener Zahl; <1.0 nur bei Maßstab-Berechnung — JEDER Wert mit conf<1.0 MUSS einen uncertain-Eintrag haben.
 
-SCHEMA-BEISPIEL (Struktur exakt so):
-{"schema":"interior-studio.measure/v1","unit":"mm","provenance":{"kind":"vision-dimensions","precision":"exact","confidence":0.0,"warnings":[]},"project":{"title":"","northDeg":0},"uncertain":[{"field":"","reason":""}],"storeys":[{"id":"eg","name":"Erdgeschoss","level":0,"elevationMm":0,"ceilingHeightMm":null,"walls":[{"id":"w1","start":{"x":0,"y":0},"end":{"x":4200,"y":0},"thicknessMm":240,"heightMm":null,"type":"exterior","conf":1.0}],"openings":[{"id":"win1","type":"window","wallId":"w1","offsetMm":1500,"widthMm":1200,"heightMm":null,"sillMm":null,"conf":0.8}],"rooms":[{"id":"r1","name":"Wohnzimmer","use":"living","polygon":[{"x":120,"y":120},{"x":4080,"y":120},{"x":4080,"y":3380},{"x":120,"y":3380}]}]}]}
+EINHEITEN (Ergebnis = GANZZAHLIGE mm, runde abgeleitete Werte):
+- Komma = Dezimaltrenner, Nachkomma gehört zur Einheit: "2,5 m"=2500 · "37,5 cm"=375 · "4,20 m"=4200.
+- Punkt in einer Maßzahl ist mehrdeutig (Tausender ODER CAD-Dezimal) → über Einheit/Größenordnung auflösen, sonst null+uncertain.
+- FEHLT die Einheit (DE-Maßketten oft cm ohne Suffix), aus dem Kettenkontext bestimmen; bleibt sie uneindeutig → null+uncertain.
+
+EIN GLOBALER FRAME FÜR ALLES:
+- Ursprung = Schnittpunkt der MITTELLINIEN der oberen und der linken Bezugs-Außenwand. x→rechts, y→nach unten, EXAKT wie im Bild (NICHT spiegeln, NICHT drehen).
+- Alle Wände (start/end = Mittellinien) UND alle Raum-Polygone in DIESEM einen Frame. Koordinaten NIE pro Raum neu bei 0 beginnen.
+- Leite Raum-Polygone aus dem Wandnetz ab (innere Kante = Mittellinie ∓ halbe Wandstärke). Ist Wandlage/-stärke unbekannt → betroffene Polygon-Ecke null + uncertain statt geraten.
+- Eine geteilte Wand nur EINMAL. Maßketten gegen das Gesamtmaß abgleichen → Abweichungen in provenance.warnings.
+
+FELDER: walls[{id,start{x,y},end{x,y},thicknessMm|null,heightMm|null,type:exterior|loadbearing|partition,conf}] · openings[{id,type:door|window|passage,wallId,offsetMm,widthMm,heightMm|null,sillMm|null,conf}] · rooms[{id,name,use,polygon[{x,y}]}].
+
+BEISPIEL (zeigt einen TEILS UNBEKANNTEN Plan mit 2 Räumen im globalen Frame — täusche KEIN Vollmodell vor):
+{"schema":"interior-studio.measure/v1","unit":"mm","provenance":{"kind":"vision-dimensions","precision":"exact","confidence":0.7,"warnings":["Süd-Maßkette 60mm kürzer als Gesamtmaß"]},"project":{"title":"","northDeg":0},"uncertain":[{"field":"storeys[0].ceilingHeightMm","reason":"Deckenhöhe nicht bemaßt"},{"field":"walls[1].thicknessMm","reason":"Wandstärke nicht bemaßt"}],"storeys":[{"id":"eg","name":"EG","level":0,"elevationMm":0,"ceilingHeightMm":null,"walls":[{"id":"w1","start":{"x":0,"y":0},"end":{"x":6000,"y":0},"thicknessMm":240,"heightMm":null,"type":"exterior","conf":1.0},{"id":"w2","start":{"x":4000,"y":0},"end":{"x":4000,"y":4000},"thicknessMm":null,"heightMm":null,"type":"partition","conf":1.0}],"openings":[{"id":"win1","type":"window","wallId":"w1","offsetMm":1500,"widthMm":1200,"heightMm":null,"sillMm":null,"conf":1.0}],"rooms":[{"id":"r1","name":"Wohnen","use":"living","polygon":[{"x":120,"y":120},{"x":3942,"y":120},{"x":3942,"y":3880},{"x":120,"y":3880}]},{"id":"r2","name":"Schlafen","use":"bedroom","polygon":[{"x":4057,"y":120},{"x":5880,"y":120},{"x":5880,"y":3880},{"x":4057,"y":3880}]}]}]}
 
 Gib NUR dieses JSON zurück.`;
 
@@ -2811,20 +2824,28 @@ Gib NUR dieses JSON zurück.`;
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
+    const dm = window.Measure && window.Measure.DEMO;
+    if (dm) report('<div class="mr-h">Beispiel-Wohnung (synthetisch, exakt konstruiert)</div>' + summary(dm, window.Measure.validate(dm)), false);
   }
 
   function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
 
   function summary(model, v) {
     const st = (model.storeys || [])[0] || {};
-    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
+    const exact = ((model.provenance || {}).precision === "exact");
+    const ca = exact ? "" : "ca. ";
+    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + ca + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
     const unc = (model.uncertain || []);
     const warn = (((model.provenance || {}).warnings) || []).concat((v && v.warnings) || []);
+    const ass = (window.Parametric && window.Parametric.assumptions) ? window.Parametric.assumptions() : [];
     let h = '<div class="mr-h">✓ Modell gebaut · ' + (st.walls || []).length + ' Wände · ' + (st.rooms || []).length + ' Räume</div>';
     if (rooms) h += '<div class="muted small">' + rooms + '</div>';
     h += '<div class="small mr-prec">Präzision: <b>' + esc((model.provenance || {}).precision || "?") + '</b>';
     if (unc.length) h += ' · <span class="mr-unk">' + unc.length + ' unbekannte Maße</span>';
+    if (ass.length) h += ' · <span class="mr-unk">' + ass.length + ' angenommen</span>';
     h += '</div>';
+    if (ass.length) h += '<div class="small muted">Bläulich eingefärbte Wände = Maß <b>angenommen</b> (Standardwert, nicht gemessen).</div>';
+    if (ass.length) h += '<details class="mr-warn"><summary>' + ass.length + ' angenommene Maße</summary><ul>' + ass.slice(0, 14).map(a => '<li>' + esc((a.what || "") + ": " + (a.value || "") + " — " + (a.reason || "")) + '</li>').join("") + '</ul></details>';
     if (warn.length) h += '<details class="mr-warn"><summary>' + warn.length + ' Hinweise</summary><ul>' + warn.slice(0, 14).map(x => '<li>' + esc(typeof x === "string" ? x : JSON.stringify(x)) + '</li>').join("") + '</ul></details>';
     if (unc.length) h += '<details class="mr-warn"><summary>Unbekannte Maße (nicht geraten)</summary><ul>' + unc.slice(0, 14).map(u => '<li>' + esc((u.field || "") + ": " + (u.reason || "")) + '</li>').join("") + '</ul></details>';
     return h;
@@ -3144,6 +3165,7 @@ import * as THREE from "three";
 const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
+let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
@@ -3203,25 +3225,33 @@ function build(model, container) {
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
 
+  lastAssumptions = [];
+  const exactModel = ((model.provenance || {}).precision === "exact");
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
+  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.92, metalness: 0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
   const storeyH = st.ceilingHeightMm || 2700;   // Default nur, wenn der Plan keine Höhe trägt
+  if (st.ceilingHeightMm == null) lastAssumptions.push({ what: "Deckenhöhe", value: "2,70 m", reason: "nicht im Plan bemaßt" });
 
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
   (st.walls || []).forEach(w => {
+    const thA = w.thicknessMm == null, htA = w.heightMm == null;
     const Lmm = M().wallLength(w), Hmm = w.heightMm || storeyH, Tmm = w.thicknessMm || (w.type === "partition" ? 115 : 240);
     const L = mm(Lmm), H = mm(Hmm), T = mm(Tmm);
     if (!(L > 0 && H > 0)) return;
+    if (thA) lastAssumptions.push({ what: "Wandstärke " + (w.id || ""), value: Tmm + " mm", reason: "nicht bemaßt" });
+    const wmat = (thA || htA) ? wallAssumedMat : wallMat;
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(L, 0); shape.lineTo(L, H); shape.lineTo(0, H); shape.lineTo(0, 0);
     (byWall[w.id] || []).forEach(o => {
       if (!(o.widthMm > 0)) return;
       const sill = o.sillMm != null ? o.sillMm : (o.type === "window" ? 900 : 0);
       const oh = o.heightMm || (o.type === "window" ? 1300 : 2010);
+      if (o.heightMm == null || o.sillMm == null) lastAssumptions.push({ what: (o.type === "window" ? "Fenster " : "Tür ") + (o.id || ""), value: "Höhe/Brüstung Standard", reason: "nicht bemaßt" });
       const a0 = Math.max(0, o.offsetMm || 0), a1 = Math.min(Lmm - 1, a0 + o.widthMm);
       const b0 = Math.max(0, sill), b1 = Math.min(Hmm - 1, b0 + oh);
       if (!(a1 > a0 + 1 && b1 > b0 + 1)) return;   // passt nicht in die Wand → überspringen (validate meldet es)
@@ -3230,7 +3260,7 @@ function build(model, container) {
       shape.holes.push(hole);
     });
     const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false, steps: 1 });
-    const mesh = new THREE.Mesh(geo, wallMat); mesh.castShadow = mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geo, wmat); mesh.castShadow = mesh.receiveShadow = true;
     const sx = mm(w.start.x), sy = mm(w.start.y), ex = mm(w.end.x), ey = mm(w.end.y);
     const A = Math.atan2(ey - sy, ex - sx), cos = Math.cos(A), sin = Math.sin(A);
     const exv = new THREE.Vector3(cos, 0, sin), eyv = new THREE.Vector3(0, 1, 0), ezv = new THREE.Vector3(-sin, 0, cos);
@@ -3238,11 +3268,11 @@ function build(model, container) {
     const m4 = new THREE.Matrix4().makeBasis(exv, eyv, ezv); m4.setPosition(pos);
     mesh.applyMatrix4(m4); group.add(mesh);
     minX = Math.min(minX, sx, ex); maxX = Math.max(maxX, sx, ex); minZ = Math.min(minZ, sy, ey); maxZ = Math.max(maxZ, sy, ey);
-    addDimLabel(w, A);
+    addDimLabel(w, exactModel);
   });
 
   // Boden + Decke aus Raum-Polygonen (Plan x,y → Welt x,z)
-  const H0 = mm(st.ceilingHeightMm || 2700);
+  const H0 = mm(storeyH);
   (st.rooms || []).forEach(r => {
     const shp = new THREE.Shape();
     (r.polygon || []).forEach((p, i) => { const X = mm(p.x), Z = mm(p.y); i ? shp.lineTo(X, Z) : shp.moveTo(X, Z); });
@@ -3261,20 +3291,20 @@ function build(model, container) {
   look.yaw = 0; look.pitch = 0; applyLook();
 }
 
-function addDimLabel(w, angle) {
+function addDimLabel(w, exact) {
   try {
     const mm = M().mm, lenM = mm(M().wallLength(w));
-    const txt = lenM.toFixed(2).replace(".", ",") + " m";
+    const txt = (exact ? "" : "ca. ") + lenM.toFixed(2).replace(".", ",") + " m";
     const c = document.createElement("canvas"); c.width = 192; c.height = 56;
     const g = c.getContext("2d");
-    g.fillStyle = "rgba(227,160,111,.92)"; g.beginPath(); g.roundRect(0, 0, 192, 56, 12); g.fill();
+    g.fillStyle = exact ? "rgba(227,160,111,.92)" : "rgba(140,140,150,.92)"; g.beginPath(); g.roundRect(0, 0, 192, 56, 12); g.fill();
     g.fillStyle = "#1a120b"; g.font = "bold 30px system-ui,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText(txt, 96, 30);
     const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, depthWrite: false }));
     sp.scale.set(0.9, 0.26, 1);
     const mx = mm((w.start.x + w.end.x) / 2), mz = mm((w.start.y + w.end.y) / 2);
-    sp.position.set(mx, 1.2, mz); group.add(sp); void angle;
+    sp.position.set(mx, 1.2, mz); group.add(sp);
   } catch (e) {}
 }
 
@@ -3326,7 +3356,7 @@ function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (docum
 function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
-window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose };
+window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };
 
 </script>
   <script>

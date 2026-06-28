@@ -9,6 +9,7 @@ import * as THREE from "three";
 const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
+let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
@@ -68,25 +69,33 @@ function build(model, container) {
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
 
+  lastAssumptions = [];
+  const exactModel = ((model.provenance || {}).precision === "exact");
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
+  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.92, metalness: 0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
   const storeyH = st.ceilingHeightMm || 2700;   // Default nur, wenn der Plan keine Höhe trägt
+  if (st.ceilingHeightMm == null) lastAssumptions.push({ what: "Deckenhöhe", value: "2,70 m", reason: "nicht im Plan bemaßt" });
 
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
   (st.walls || []).forEach(w => {
+    const thA = w.thicknessMm == null, htA = w.heightMm == null;
     const Lmm = M().wallLength(w), Hmm = w.heightMm || storeyH, Tmm = w.thicknessMm || (w.type === "partition" ? 115 : 240);
     const L = mm(Lmm), H = mm(Hmm), T = mm(Tmm);
     if (!(L > 0 && H > 0)) return;
+    if (thA) lastAssumptions.push({ what: "Wandstärke " + (w.id || ""), value: Tmm + " mm", reason: "nicht bemaßt" });
+    const wmat = (thA || htA) ? wallAssumedMat : wallMat;
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(L, 0); shape.lineTo(L, H); shape.lineTo(0, H); shape.lineTo(0, 0);
     (byWall[w.id] || []).forEach(o => {
       if (!(o.widthMm > 0)) return;
       const sill = o.sillMm != null ? o.sillMm : (o.type === "window" ? 900 : 0);
       const oh = o.heightMm || (o.type === "window" ? 1300 : 2010);
+      if (o.heightMm == null || o.sillMm == null) lastAssumptions.push({ what: (o.type === "window" ? "Fenster " : "Tür ") + (o.id || ""), value: "Höhe/Brüstung Standard", reason: "nicht bemaßt" });
       const a0 = Math.max(0, o.offsetMm || 0), a1 = Math.min(Lmm - 1, a0 + o.widthMm);
       const b0 = Math.max(0, sill), b1 = Math.min(Hmm - 1, b0 + oh);
       if (!(a1 > a0 + 1 && b1 > b0 + 1)) return;   // passt nicht in die Wand → überspringen (validate meldet es)
@@ -95,7 +104,7 @@ function build(model, container) {
       shape.holes.push(hole);
     });
     const geo = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false, steps: 1 });
-    const mesh = new THREE.Mesh(geo, wallMat); mesh.castShadow = mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geo, wmat); mesh.castShadow = mesh.receiveShadow = true;
     const sx = mm(w.start.x), sy = mm(w.start.y), ex = mm(w.end.x), ey = mm(w.end.y);
     const A = Math.atan2(ey - sy, ex - sx), cos = Math.cos(A), sin = Math.sin(A);
     const exv = new THREE.Vector3(cos, 0, sin), eyv = new THREE.Vector3(0, 1, 0), ezv = new THREE.Vector3(-sin, 0, cos);
@@ -103,11 +112,11 @@ function build(model, container) {
     const m4 = new THREE.Matrix4().makeBasis(exv, eyv, ezv); m4.setPosition(pos);
     mesh.applyMatrix4(m4); group.add(mesh);
     minX = Math.min(minX, sx, ex); maxX = Math.max(maxX, sx, ex); minZ = Math.min(minZ, sy, ey); maxZ = Math.max(maxZ, sy, ey);
-    addDimLabel(w, A);
+    addDimLabel(w, exactModel);
   });
 
   // Boden + Decke aus Raum-Polygonen (Plan x,y → Welt x,z)
-  const H0 = mm(st.ceilingHeightMm || 2700);
+  const H0 = mm(storeyH);
   (st.rooms || []).forEach(r => {
     const shp = new THREE.Shape();
     (r.polygon || []).forEach((p, i) => { const X = mm(p.x), Z = mm(p.y); i ? shp.lineTo(X, Z) : shp.moveTo(X, Z); });
@@ -126,20 +135,20 @@ function build(model, container) {
   look.yaw = 0; look.pitch = 0; applyLook();
 }
 
-function addDimLabel(w, angle) {
+function addDimLabel(w, exact) {
   try {
     const mm = M().mm, lenM = mm(M().wallLength(w));
-    const txt = lenM.toFixed(2).replace(".", ",") + " m";
+    const txt = (exact ? "" : "ca. ") + lenM.toFixed(2).replace(".", ",") + " m";
     const c = document.createElement("canvas"); c.width = 192; c.height = 56;
     const g = c.getContext("2d");
-    g.fillStyle = "rgba(227,160,111,.92)"; g.beginPath(); g.roundRect(0, 0, 192, 56, 12); g.fill();
+    g.fillStyle = exact ? "rgba(227,160,111,.92)" : "rgba(140,140,150,.92)"; g.beginPath(); g.roundRect(0, 0, 192, 56, 12); g.fill();
     g.fillStyle = "#1a120b"; g.font = "bold 30px system-ui,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText(txt, 96, 30);
     const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true, depthWrite: false }));
     sp.scale.set(0.9, 0.26, 1);
     const mx = mm((w.start.x + w.end.x) / 2), mz = mm((w.start.y + w.end.y) / 2);
-    sp.position.set(mx, 1.2, mz); group.add(sp); void angle;
+    sp.position.set(mx, 1.2, mz); group.add(sp);
   } catch (e) {}
 }
 
@@ -191,4 +200,4 @@ function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (docum
 function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
-window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose };
+window.Parametric = { available: () => true, mount, build, mountDemo, start, stop, dispose, assumptions: () => lastAssumptions.slice() };

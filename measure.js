@@ -1,6 +1,6 @@
 /* Interior Studio — Maß-Modell „interior-studio.measure/v1".
    Single Source of Truth für millimetergenaue Räume. ALLE Längen sind INTEGER-MILLIMETER.
-   Koordinaten in mm im storey-lokalen Plan-Frame (x→rechts, y→hinten). Wände als Mittellinien.
+   Koordinaten in mm im EINEN globalen Plan-Frame (x→rechts, y→nach unten). Wände als Mittellinien.
    Öffnungen referenzieren die Wand, die sie durchstoßen (offset entlang der Wand ab start).
    Provenance.precision: exact (CAD/Bemaßung) | calibrated (skaliert) | estimated (geschätzt).
    Dieses Modul ist provider-/lane-neutral (klassisches Script) — parametric.js (ESM) liest window.Measure. */
@@ -33,7 +33,12 @@
   };
 
   // ---- Helfer ----
-  const len = w => Math.hypot(w.end.x - w.start.x, w.end.y - w.start.y);     // Wandlänge in mm
+  // Wandlänge in mm — defensiv: kaputte/fehlende Koordinaten → 0 (stromabwärts greifen die L>0-Guards)
+  const len = w => {
+    const s = w && w.start, e = w && w.end;
+    return (s && e && Number.isFinite(+s.x) && Number.isFinite(+s.y) && Number.isFinite(+e.x) && Number.isFinite(+e.y))
+      ? Math.hypot(+e.x - +s.x, +e.y - +s.y) : 0;
+  };
   function polygonAreaMm2(poly) {                                            // Gauß'sche Fläche (Betrag)
     let a = 0;
     for (let i = 0, n = poly.length; i < n; i++) { const p = poly[i], q = poly[(i + 1) % n]; a += p.x * q.y - q.x * p.y; }
@@ -61,21 +66,29 @@
   }
 
   // ---- Claude-Extraktion: bemaßter Grundriss → measure/v1 (NIE raten) ----
-  const MEASURE_SYS = `Du bist ein präziser Aufmaß-Extraktor für Architektur-Grundrisse. Du bekommst das Bild eines Grundrisses und gibst AUSSCHLIESSLICH gültiges JSON nach dem Schema "interior-studio.measure/v1" zurück — keine Erklärung, kein Text davor/danach.
+  const MEASURE_SYS = `Du bist ein präziser Aufmaß-Extraktor für Architektur-Grundrisse. Eingabe: das Bild eines Grundrisses. Ausgabe: AUSSCHLIESSLICH gültiges JSON nach "interior-studio.measure/v1" — kein Text davor/danach.
 
-EISERNE REGELN:
-- Alle Längen sind GANZZAHLIGE MILLIMETER (Integer). "4,20 m" = 4200 · "3,6 m" = 3600 · "80 cm" = 800. Achte auf deutsche Komma-Dezimalzahlen und die Einheit (m/cm/mm).
-- Übernimm NUR Maße, die wirklich im Plan EINGETRAGEN sind (Maßketten/Bemaßung) oder aus einem klar angegebenen Maßstab ableitbar sind. ERFINDE oder SCHÄTZE NIEMALS ein Maß. Ist ein Wert nicht bestimmbar → null setzen UND in "uncertain" mit Grund eintragen. Lieber 20 unbekannte Werte als ein geratener.
-- Koordinaten: ein gemeinsamer mm-Plan-Frame, Ursprung oben-links an der äußeren Wandecke, x→rechts, y→nach unten. Wände (start/end) und Raum-Polygone im SELBEN Frame, konsistent.
-- Wände als Mittellinien (start/end). Eine geteilte Wand nur EINMAL. thicknessMm nur wenn erkennbar, sonst null+uncertain.
-- heightMm/ceilingHeightMm nur wenn angegeben, sonst null (Deckenhöhe steht selten im Grundriss).
-- Öffnungen: type door/window/passage · wallId (welche Wand) · offsetMm (entlang der Wand ab start bis zur näheren Laibung) · widthMm · heightMm (sonst null) · sillMm (Fensterbrüstung, sonst null).
-- Räume: polygon der INNEREN Ecken (selber Frame) · name · use.
-- Maßketten gegen das Gesamtmaß abgleichen; Abweichungen in provenance.warnings.
-- provenance.precision: "exact" (aus Bemaßung) | "calibrated" (aus Maßstab) | "estimated".
+RATEN IST VERBOTEN:
+- Übernimm NUR Maße, die im Plan als Bemaßung/Maßkette EINGETRAGEN und lesbar sind. Nicht direkt ablesbar → Zahl = null UND ein Eintrag in "uncertain" {field, reason}. Lieber 20 null-Werte als ein geratener.
+- Ein bloßes Maßstabsverhältnis ("1:50") OHNE messbaren Maßstabsbalken/bemaßte Referenzstrecke IM BILD ist KEINE gültige Quelle → solche Maße bleiben null.
+- precision: "exact" = alle übernommenen Werte direkt aus Bemaßung. "calibrated" = NUR wenn ein Maßstabsbalken/eine bemaßte Referenzstrecke IM BILD messbar ist (daraus berechnete Werte: conf ≤0.6). Es gibt KEIN "estimated".
+- conf je Wert = Belegbarkeit: 1.0 nur bei direkt abgelesener Zahl; <1.0 nur bei Maßstab-Berechnung — JEDER Wert mit conf<1.0 MUSS einen uncertain-Eintrag haben.
 
-SCHEMA-BEISPIEL (Struktur exakt so):
-{"schema":"interior-studio.measure/v1","unit":"mm","provenance":{"kind":"vision-dimensions","precision":"exact","confidence":0.0,"warnings":[]},"project":{"title":"","northDeg":0},"uncertain":[{"field":"","reason":""}],"storeys":[{"id":"eg","name":"Erdgeschoss","level":0,"elevationMm":0,"ceilingHeightMm":null,"walls":[{"id":"w1","start":{"x":0,"y":0},"end":{"x":4200,"y":0},"thicknessMm":240,"heightMm":null,"type":"exterior","conf":1.0}],"openings":[{"id":"win1","type":"window","wallId":"w1","offsetMm":1500,"widthMm":1200,"heightMm":null,"sillMm":null,"conf":0.8}],"rooms":[{"id":"r1","name":"Wohnzimmer","use":"living","polygon":[{"x":120,"y":120},{"x":4080,"y":120},{"x":4080,"y":3380},{"x":120,"y":3380}]}]}]}
+EINHEITEN (Ergebnis = GANZZAHLIGE mm, runde abgeleitete Werte):
+- Komma = Dezimaltrenner, Nachkomma gehört zur Einheit: "2,5 m"=2500 · "37,5 cm"=375 · "4,20 m"=4200.
+- Punkt in einer Maßzahl ist mehrdeutig (Tausender ODER CAD-Dezimal) → über Einheit/Größenordnung auflösen, sonst null+uncertain.
+- FEHLT die Einheit (DE-Maßketten oft cm ohne Suffix), aus dem Kettenkontext bestimmen; bleibt sie uneindeutig → null+uncertain.
+
+EIN GLOBALER FRAME FÜR ALLES:
+- Ursprung = Schnittpunkt der MITTELLINIEN der oberen und der linken Bezugs-Außenwand. x→rechts, y→nach unten, EXAKT wie im Bild (NICHT spiegeln, NICHT drehen).
+- Alle Wände (start/end = Mittellinien) UND alle Raum-Polygone in DIESEM einen Frame. Koordinaten NIE pro Raum neu bei 0 beginnen.
+- Leite Raum-Polygone aus dem Wandnetz ab (innere Kante = Mittellinie ∓ halbe Wandstärke). Ist Wandlage/-stärke unbekannt → betroffene Polygon-Ecke null + uncertain statt geraten.
+- Eine geteilte Wand nur EINMAL. Maßketten gegen das Gesamtmaß abgleichen → Abweichungen in provenance.warnings.
+
+FELDER: walls[{id,start{x,y},end{x,y},thicknessMm|null,heightMm|null,type:exterior|loadbearing|partition,conf}] · openings[{id,type:door|window|passage,wallId,offsetMm,widthMm,heightMm|null,sillMm|null,conf}] · rooms[{id,name,use,polygon[{x,y}]}].
+
+BEISPIEL (zeigt einen TEILS UNBEKANNTEN Plan mit 2 Räumen im globalen Frame — täusche KEIN Vollmodell vor):
+{"schema":"interior-studio.measure/v1","unit":"mm","provenance":{"kind":"vision-dimensions","precision":"exact","confidence":0.7,"warnings":["Süd-Maßkette 60mm kürzer als Gesamtmaß"]},"project":{"title":"","northDeg":0},"uncertain":[{"field":"storeys[0].ceilingHeightMm","reason":"Deckenhöhe nicht bemaßt"},{"field":"walls[1].thicknessMm","reason":"Wandstärke nicht bemaßt"}],"storeys":[{"id":"eg","name":"EG","level":0,"elevationMm":0,"ceilingHeightMm":null,"walls":[{"id":"w1","start":{"x":0,"y":0},"end":{"x":6000,"y":0},"thicknessMm":240,"heightMm":null,"type":"exterior","conf":1.0},{"id":"w2","start":{"x":4000,"y":0},"end":{"x":4000,"y":4000},"thicknessMm":null,"heightMm":null,"type":"partition","conf":1.0}],"openings":[{"id":"win1","type":"window","wallId":"w1","offsetMm":1500,"widthMm":1200,"heightMm":null,"sillMm":null,"conf":1.0}],"rooms":[{"id":"r1","name":"Wohnen","use":"living","polygon":[{"x":120,"y":120},{"x":3942,"y":120},{"x":3942,"y":3880},{"x":120,"y":3880}]},{"id":"r2","name":"Schlafen","use":"bedroom","polygon":[{"x":4057,"y":120},{"x":5880,"y":120},{"x":5880,"y":3880},{"x":4057,"y":3880}]}]}]}
 
 Gib NUR dieses JSON zurück.`;
 

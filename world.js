@@ -29,20 +29,28 @@
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
+    const dm = window.Measure && window.Measure.DEMO;
+    if (dm) report('<div class="mr-h">Beispiel-Wohnung (synthetisch, exakt konstruiert)</div>' + summary(dm, window.Measure.validate(dm)), false);
   }
 
   function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
 
   function summary(model, v) {
     const st = (model.storeys || [])[0] || {};
-    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
+    const exact = ((model.provenance || {}).precision === "exact");
+    const ca = exact ? "" : "ca. ";
+    const rooms = (st.rooms || []).map(r => esc(r.name || "Raum") + " " + ca + (window.Measure.roomArea(r.polygon || []) / 1e6).toFixed(1) + " m²").join(" · ");
     const unc = (model.uncertain || []);
     const warn = (((model.provenance || {}).warnings) || []).concat((v && v.warnings) || []);
+    const ass = (window.Parametric && window.Parametric.assumptions) ? window.Parametric.assumptions() : [];
     let h = '<div class="mr-h">✓ Modell gebaut · ' + (st.walls || []).length + ' Wände · ' + (st.rooms || []).length + ' Räume</div>';
     if (rooms) h += '<div class="muted small">' + rooms + '</div>';
     h += '<div class="small mr-prec">Präzision: <b>' + esc((model.provenance || {}).precision || "?") + '</b>';
     if (unc.length) h += ' · <span class="mr-unk">' + unc.length + ' unbekannte Maße</span>';
+    if (ass.length) h += ' · <span class="mr-unk">' + ass.length + ' angenommen</span>';
     h += '</div>';
+    if (ass.length) h += '<div class="small muted">Bläulich eingefärbte Wände = Maß <b>angenommen</b> (Standardwert, nicht gemessen).</div>';
+    if (ass.length) h += '<details class="mr-warn"><summary>' + ass.length + ' angenommene Maße</summary><ul>' + ass.slice(0, 14).map(a => '<li>' + esc((a.what || "") + ": " + (a.value || "") + " — " + (a.reason || "")) + '</li>').join("") + '</ul></details>';
     if (warn.length) h += '<details class="mr-warn"><summary>' + warn.length + ' Hinweise</summary><ul>' + warn.slice(0, 14).map(x => '<li>' + esc(typeof x === "string" ? x : JSON.stringify(x)) + '</li>').join("") + '</ul></details>';
     if (unc.length) h += '<details class="mr-warn"><summary>Unbekannte Maße (nicht geraten)</summary><ul>' + unc.slice(0, 14).map(u => '<li>' + esc((u.field || "") + ": " + (u.reason || "")) + '</li>').join("") + '</ul></details>';
     return h;
