@@ -1423,6 +1423,7 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
           </div>
           <div class="vp-bar">
             <button class="btn btn-ghost" id="ptBtn" title="Path-Tracing: echtes Raytracing, wird beim Stehen fotoreal (GPU nötig)"><span class="ic" data-icon="sparkles"></span> Foto-Modus</button>
+            <button class="btn btn-ghost" id="panoBtn" title="360°-Foto-Panorama der exakten Geometrie path-tracen → in der Begehung begehbar (GPU, ~1–2 Min)"><span class="ic" data-icon="compass"></span> Foto-Panorama</button>
             <span class="pt-status" id="ptStatus" hidden></span>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
@@ -3134,6 +3135,20 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     if (btn) { btn.classList.add("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("circle-check") : "") + " Foto-Modus aus"; }
     if (el) { const n = Math.floor(s.samples || 0); el.hidden = false; el.textContent = (s.compiling || n < 1) ? "rechnet …" : ("Sample " + n + (n >= 150 ? " · fertig ✓" : "")); }
   }
+  async function capturePano() {
+    const P = window.Parametric;
+    if (!(P && P.capturePanorama && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
+    if (!(window.Studio && window.Studio.addPanorama)) { if (window.toast) toast("Begehung nicht verfügbar.", "err"); return; }
+    const btn = $("#panoBtn"); if (btn) btn.disabled = true;
+    report('<span class="muted small">Path-Tracing rendert ein 360°-Foto-Panorama der exakten Geometrie (GPU, ~1–2 Min) — bitte warten …</span>', false);
+    try {
+      const url = await P.capturePanorama({ samples: 180, onProgress: (n, t) => report('<span class="muted small">360°-Foto-Panorama … Sample ' + n + ' / ' + t + '</span>', false) });
+      if (!url) { report('Foto-Panorama nicht möglich — Internet (Path-Tracing-Modul) + WebGL2-GPU nötig.', true); return; }
+      report('<div class="mr-h">✓ Foto-Panorama gerendert</div><div class="muted small">In der Begehung — fotoreal &amp; aus der mm-exakten Geometrie. Nochmal an anderer Stelle aufnehmen = Tour.</div>', false);
+      window.Studio.addPanorama(url, "Foto-Panorama");
+    } catch (e) { report('Foto-Panorama fehlgeschlagen: ' + esc(e.message || ""), true); }
+    finally { if (btn) btn.disabled = false; }
+  }
   async function togglePt() {
     const P = window.Parametric;
     if (!(P && P.togglePhotoMode && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
@@ -3476,6 +3491,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
     const ptb = $("#ptBtn"); if (ptb) ptb.onclick = togglePt;
+    const pnb = $("#panoBtn"); if (pnb) pnb.onclick = capturePano;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }
@@ -3682,6 +3698,7 @@ let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let liveComposer = null, liveGtao = null;   // Echtzeit-Post: GTAO (Kontaktschatten) + Bloom (Archviz-Look)
 let pathTracer = null, photoMode = false, ptEnv = null, ptEnvPrev = null, _ptInit = false;   // Stufe B: Path-Tracing-Foto-Modus
+let capturing = false;   // läuft eine 360°-Panorama-Aufnahme → Live-Loop pausiert
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
 let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
@@ -4029,6 +4046,7 @@ function step(dt) {
 }
 function frame(t) {
   if (!running) return;
+  if (capturing) { raf = requestAnimationFrame(frame); return; }   // Panorama-Aufnahme rendert selbst
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
   if (photoMode && pathTracer) { if (ptCameraMoved()) pathTracer.updateCamera(); try { pathTracer.renderSample(); } catch (e) {} }
   else if (liveComposer) liveComposer.render();
@@ -4125,7 +4143,50 @@ function ptCameraMoved() {
 async function togglePhotoMode() { if (photoMode) { exitPhotoMode(); return false; } return await enterPhotoMode(); }
 function photoState() { return { on: photoMode, samples: (pathTracer && pathTracer.samples) || 0, compiling: !!(pathTracer && pathTracer.isCompiling) }; }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+// 360°-FOTO-PANORAMA der EXAKTEN Geometrie path-tracen (EquirectCamera) → equirect data-URL.
+// Das ist die Verschmelzung „Begehung × Welt 3D": photoreal + mm-genau, danach in Marzipano begehbar.
+async function capturePanorama(opts = {}) {
+  if (!mounted || !group || capturing) return null;
+  let WebGLPathTracer, EquirectCamera;
+  try { ({ WebGLPathTracer, EquirectCamera } = await import("three-gpu-pathtracer")); }
+  catch (e) { return null; }   // nur online (CDN-Modul)
+  if (photoMode) exitPhotoMode();
+  const target = Math.max(8, opts.samples || 180), W = opts.width || 2048, H = Math.round(W / 2);
+  const prevPR = renderer.getPixelRatio(), prevEnv = scene.environment;
+  const sz = new THREE.Vector2(); renderer.getSize(sz);
+  const hidden = []; if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
+  capturing = true;
+  let url = null, pt = null, capEnv = null;
+  try {
+    capEnv = await buildPtEnv(); if (capEnv) scene.environment = capEnv;
+    renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+    const eq = new EquirectCamera(); eq.position.set(cam.position.x, EYE, cam.position.z); eq.updateMatrixWorld();
+    pt = new WebGLPathTracer(renderer);
+    pt.renderToCanvas = true; pt.bounces = 5; pt.transmissiveBounces = 4;
+    pt.multipleImportanceSampling = true; pt.filterGlossyFactor = 0.5; pt.tiles.set(4, 2);
+    pt.setScene(scene, eq); pt.updateEnvironment();
+    await new Promise(res => {
+      const loop = () => {
+        if (!capturing) return res();
+        try { pt.renderSample(); } catch (e) { return res(); }
+        if (opts.onProgress) opts.onProgress(Math.floor(pt.samples), target);
+        if (pt.samples >= target) return res();
+        requestAnimationFrame(loop);
+      };
+      loop();
+    });
+    url = renderer.domElement.toDataURL("image/png");
+  } catch (e) { url = null; }
+  if (pt) { try { pt.dispose(); } catch (e) {} }
+  scene.environment = prevEnv; if (capEnv) { try { capEnv.dispose(); } catch (e) {} }
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false);
+  hidden.forEach(o => o.visible = true);
+  capturing = false;
+  if (running) renderer.render(scene, cam);
+  return url;
+}
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, capturePanorama, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
 
 </script>
   <script type="module">
@@ -5372,6 +5433,24 @@ Regeln:
     startTourFromImage,                   // (dataUrl, prompt) → Einzelbild begehbar machen
     loadDemo,                             // () → Offline-Demo-Begehung (ohne Key)
     addToGallery,                         // (url, kind, prompt) → persistente Mediengalerie
+    // Path-getracetes 360°-Foto-Panorama der EXAKTEN Geometrie in die Begehung laden (Verschmelzung Welt 3D × Begehung)
+    addPanorama: (url, label) => {
+      ensureTour();
+      const n = window.Tour.count ? window.Tour.count() : (window.Tour.stations() || []).length;
+      if (n > 0) {
+        window.Tour.addNode({ img: url, label: label || ("Standort " + (n + 1)) }, { linkFrom: window.Tour.index(), linkYaw: 0, linkPitch: 0.55 });
+      } else {
+        if (window.Projects) window.Projects.startNew();
+        tourPos = [];
+        window.Tour.load([{ id: "pano0", label: label || "Standort 1", img: url, links: [], pins: [] }], 0);
+        lastPlan = { title: "Foto-Tour (Path-Tracing)", style: "exakte Geometrie", rooms: [{ id: "pano0", name: label || "Standort 1", neighbors: [] }] };
+        projectTitle = "Foto-Tour";
+        $("#tourEmpty").hidden = true; $("#pinTools").hidden = false; $("#tourNext").hidden = false;
+      }
+      renderStationNav(); renderMiniMap(); showTab("walk");
+      toast("Foto-Panorama in der Begehung — ziehen zum Umsehen.", "ok");
+      autoSaveFull();
+    },
     showTab, showPanel, openKey, toast,
     hasGemini: () => !!IS.key,
     hasClaude: () => !!IS.ckey,

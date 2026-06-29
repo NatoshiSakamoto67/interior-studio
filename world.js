@@ -20,6 +20,20 @@
     if (btn) { btn.classList.add("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("circle-check") : "") + " Foto-Modus aus"; }
     if (el) { const n = Math.floor(s.samples || 0); el.hidden = false; el.textContent = (s.compiling || n < 1) ? "rechnet …" : ("Sample " + n + (n >= 150 ? " · fertig ✓" : "")); }
   }
+  async function capturePano() {
+    const P = window.Parametric;
+    if (!(P && P.capturePanorama && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
+    if (!(window.Studio && window.Studio.addPanorama)) { if (window.toast) toast("Begehung nicht verfügbar.", "err"); return; }
+    const btn = $("#panoBtn"); if (btn) btn.disabled = true;
+    report('<span class="muted small">Path-Tracing rendert ein 360°-Foto-Panorama der exakten Geometrie (GPU, ~1–2 Min) — bitte warten …</span>', false);
+    try {
+      const url = await P.capturePanorama({ samples: 180, onProgress: (n, t) => report('<span class="muted small">360°-Foto-Panorama … Sample ' + n + ' / ' + t + '</span>', false) });
+      if (!url) { report('Foto-Panorama nicht möglich — Internet (Path-Tracing-Modul) + WebGL2-GPU nötig.', true); return; }
+      report('<div class="mr-h">✓ Foto-Panorama gerendert</div><div class="muted small">In der Begehung — fotoreal &amp; aus der mm-exakten Geometrie. Nochmal an anderer Stelle aufnehmen = Tour.</div>', false);
+      window.Studio.addPanorama(url, "Foto-Panorama");
+    } catch (e) { report('Foto-Panorama fehlgeschlagen: ' + esc(e.message || ""), true); }
+    finally { if (btn) btn.disabled = false; }
+  }
   async function togglePt() {
     const P = window.Parametric;
     if (!(P && P.togglePhotoMode && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
@@ -362,6 +376,7 @@
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
     const ptb = $("#ptBtn"); if (ptb) ptb.onclick = togglePt;
+    const pnb = $("#panoBtn"); if (pnb) pnb.onclick = capturePano;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }

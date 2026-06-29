@@ -1050,6 +1050,24 @@ Regeln:
     startTourFromImage,                   // (dataUrl, prompt) → Einzelbild begehbar machen
     loadDemo,                             // () → Offline-Demo-Begehung (ohne Key)
     addToGallery,                         // (url, kind, prompt) → persistente Mediengalerie
+    // Path-getracetes 360°-Foto-Panorama der EXAKTEN Geometrie in die Begehung laden (Verschmelzung Welt 3D × Begehung)
+    addPanorama: (url, label) => {
+      ensureTour();
+      const n = window.Tour.count ? window.Tour.count() : (window.Tour.stations() || []).length;
+      if (n > 0) {
+        window.Tour.addNode({ img: url, label: label || ("Standort " + (n + 1)) }, { linkFrom: window.Tour.index(), linkYaw: 0, linkPitch: 0.55 });
+      } else {
+        if (window.Projects) window.Projects.startNew();
+        tourPos = [];
+        window.Tour.load([{ id: "pano0", label: label || "Standort 1", img: url, links: [], pins: [] }], 0);
+        lastPlan = { title: "Foto-Tour (Path-Tracing)", style: "exakte Geometrie", rooms: [{ id: "pano0", name: label || "Standort 1", neighbors: [] }] };
+        projectTitle = "Foto-Tour";
+        $("#tourEmpty").hidden = true; $("#pinTools").hidden = false; $("#tourNext").hidden = false;
+      }
+      renderStationNav(); renderMiniMap(); showTab("walk");
+      toast("Foto-Panorama in der Begehung — ziehen zum Umsehen.", "ok");
+      autoSaveFull();
+    },
     showTab, showPanel, openKey, toast,
     hasGemini: () => !!IS.key,
     hasClaude: () => !!IS.ckey,

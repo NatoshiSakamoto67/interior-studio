@@ -11,6 +11,7 @@ let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let liveComposer = null, liveGtao = null;   // Echtzeit-Post: GTAO (Kontaktschatten) + Bloom (Archviz-Look)
 let pathTracer = null, photoMode = false, ptEnv = null, ptEnvPrev = null, _ptInit = false;   // Stufe B: Path-Tracing-Foto-Modus
+let capturing = false;   // läuft eine 360°-Panorama-Aufnahme → Live-Loop pausiert
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
 let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
@@ -358,6 +359,7 @@ function step(dt) {
 }
 function frame(t) {
   if (!running) return;
+  if (capturing) { raf = requestAnimationFrame(frame); return; }   // Panorama-Aufnahme rendert selbst
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
   if (photoMode && pathTracer) { if (ptCameraMoved()) pathTracer.updateCamera(); try { pathTracer.renderSample(); } catch (e) {} }
   else if (liveComposer) liveComposer.render();
@@ -454,4 +456,47 @@ function ptCameraMoved() {
 async function togglePhotoMode() { if (photoMode) { exitPhotoMode(); return false; } return await enterPhotoMode(); }
 function photoState() { return { on: photoMode, samples: (pathTracer && pathTracer.samples) || 0, compiling: !!(pathTracer && pathTracer.isCompiling) }; }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+// 360°-FOTO-PANORAMA der EXAKTEN Geometrie path-tracen (EquirectCamera) → equirect data-URL.
+// Das ist die Verschmelzung „Begehung × Welt 3D": photoreal + mm-genau, danach in Marzipano begehbar.
+async function capturePanorama(opts = {}) {
+  if (!mounted || !group || capturing) return null;
+  let WebGLPathTracer, EquirectCamera;
+  try { ({ WebGLPathTracer, EquirectCamera } = await import("three-gpu-pathtracer")); }
+  catch (e) { return null; }   // nur online (CDN-Modul)
+  if (photoMode) exitPhotoMode();
+  const target = Math.max(8, opts.samples || 180), W = opts.width || 2048, H = Math.round(W / 2);
+  const prevPR = renderer.getPixelRatio(), prevEnv = scene.environment;
+  const sz = new THREE.Vector2(); renderer.getSize(sz);
+  const hidden = []; if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
+  capturing = true;
+  let url = null, pt = null, capEnv = null;
+  try {
+    capEnv = await buildPtEnv(); if (capEnv) scene.environment = capEnv;
+    renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+    const eq = new EquirectCamera(); eq.position.set(cam.position.x, EYE, cam.position.z); eq.updateMatrixWorld();
+    pt = new WebGLPathTracer(renderer);
+    pt.renderToCanvas = true; pt.bounces = 5; pt.transmissiveBounces = 4;
+    pt.multipleImportanceSampling = true; pt.filterGlossyFactor = 0.5; pt.tiles.set(4, 2);
+    pt.setScene(scene, eq); pt.updateEnvironment();
+    await new Promise(res => {
+      const loop = () => {
+        if (!capturing) return res();
+        try { pt.renderSample(); } catch (e) { return res(); }
+        if (opts.onProgress) opts.onProgress(Math.floor(pt.samples), target);
+        if (pt.samples >= target) return res();
+        requestAnimationFrame(loop);
+      };
+      loop();
+    });
+    url = renderer.domElement.toDataURL("image/png");
+  } catch (e) { url = null; }
+  if (pt) { try { pt.dispose(); } catch (e) {} }
+  scene.environment = prevEnv; if (capEnv) { try { capEnv.dispose(); } catch (e) {} }
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false);
+  hidden.forEach(o => o.visible = true);
+  capturing = false;
+  if (running) renderer.render(scene, cam);
+  return url;
+}
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, capturePanorama, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
