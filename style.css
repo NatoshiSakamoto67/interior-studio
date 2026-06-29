@@ -922,13 +922,16 @@ textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:no
   .controls,.walk-side,.world-side,.arch-chat{border-right:0;border-bottom:1px solid var(--line);padding:var(--sp-4)}
   .arch-plan{border-top:1px solid var(--line);padding:var(--sp-4)}
   .results{padding:var(--sp-4)}
-  .viewport,.world-viewport{height:60svh}
+  /* Viewer-Tabs (Begehung/Welt 3D): 3D-Fenster ist der Held → nach OBEN und GROSS,
+     Regler darunter. Reine Form-Tabs (Studio) bleiben Regler-zuerst. */
+  .walk-grid .viewport, .world-grid .world-viewport{order:-1}
+  .viewport,.world-viewport{height:74svh;min-height:380px}
   .proj-wrap,.katalog-wrap,.gal-wrap{padding:var(--sp-5) var(--sp-4)}
   .set-wrap{padding:var(--sp-5) var(--sp-4)}
 }
 @media (max-width:560px){
   .home-wrap{padding:var(--sp-5) var(--sp-4) var(--sp-6)}
-  .viewport,.world-viewport{height:56svh}
+  .viewport,.world-viewport{height:70svh;min-height:340px}
   .vp-bar{gap:var(--sp-2);padding:var(--sp-3)}
   .vp-hint{display:none}                                   /* Platz auf dem Handy */
   .set-wrap{gap:var(--sp-4)}

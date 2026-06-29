@@ -931,13 +931,16 @@ textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:no
   .controls,.walk-side,.world-side,.arch-chat{border-right:0;border-bottom:1px solid var(--line);padding:var(--sp-4)}
   .arch-plan{border-top:1px solid var(--line);padding:var(--sp-4)}
   .results{padding:var(--sp-4)}
-  .viewport,.world-viewport{height:60svh}
+  /* Viewer-Tabs (Begehung/Welt 3D): 3D-Fenster ist der Held → nach OBEN und GROSS,
+     Regler darunter. Reine Form-Tabs (Studio) bleiben Regler-zuerst. */
+  .walk-grid .viewport, .world-grid .world-viewport{order:-1}
+  .viewport,.world-viewport{height:74svh;min-height:380px}
   .proj-wrap,.katalog-wrap,.gal-wrap{padding:var(--sp-5) var(--sp-4)}
   .set-wrap{padding:var(--sp-5) var(--sp-4)}
 }
 @media (max-width:560px){
   .home-wrap{padding:var(--sp-5) var(--sp-4) var(--sp-6)}
-  .viewport,.world-viewport{height:56svh}
+  .viewport,.world-viewport{height:70svh;min-height:340px}
   .vp-bar{gap:var(--sp-2);padding:var(--sp-3)}
   .vp-hint{display:none}                                   /* Platz auf dem Handy */
   .set-wrap{gap:var(--sp-4)}
@@ -3113,6 +3116,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   let wired = false;
   let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
+  // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
+  function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
   function unitLabel(res) {
     const m = res && res.unitMeters;
     const name = m === 0.001 ? "mm" : m === 0.01 ? "cm" : m === 1 ? "m" : (Math.abs(m - 0.0254) < 1e-6 ? "inch" : (m + " m/Einh."));
@@ -3143,6 +3148,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
     const dm = window.Measure && window.Measure.DEMO;
     if (dm) report('<div class="mr-h">Beispiel-Wohnung (synthetisch, exakt konstruiert)</div>' + summary(dm, window.Measure.validate(dm)), false);
+    revealViewport();
   }
 
   function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
@@ -3226,6 +3232,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
     report(summary(model, v), false);
+    revealViewport();
   }
 
   let cadAnalysis = null;
@@ -3273,6 +3280,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
       report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
+      revealViewport();
     } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
   function buildCad() {
@@ -3299,6 +3307,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
       report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '.</div>', false);
+      revealViewport();
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
   }
 
