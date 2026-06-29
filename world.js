@@ -8,6 +8,12 @@
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   let wired = false;
   let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
+  function unitLabel(res) {
+    const m = res && res.unitMeters;
+    const name = m === 0.001 ? "mm" : m === 0.01 ? "cm" : m === 1 ? "m" : (Math.abs(m - 0.0254) < 1e-6 ? "inch" : (m + " m/Einh."));
+    const src = res && res.unitSource === "gelesen" ? "aus IFC gelesen" : "geschätzt";
+    return "Einheit " + name + " · " + src;
+  }
 
   function setMode(m) {
     $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
@@ -161,7 +167,7 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie' + (res.scaled ? ' · mm→m' : '') + '. Reinklicken + WASD = begehen.</div>', false);
+      report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
     } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
   function buildCad() {
@@ -187,7 +193,7 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume)' + (res.scaled ? ' · Einheit mm→m skaliert' : '') + '.</div>', false);
+      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '.</div>', false);
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
   }
 
