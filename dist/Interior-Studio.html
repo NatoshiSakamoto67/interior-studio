@@ -3648,6 +3648,7 @@ import * as THREE from "three";
 const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
+let liveComposer = null, liveGtao = null;   // Echtzeit-Post: GTAO (Kontaktschatten) + Bloom (Archviz-Look)
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
 let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
@@ -3662,7 +3663,7 @@ function mount(container) {
   renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });   // preserve → snapshot() lesbar
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3670,18 +3671,18 @@ function mount(container) {
   host.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0e0d12);
-  scene.fog = new THREE.Fog(0x0e0d12, 22, 70);
-  cam = new THREE.PerspectiveCamera(68, aspect(), 0.05, 400);
+  scene.background = new THREE.Color(0x4a463f);   // weiches Neutralgrau statt Schwarz (Außenkontext / Lücken)
+  cam = new THREE.PerspectiveCamera(64, aspect(), 0.05, 400);
   cam.position.set(0, EYE, 0);
 
-  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x20191c, 0.85));
-  const d = new THREE.DirectionalLight(0xfff2e6, 1.3);
+  // Sonne (Schlagschatten) + dezente Fülle; das große Ambiente liefert das IBL (RoomEnvironment).
+  scene.add(new THREE.HemisphereLight(0xffe9d6, 0x2a2026, 0.35));
+  const d = new THREE.DirectionalLight(0xfff2e6, 2.4);
   d.position.set(6, 12, 7); d.castShadow = true;
-  d.shadow.mapSize.set(1024, 1024); d.shadow.camera.far = 60;
+  d.shadow.mapSize.set(2048, 2048); d.shadow.camera.far = 60;
   d.shadow.camera.left = d.shadow.camera.bottom = -20; d.shadow.camera.right = d.shadow.camera.top = 20;
-  d.shadow.bias = -0.0012; scene.add(d);
-  setupEnv();
+  d.shadow.bias = -0.0009; d.shadow.normalBias = 0.02; scene.add(d);
+  setupRender();           // IBL (RoomEnvironment) + Live-Post (GTAO + Bloom), beides defensiv/lazy
   bindControls();
   makeDpad(host, keys);
   window.addEventListener("resize", resize);
@@ -3689,18 +3690,44 @@ function mount(container) {
 }
 
 function aspect() { const w = host.clientWidth || 800, h = host.clientHeight || 450; return w / Math.max(1, h); }
-function resize() { if (!renderer || !host) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h); if (cam) { cam.aspect = w / h; cam.updateProjectionMatrix(); } }
+function resize() {
+  if (!renderer || !host) return;
+  const w = host.clientWidth || 800, h = host.clientHeight || 450;
+  renderer.setSize(w, h);
+  if (cam) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  if (liveComposer) liveComposer.setSize(w, h);
+  if (liveGtao && liveGtao.setSize) liveGtao.setSize(w, h);
+}
 
-function setupEnv() {
+// IBL (prozedurale RoomEnvironment = realistisches Licht/Reflexe, ohne Asset, offline) +
+// Echtzeit-Post (GTAO-Kontaktschatten + dezenter Bloom). Beides lazy + defensiv → Fallback = planer Render.
+async function setupRender() {
   try {
-    const c = document.createElement("canvas"); c.width = 16; c.height = 64;
-    const g = c.getContext("2d"), grd = g.createLinearGradient(0, 0, 0, 64);
-    grd.addColorStop(0, "#cfcabf"); grd.addColorStop(0.5, "#7d7a72"); grd.addColorStop(1, "#23211e");
-    g.fillStyle = grd; g.fillRect(0, 0, 16, 64);
-    const tex = new THREE.CanvasTexture(c); tex.mapping = THREE.EquirectangularReflectionMapping;
+    const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
     const pm = new THREE.PMREMGenerator(renderer);
-    scene.environment = pm.fromEquirectangular(tex).texture; tex.dispose(); pm.dispose();
-  } catch (e) { /* Bonus */ }
+    scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    if ("environmentIntensity" in scene) scene.environmentIntensity = 0.85;
+    pm.dispose();
+  } catch (e) { /* ohne IBL trotzdem nutzbar */ }
+  try {
+    const [EC, RP, GT, BL, OP] = await Promise.all([
+      import("three/addons/postprocessing/EffectComposer.js"),
+      import("three/addons/postprocessing/RenderPass.js"),
+      import("three/addons/postprocessing/GTAOPass.js"),
+      import("three/addons/postprocessing/UnrealBloomPass.js"),
+      import("three/addons/postprocessing/OutputPass.js"),
+    ]);
+    const w = host.clientWidth || 800, h = host.clientHeight || 450;
+    const comp = new EC.EffectComposer(renderer);
+    comp.addPass(new RP.RenderPass(scene, cam));
+    const gtao = new GT.GTAOPass(scene, cam, w, h);
+    if (gtao.updateGtaoMaterial) gtao.updateGtaoMaterial({ radius: 0.4, distanceExponent: 1, thickness: 1, scale: 1, samples: 16 });
+    comp.addPass(gtao);
+    const coarse = window.matchMedia && window.matchMedia("(pointer:coarse)").matches;   // Handy → schlankerer Post
+    if (!coarse) comp.addPass(new BL.UnrealBloomPass(new THREE.Vector2(w, h), 0.16, 0.5, 0.92));
+    comp.addPass(new OP.OutputPass());
+    liveComposer = comp; liveGtao = gtao;
+  } catch (e) { liveComposer = null; }
 }
 
 /* ---------- Fotoreal v1: prozedurale Material-Texturen (offline, geometrie-treu) ---------- */
@@ -3742,10 +3769,11 @@ function build(model, container) {
 
   lastAssumptions = [];
   const exactModel = ((model.provenance || {}).precision === "exact");
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
-  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.92, metalness: 0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+  // PBR + IBL: matte Wände, leicht reflektierender Boden (geben dem RoomEnvironment-Licht Reflexe).
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.94, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide });
+  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.94, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.42, metalness: 0, envMapIntensity: 1.1, side: THREE.DoubleSide });
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.97, metalness: 0, envMapIntensity: 0.85, side: THREE.DoubleSide });
   const TX = textures();   // Fotoreal v1: Putz/Holz-Texturen auf die exakte Geometrie
   wallMat.map = TX.wall; wallAssumedMat.map = TX.wallA; floorMat.map = TX.floor; ceilMat.map = TX.ceil;
 
@@ -3806,9 +3834,16 @@ function build(model, container) {
     const ceil = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.04, fd), ceilMat); ceil.position.set(cx, H0, cz); group.add(ceil);
   }
 
-  // Innenraum (Maß-Modell) → Augenhöhe in der Ecke, quer durch den Raum blicken (sofort begehbar).
-  // Ein geschlossener Raum mit Decke eignet sich nicht für die Außen-Übersicht (man sähe nur die Decke).
-  if (isFinite(minX) && maxX > minX) {
+  // Augenhöhe INNEN, sofort begehbar. Bei Räumen in die MITTE des ersten Raums (Decke ist dann
+  // garantiert oben → kein schwarzer „Decken"-Spalt); sonst (DXF) in die Bounding-Box-Ecke quer blicken.
+  const r0 = (st.rooms || [])[0];
+  if (r0 && r0.polygon && r0.polygon.length) {
+    let cx = 0, cz = 0; r0.polygon.forEach(pt => { cx += mm(pt.x); cz += mm(pt.y); }); cx /= r0.polygon.length; cz /= r0.polygon.length;
+    cam.position.set(cx, EYE, cz);
+    const dir = new THREE.Vector3((minX + maxX) / 2 - cx, 0, (minZ + maxZ) / 2 - cz);
+    if (dir.lengthSq() < 0.04) dir.set(0, 0, -1);
+    look.yaw = Math.atan2(-dir.x, -dir.z); look.pitch = -0.03;
+  } else if (isFinite(minX) && maxX > minX) {
     const ux = maxX - minX, uz = maxZ - minZ;
     cam.position.set(minX + Math.min(0.9, ux * 0.15), EYE, minZ + Math.min(0.9, uz * 0.15));
     const dir = new THREE.Vector3(maxX - cam.position.x, 0, maxZ - cam.position.z).normalize();
@@ -3958,7 +3993,7 @@ function step(dt) {
   if (walked) cam.position.y = EYE;   // beim Begehen auf Augenhöhe; in der Übersicht frei
   applyLook();
 }
-function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
+function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); if (liveComposer) liveComposer.render(); else renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
 function makeDpad(hostEl, keyObj) {
   if (!hostEl || hostEl.querySelector(".dpad")) return;
   const pad = document.createElement("div"); pad.className = "dpad";
