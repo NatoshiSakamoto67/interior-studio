@@ -11,43 +11,9 @@
   // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
   function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
 
-  /* ---------- Foto-Modus (Path-Tracing, Stufe B) ---------- */
-  let ptTimer = null;
-  function ptTick() {
-    const P = window.Parametric; const el = $("#ptStatus"), btn = $("#ptBtn");
-    const s = (P && P.photoState) ? P.photoState() : { on: false };
-    if (!s.on) { if (el) el.hidden = true; if (btn) { btn.classList.remove("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("sparkles") : "") + " Foto-Modus"; } if (ptTimer) { clearInterval(ptTimer); ptTimer = null; } return; }
-    if (btn) { btn.classList.add("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("circle-check") : "") + " Foto-Modus aus"; }
-    if (el) { const n = Math.floor(s.samples || 0); el.hidden = false; el.textContent = (s.compiling || n < 1) ? "rechnet …" : ("Sample " + n + (n >= 150 ? " · fertig ✓" : "")); }
-  }
-  async function capturePano() {
-    const P = window.Parametric;
-    if (!(P && P.capturePanorama && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
-    if (!(window.Studio && window.Studio.addPanorama)) { if (window.toast) toast("Begehung nicht verfügbar.", "err"); return; }
-    const btn = $("#panoBtn"); if (btn) btn.disabled = true;
-    report('<span class="muted small">Path-Tracing rendert ein 360°-Foto-Panorama der exakten Geometrie (GPU, ~1–2 Min) — bitte warten …</span>', false);
-    try {
-      const url = await P.capturePanorama({ samples: 180, onProgress: (n, t) => report('<span class="muted small">360°-Foto-Panorama … Sample ' + n + ' / ' + t + '</span>', false) });
-      if (!url) { report('Foto-Panorama nicht möglich — Internet (Path-Tracing-Modul) + WebGL2-GPU nötig.', true); return; }
-      report('<div class="mr-h">✓ Foto-Panorama gerendert</div><div class="muted small">In der Begehung — fotoreal &amp; aus der mm-exakten Geometrie. Nochmal an anderer Stelle aufnehmen = Tour.</div>', false);
-      window.Studio.addPanorama(url, "Foto-Panorama");
-    } catch (e) { report('Foto-Panorama fehlgeschlagen: ' + esc(e.message || ""), true); }
-    finally { if (btn) btn.disabled = false; }
-  }
-  async function togglePt() {
-    const P = window.Parametric;
-    if (!(P && P.togglePhotoMode && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
-    const btn = $("#ptBtn"); if (btn) btn.disabled = true;
-    const wasOn = P.photoState().on;
-    try {
-      await P.togglePhotoMode();
-      const s = P.photoState();
-      if (s.on) { if (!ptTimer) ptTimer = setInterval(ptTick, 400); }
-      else if (ptTimer) { clearInterval(ptTimer); ptTimer = null; }
-      ptTick();
-      if (!wasOn && !s.on) { if (window.toast) toast("Foto-Modus nicht verfügbar — Internet nötig (Path-Tracing-Modul) bzw. WebGL2-GPU.", "err"); }
-    } finally { if (btn) btn.disabled = false; }
-  }
+  // „Foto dieser Ansicht" erst aktiv, wenn eine begehbare (Parametric-)Geometrie steht.
+  function fotoEnable(on) { const b = $("#fotoBtn"); if (b) b.disabled = !on; }
+
   function unitLabel(res) {
     const m = res && res.unitMeters;
     const name = m === 0.001 ? "mm" : m === 0.01 ? "cm" : m === 1 ? "m" : (Math.abs(m - 0.0254) < 1e-6 ? "inch" : (m + " m/Einh."));
@@ -55,30 +21,25 @@
     return "Einheit " + name + " · " + src;
   }
 
-  function setMode(m) {
-    $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
-    const gen = $("#worldGenerate"), op = $("#worldOpen"), me = $("#worldMeasure");
-    if (gen) gen.hidden = m !== "generate";
-    if (op) op.hidden = m !== "open";
-    if (me) me.hidden = m !== "measure";
-    if (m !== "measure") {
-      if (window.Parametric) window.Parametric.stop();
-      const ph = $("#paramHost"); if (ph) ph.hidden = true;
-      const sh = $("#splatHost"); if (sh) sh.hidden = false;
-    }
+  /* ---------- Einheitlicher Datei-Router: „egal welche Datei" ----------
+     Eine Eingabe für alles — Typ wird an der Endung erkannt und richtig geladen.
+     Kurze Rückfrage nur bei Mehrdeutigkeit (DXF mit unklarer Wand-Ebene; Bild ohne Schlüssel). */
+  function extOf(name) { const m = /\.([a-z0-9]+)$/i.exec(name || ""); return m ? m[1].toLowerCase() : ""; }
+  function resetContextUI() {
+    const cl = $("#cadLayers"); if (cl) cl.hidden = true;
+    const vb = $("#measureVerifyBtn"); if (vb) vb.hidden = true;
+    const t = $("#measureThumb"); if (t) t.hidden = true;
   }
-
-  // Maß-Modell (parametrisch, mm-genau) im eigenen Host mounten
-  function mountMeasure() {
-    lastFotoResult = null;
-    if (!(window.Parametric && window.Parametric.available())) { if (window.toast) toast("Maß-Modell nicht verfügbar.", "err"); return; }
-    if (window.SplatViewer) window.SplatViewer.stop();
-    const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
-    const sh = $("#splatHost"); if (sh) sh.hidden = true;
-    const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.mountDemo(ph); }
-    const dm = window.Measure && window.Measure.DEMO;
-    if (dm) report('<div class="mr-h">Beispiel-Wohnung (synthetisch, exakt konstruiert)</div>' + summary(dm, window.Measure.validate(dm)), false);
-    revealViewport();
+  function handleWorldFile(file) {
+    if (!file) return;
+    resetContextUI();
+    const ext = extOf(file.name), type = file.type || "";
+    if (["ply", "splat", "ksplat", "spz"].includes(ext)) { fotoEnable(false); loadSplat(file); return; }
+    if (ext === "dxf") { analyzeCadFromFile(file); return; }
+    if (ext === "ifc") { buildIfcFromFile(file); return; }
+    if (["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext) || type.startsWith("image/")) { buildFromImageFile(file); return; }
+    if (window.toast) toast("Dateityp „." + ext + "“ wird nicht unterstützt.", "err");
+    report('Diese Datei kenne ich nicht (.' + esc(ext) + '). Unterstützt: <b>Grundriss-Bild</b> (.png/.jpg), <b>CAD</b> (.dxf), <b>IFC</b> (.ifc) oder eine fertige <b>Splat-Welt</b> (.ply/.splat).', true);
   }
 
   function report(html, isErr) { const el = $("#measureReport"); if (!el) return; el.hidden = false; el.classList.toggle("is-err", !!isErr); el.innerHTML = html; }
@@ -118,19 +79,17 @@
       report('Konnte das Modell nicht bauen: ' + esc(e.message || "Fehler"), true);
     } finally { if (btn) btn.disabled = false; }
   }
-  async function buildFromPlan() {
-    const inp = $("#measureFile"); const file = inp && inp.files[0];
-    if (!file) { if (window.toast) toast("Erst einen Grundriss mit Maßen wählen.", "err"); return; }
+  async function buildFromImageFile(file) {
+    // Grundriss als Bild → Claude liest die Maße. Das ist der einzige Pfad, der einen Schlüssel braucht
+    // (die „kleine Rückfrage", wenn keiner gesetzt ist).
+    if (!(window.IS && window.IS.ckey)) {
+      if (window.toast) toast("Ein Grundriss-Bild vermisst Claude — dafür den Claude-Schlüssel oben eintragen.", "err");
+      report('Für einen Grundriss als <b>Bild</b> liest Claude die Maße — dafür den Claude-Schlüssel (oben unter „Key") eintragen, dann die Datei erneut wählen. <b>CAD (.dxf)</b> und <b>IFC (.ifc)</b> brauchen keinen Schlüssel.', true);
+      const t = $("#measureThumb"); if (t) { const img = t.querySelector("img"); if (img && file) img.src = URL.createObjectURL(file); t.hidden = false; }
+      return;
+    }
+    const t = $("#measureThumb"); if (t) { const img = t.querySelector("img"); if (img && file) img.src = URL.createObjectURL(file); t.hidden = false; }
     runExtraction(await window.ImageGen.fileToInline(file));
-  }
-  async function loadDemoGrundriss() {
-    try {
-      report('<span class="muted small">Demo-Grundriss wird geladen …</span>', false);
-      const r = await fetch("examples/demo-grundriss.png", { cache: "force-cache" });
-      if (!r.ok) throw new Error("Demo-Bild nicht gefunden (nur in der gehosteten Version).");
-      const inline = await window.ImageGen.fileToInline(await r.blob());
-      runExtraction(inline);
-    } catch (e) { report('Demo-Grundriss nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
 
   let lastPlan = null, lastModel = null;
@@ -161,22 +120,27 @@
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
+    fotoEnable(true);
     report(summary(model, v), false);
     revealViewport();
   }
 
   let cadAnalysis = null;
-  async function analyzeCad() {
-    const inp = $("#cadFile"); const file = inp && inp.files[0];
-    if (!file) return;
-    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten und erneut wählen.", "err"); return; }
+  async function analyzeCadFromFile(file) {
+    if (!(window.CAD && window.Parametric && window.Parametric.available() && window.Measure)) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten und erneut wählen.", "err"); return; }
     report('<span class="muted small">DXF wird gelesen …</span>', false);
     try {
-      const text = await file.text();
-      cadAnalysis = window.CAD.analyze(text);
+      cadAnalysis = window.CAD.analyze(await file.text());
       populateCadLayers();
-      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
-      report('<span class="muted small">DXF gelesen: ' + cadAnalysis.layers.length + ' Ebenen. Wand-Ebene wählen → „CAD als Modell bauen".</span>', false);
+      const layers = cadAnalysis.layers || [];
+      const guess = window.CAD.guessWallLayer(layers);
+      // Kurze Rückfrage NUR bei Mehrdeutigkeit: mehrere Ebenen und keine sichere Wand-Ebene erkannt.
+      if (layers.length > 1 && !guess) {
+        const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
+        report('<div class="mr-h">DXF gelesen · ' + layers.length + ' Ebenen</div><div class="muted small">Welche Ebene sind die Wände? Wählen → „Modell bauen".</div>', false);
+      } else {
+        buildCad();   // eindeutig (oder sicher geraten) → direkt eine begehbare Welt
+      }
     } catch (e) { cadAnalysis = null; report('DXF konnte nicht gelesen werden: ' + esc(e.message || "Fehler"), true); }
   }
   function populateCadLayers() {
@@ -184,18 +148,6 @@
     const guess = window.CAD.guessWallLayer(cadAnalysis.layers);
     sel.innerHTML = '<option value="*">Alle Ebenen (' + cadAnalysis.segs.length + ' Linien)</option>' +
       cadAnalysis.layers.map(l => '<option value="' + esc(l.name) + '"' + (l.name === guess ? ' selected' : '') + '>' + esc(l.name) + ' (' + l.segs + ')</option>').join("");
-  }
-  async function loadDemoCad() {
-    if (!window.CAD) { if (window.toast) toast("CAD-Modul lädt noch — kurz warten.", "err"); return; }
-    try {
-      report('<span class="muted small">Demo-CAD (.dxf) wird geladen …</span>', false);
-      const r = await fetch("examples/demo-grundriss.dxf", { cache: "force-cache" });
-      if (!r.ok) throw new Error("Demo-DXF nur in der gehosteten Version (localhost/Pages).");
-      cadAnalysis = window.CAD.analyze(await r.text());
-      populateCadLayers();
-      const wrap = $("#cadLayers"); if (wrap) wrap.hidden = false;
-      buildCad();
-    } catch (e) { cadAnalysis = null; report('Demo-CAD nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
   async function loadDemoIfc() {
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
@@ -209,6 +161,7 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
+      fotoEnable(true);
       report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
@@ -223,9 +176,7 @@
     } catch (e) { report('Konnte das CAD-Modell nicht bauen: ' + esc(e.message || "Fehler"), true); }
   }
 
-  async function buildIfc() {
-    const inp = $("#ifcFile"); const file = inp && inp.files[0];
-    if (!file) return;
+  async function buildIfcFromFile(file) {
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
     lastFotoResult = null;
     report('<span class="muted small">IFC wird geladen (WASM, beim 1. Mal etwas größer) …</span>', false);
@@ -236,7 +187,8 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '.</div>', false);
+      fotoEnable(true);
+      report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
   }
@@ -346,13 +298,17 @@
 
   async function loadSplat(urlOrFile) {
     if (!ensureViewer()) return;
-    const host = $("#splatHost"); const empty = $("#worldEmpty");
-    if (empty) empty.hidden = true;
+    fotoEnable(false);                                  // Splat hat keine Parametric-Geometrie → kein „Foto dieser Ansicht"
+    if (window.Parametric) window.Parametric.stop();    // ggf. laufendes Maß-/IFC-Modell anhalten
+    const ph = $("#paramHost"); if (ph) ph.hidden = true;
+    const host = $("#splatHost"); if (host) host.hidden = false;
+    const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     try {
       await window.SplatViewer.mount(host);
       await window.SplatViewer.load(urlOrFile, (pct, msg) => progress(pct, msg || "Welt wird geladen …"));
       window.SplatViewer.start();
       hideProgress();
+      revealViewport();
     } catch (e) {
       if (window.toast) toast("Welt konnte nicht geladen werden: " + e.message, "err");
       if (empty) empty.hidden = false;
@@ -361,27 +317,16 @@
 
   function wire() {
     if (wired) return;
-    $$("#worldMode .seg-b").forEach(b => b.onclick = () => setMode(b.dataset.wmode));
-    const sf = $("#worldSplatFile"); if (sf) sf.onchange = () => { if (sf.files[0]) loadSplat(sf.files[0]); };
-    const dm = $("#worldDemo"); if (dm) dm.onclick = () => { progress(20, "Beispiel-Welt wird geladen …"); loadSplat("https://media.reshot.ai/models/nike_next/model.splat"); };
-    const mb = $("#worldMeasureBtn"); if (mb) mb.onclick = mountMeasure;
-    const mf = $("#measureFile"); if (mf) mf.onchange = () => { const t = $("#measureThumb"), f = mf.files[0]; if (t) { if (f) { t.querySelector("img").src = URL.createObjectURL(f); t.hidden = false; } else t.hidden = true; } };
-    const mbb = $("#measureBuildBtn"); if (mbb) mbb.onclick = buildFromPlan;
-    const mdb = $("#measureDemoBtn"); if (mdb) mdb.onclick = loadDemoGrundriss;
-    const cf = $("#cadFile"); if (cf) cf.onchange = analyzeCad;
+    const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
-    const iff = $("#ifcFile"); if (iff) iff.onchange = buildIfc;
-    const dc = $("#demoCadBtn"); if (dc) dc.onclick = loadDemoCad;
-    const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
+    const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
-    const ptb = $("#ptBtn"); if (ptb) ptb.onclick = togglePt;
-    const pnb = $("#panoBtn"); if (pnb) pnb.onclick = capturePano;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }
 
-  function enter() { wire(); }
+  function enter() { wire(); fotoEnable(false); }
   function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); if (window.Parametric) window.Parametric.stop(); } catch (e) {} }
 
   window.World = { enter, leave };

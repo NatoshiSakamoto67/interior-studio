@@ -302,67 +302,37 @@
       <div class="world-grid">
         <aside class="world-side">
           <span class="eyebrow">Welt 3D · Beta</span>
-          <h2>Millimetergenaues 3D — frei begehbar</h2>
-          <p class="muted small">Aus <b>echten Maßen</b> (Grundriss mit Bemaßung, CAD oder IFC) ein präzises, frei begehbares Modell. Oder öffne eine fertige Gaussian-Splat-Datei — beides läuft offline im Browser.</p>
+          <h2>Maßgenaues 3D — frei begehbar</h2>
+          <p class="muted small">Lade <b>eine Datei</b> — der Typ wird automatisch erkannt und daraus entsteht eine glatte, sofort begehbare Welt. Alles läuft offline im Browser.</p>
 
-          <div class="seg" id="worldMode">
-            <button class="seg-b is-active" data-wmode="measure" aria-pressed="true">Maß-Modell</button>
-            <button class="seg-b" data-wmode="open" aria-pressed="false">Splat-Datei</button>
+          <label class="fld world-drop">
+            <span>Datei öffnen — egal welche</span>
+            <input type="file" id="worldFile" accept="image/png,image/jpeg,image/webp,.dxf,.ifc,.ply,.splat,.ksplat,.spz" />
+          </label>
+          <p class="hint">Grundriss-Bild (.png/.jpg) · CAD (.dxf) · IFC (.ifc) · fertige Splat-Welt (.ply/.splat). CAD &amp; IFC brauchen keinen Schlüssel; ein Grundriss-Bild wird von Claude vermessen (Maße werden gelesen, nie geraten).</p>
+
+          <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
+
+          <div id="cadLayers" hidden>
+            <label class="fld"><span>Welche Ebene sind die Wände?</span><select id="cadLayerSel"></select></label>
+            <button class="btn btn-accent" id="cadBuildBtn"><span class="ic" data-icon="ruler"></span> Modell bauen</button>
           </div>
 
-          <div id="worldOpen" hidden>
-            <label class="fld">
-              <span>Gaussian-Splat-Datei (.ply · .splat · .ksplat)</span>
-              <input type="file" id="worldSplatFile" accept=".ply,.splat,.ksplat,.spz" />
-            </label>
-            <p class="hint">Läuft ohne Marble-Backend. Splats z. B. aus Luma, Polycam oder KIRI exportieren.</p>
-            <button class="btn btn-ghost" id="worldDemo"><span class="ic" data-icon="play"></span> Beispiel-Welt laden (Demo)</button>
-          </div>
+          <button class="btn btn-ghost" id="worldDemoBtn"><span class="ic" data-icon="play"></span> Beispiel begehen (Demo-Haus)</button>
 
-          <div id="worldMeasure">
-            <p class="muted small">Millimetergenaues, begehbares Modell aus <b>echten Maßen</b>. Lade einen Grundriss MIT eingetragener Bemaßung — Claude liest die Maße (rät nie; Unsicheres = „unbekannt").</p>
-            <label class="fld"><span>Grundriss mit Bemaßung (Bild/Foto)</span>
-              <input type="file" id="measureFile" accept="image/png,image/jpeg,image/webp" />
-              <div class="thumb" id="measureThumb" hidden><img alt="Grundriss" /></div>
-            </label>
-            <button class="btn btn-accent btn-lg" id="measureBuildBtn"><span class="ic" data-icon="ruler"></span> Aus Grundriss bauen</button>
-            <button class="btn btn-ghost" id="measureDemoBtn"><span class="ic" data-icon="play"></span> Demo-Grundriss laden (Claude liest)</button>
-            <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Gegen Plan prüfen (Claude)</button>
+          <div class="world-measure-report" id="measureReport" hidden></div>
+          <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Modell gegen Plan prüfen</button>
 
-            <div class="cad-import">
-              <label class="fld"><span>… oder CAD-Datei (.dxf) — höchste Präzision, ohne KI</span>
-                <input type="file" id="cadFile" accept=".dxf" />
-              </label>
-              <div id="cadLayers" hidden>
-                <label class="fld"><span>Wand-Ebene</span><select id="cadLayerSel"></select></label>
-                <button class="btn btn-accent" id="cadBuildBtn"><span class="ic" data-icon="ruler"></span> CAD als Modell bauen</button>
-              </div>
-              <label class="fld" style="margin-top:8px"><span>… oder IFC (.ifc) — Beta, echte Wände/Türen/Fenster/Räume</span>
-                <input type="file" id="ifcFile" accept=".ifc" />
-              </label>
-            </div>
-
-            <span class="eyebrow">Sofort ausprobieren (ohne eigene Datei)</span>
-            <div class="row2">
-              <button class="btn" id="demoCadBtn"><span class="ic" data-icon="ruler"></span> Demo-CAD (.dxf)</button>
-              <button class="btn" id="demoIfcBtn"><span class="ic" data-icon="house"></span> Demo-IFC (Haus)</button>
-            </div>
-            <button class="btn btn-ghost" id="worldMeasureBtn"><span class="ic" data-icon="play"></span> Stattdessen Maß-Demo begehen</button>
-            <div class="world-measure-report" id="measureReport" hidden></div>
-            <p class="hint">DXF/IFC laufen ohne Key (Demo-Knöpfe: mitgelieferte Beispiele). Bild-Grundriss braucht den Claude-Key. Positionen aus CAD sind exakt; Wandstärken bei DXF als Standard angenommen (bläulich markiert).</p>
-
-            <div class="foto-block">
-              <span class="eyebrow">Fotoreal-Ansicht · KI, geometrie-treu</span>
+          <details class="foto-block">
+            <summary><span class="ic" data-icon="sparkles"></span> Foto-Optionen <span class="muted">(Stil &amp; Möblierung)</span></summary>
+            <div class="foto-opts-body">
               <input type="text" id="fotoStyle" placeholder="Stil/Material (optional), z. B. „matter Kalkputz, Eiche, warmes Nordlicht“" />
               <label class="btn btn-ghost foto-ref-btn"><span class="ic" data-icon="image"></span> <span id="fotoRefLabel">Stil-Referenzbild (optional)</span><input type="file" id="fotoRef" accept="image/png,image/jpeg,image/webp" hidden /></label>
-              <div class="foto-opts">
-                <label class="chk"><input type="checkbox" id="fotoFurnish" /> <span>Möbliert <em>(KI ergänzt Einrichtung)</em></span></label>
-                <label class="chk"><input type="checkbox" id="fotoConsistent" checked /> <span>Materialien konstant <em>(über mehrere Ansichten)</em></span></label>
-              </div>
-              <button class="btn btn-accent btn-lg" id="fotoBtn"><span class="ic" data-icon="sparkles"></span> Aktuelle Ansicht fotoreal rendern</button>
-              <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera, exakt 16:9, gebackenes AO) und lässt Gemini/OpenAI nur Material &amp; Licht ergänzen — Maße &amp; Perspektive bleiben. 4K. Key nötig.</p>
+              <label class="chk"><input type="checkbox" id="fotoFurnish" /> <span>Möbliert <em>(KI ergänzt Einrichtung)</em></span></label>
+              <label class="chk"><input type="checkbox" id="fotoConsistent" checked /> <span>Materialien konstant <em>(über mehrere Ansichten)</em></span></label>
+              <p class="hint">„Foto dieser Ansicht" (Knopf im Bild) nimmt die <b>exakte Geometrie</b> + aktuelle Kamera und lässt Gemini/OpenAI nur Material &amp; Licht ergänzen — Maße &amp; Perspektive bleiben. 4K. Schlüssel nötig.</p>
             </div>
-          </div>
+          </details>
 
           <div class="world-progress" id="worldProgress" hidden>
             <div class="ampel-bar"><i id="worldBar"></i></div>
@@ -375,12 +345,10 @@
           <div id="paramHost" class="canvas3d" hidden></div>
           <div class="world-empty" id="worldEmpty">
             <div class="empty-ic" data-icon="house"></div>
-            Noch keine Welt geladen.<br>Bau ein Maß-Modell aus Grundriss/CAD/IFC — oder öffne eine Splat-Datei.
+            Noch keine Welt geladen.<br>Lade links eine Datei (Grundriss, CAD, IFC oder Splat) — oder „Beispiel begehen".
           </div>
           <div class="vp-bar">
-            <button class="btn btn-ghost" id="ptBtn" title="Path-Tracing: echtes Raytracing, wird beim Stehen fotoreal (GPU nötig)"><span class="ic" data-icon="sparkles"></span> Foto-Modus</button>
-            <button class="btn btn-ghost" id="panoBtn" title="360°-Foto-Panorama der exakten Geometrie path-tracen → in der Begehung begehbar (GPU, ~1–2 Min)"><span class="ic" data-icon="compass"></span> Foto-Panorama</button>
-            <span class="pt-status" id="ptStatus" hidden></span>
+            <button class="btn btn-accent" id="fotoBtn" disabled title="Macht aus der aktuellen Ansicht ein fotorealistisches, maßtreues Standbild (KI, ~15 s)"><span class="ic" data-icon="sparkles"></span> Foto dieser Ansicht</button>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
           <div class="foto-overlay" id="fotoOverlay" hidden></div>
@@ -563,8 +531,7 @@
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
       "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
       "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm",
-      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js",
-      "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.24/+esm"
+      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js"
     }
   }
   </script>
