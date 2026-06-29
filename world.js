@@ -10,6 +10,30 @@
   let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
   // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
   function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
+
+  /* ---------- Foto-Modus (Path-Tracing, Stufe B) ---------- */
+  let ptTimer = null;
+  function ptTick() {
+    const P = window.Parametric; const el = $("#ptStatus"), btn = $("#ptBtn");
+    const s = (P && P.photoState) ? P.photoState() : { on: false };
+    if (!s.on) { if (el) el.hidden = true; if (btn) { btn.classList.remove("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("sparkles") : "") + " Foto-Modus"; } if (ptTimer) { clearInterval(ptTimer); ptTimer = null; } return; }
+    if (btn) { btn.classList.add("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("circle-check") : "") + " Foto-Modus aus"; }
+    if (el) { const n = Math.floor(s.samples || 0); el.hidden = false; el.textContent = (s.compiling || n < 1) ? "rechnet …" : ("Sample " + n + (n >= 150 ? " · fertig ✓" : "")); }
+  }
+  async function togglePt() {
+    const P = window.Parametric;
+    if (!(P && P.togglePhotoMode && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
+    const btn = $("#ptBtn"); if (btn) btn.disabled = true;
+    const wasOn = P.photoState().on;
+    try {
+      await P.togglePhotoMode();
+      const s = P.photoState();
+      if (s.on) { if (!ptTimer) ptTimer = setInterval(ptTick, 400); }
+      else if (ptTimer) { clearInterval(ptTimer); ptTimer = null; }
+      ptTick();
+      if (!wasOn && !s.on) { if (window.toast) toast("Foto-Modus nicht verfügbar — Internet nötig (Path-Tracing-Modul) bzw. WebGL2-GPU.", "err"); }
+    } finally { if (btn) btn.disabled = false; }
+  }
   function unitLabel(res) {
     const m = res && res.unitMeters;
     const name = m === 0.001 ? "mm" : m === 0.01 ? "cm" : m === 1 ? "m" : (Math.abs(m - 0.0254) < 1e-6 ? "inch" : (m + " m/Einh."));
@@ -337,6 +361,7 @@
     const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
+    const ptb = $("#ptBtn"); if (ptb) ptb.onclick = togglePt;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }

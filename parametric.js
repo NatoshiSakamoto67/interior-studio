@@ -10,6 +10,7 @@ const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let liveComposer = null, liveGtao = null;   // Echtzeit-Post: GTAO (Kontaktschatten) + Bloom (Archviz-Look)
+let pathTracer = null, photoMode = false, ptEnv = null, ptEnvPrev = null, _ptInit = false;   // Stufe B: Path-Tracing-Foto-Modus
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
 let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
@@ -123,6 +124,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
+  if (photoMode) exitPhotoMode();   // neues Modell → Foto-Modus verlassen (BVH gilt nicht mehr)
   lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
@@ -354,7 +356,14 @@ function step(dt) {
   if (walked) cam.position.y = EYE;   // beim Begehen auf Augenhöhe; in der Übersicht frei
   applyLook();
 }
-function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); if (liveComposer) liveComposer.render(); else renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
+function frame(t) {
+  if (!running) return;
+  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
+  if (photoMode && pathTracer) { if (ptCameraMoved()) pathTracer.updateCamera(); try { pathTracer.renderSample(); } catch (e) {} }
+  else if (liveComposer) liveComposer.render();
+  else renderer.render(scene, cam);
+  raf = requestAnimationFrame(frame);
+}
 function makeDpad(hostEl, keyObj) {
   if (!hostEl || hostEl.querySelector(".dpad")) return;
   const pad = document.createElement("div"); pad.className = "dpad";
@@ -371,7 +380,7 @@ function makeDpad(hostEl, keyObj) {
 
 function start() { if (!mounted || running) return; running = true; lastT = performance.now(); resize(); raf = requestAnimationFrame(frame); }
 function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
-function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
+function dispose() { exitPhotoMode(); stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
 // Fertige three.js-Gruppe (z. B. echte IFC-Geometrie) übernehmen und begehbar machen
@@ -379,6 +388,7 @@ function buildGroup(extGroup, container) {
   if (container) mount(container);
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
+  if (photoMode) exitPhotoMode();
   group = extGroup; scene.add(group);
   lastAssumptions = []; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
@@ -388,4 +398,60 @@ function buildGroup(extGroup, container) {
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+/* ---------- Stufe B: Path-Tracing-Foto-Modus (three-gpu-pathtracer) ----------
+   Echtes Raytracing mit globaler Beleuchtung auf DERSELBEN exakten Geometrie.
+   Beim Stehen akkumuliert es bis fotoreal; bei Bewegung Reset (Vorschau). Nur online
+   (CDN-Modul). PMREM ist als Tracer-Env FALSCH → equirect-HDRI (CC0), sonst Gradient. */
+const _ptP = (() => new THREE.Vector3())(), _ptQ = (() => new THREE.Quaternion())();
+async function buildPtEnv() {
+  try {
+    const { RGBELoader } = await import("three/addons/loaders/RGBELoader.js");
+    const tex = await new Promise((res, rej) => new RGBELoader().load("examples/lythwood_room_1k.hdr", res, undefined, rej));
+    tex.mapping = THREE.EquirectangularReflectionMapping; return tex;
+  } catch (e) {
+    try {
+      const { GradientEquirectTexture } = await import("three-gpu-pathtracer");
+      const g = new GradientEquirectTexture(); g.topColor.set(0xbfc7d6); g.bottomColor.set(0x4a463f); g.exponent = 1.4; g.update();
+      return g;
+    } catch (e2) { return null; }
+  }
+}
+async function enterPhotoMode() {
+  if (!mounted || photoMode || !group) return false;
+  let WebGLPathTracer;
+  try { ({ WebGLPathTracer } = await import("three-gpu-pathtracer")); }
+  catch (e) { return false; }   // Modul nicht ladbar (z. B. file://)
+  try {
+    if (group) group.traverse(o => { if (o.isSprite) o.visible = false; });   // Maßlabels: Sprites kann der Tracer nicht
+    ptEnvPrev = scene.environment;
+    const env = await buildPtEnv(); if (env) { scene.environment = env; ptEnv = env; }
+    pathTracer = new WebGLPathTracer(renderer);
+    pathTracer.renderToCanvas = true;
+    pathTracer.bounces = 5; pathTracer.transmissiveBounces = 4;
+    pathTracer.filterGlossyFactor = 0.5; pathTracer.multipleImportanceSampling = true;   // MIS: nötig, damit das Sonnenlicht zählt
+    pathTracer.dynamicLowRes = true; pathTracer.lowResScale = 0.25; pathTracer.minSamples = 3;
+    pathTracer.tiles.set(3, 3);
+    pathTracer.setScene(scene, cam);            // baut BVH (kurzer Freeze bei großen IFC)
+    pathTracer.updateEnvironment();
+    _ptInit = false; photoMode = true; return true;
+  } catch (e) { exitPhotoMode(); return false; }
+}
+function exitPhotoMode() {
+  if (!photoMode && !pathTracer) return;
+  photoMode = false;
+  if (group) group.traverse(o => { if (o.isSprite) o.visible = true; });
+  if (pathTracer) { try { pathTracer.dispose(); } catch (e) {} pathTracer = null; }
+  if (scene && ptEnvPrev !== null) scene.environment = ptEnvPrev;
+  if (ptEnv) { try { ptEnv.dispose(); } catch (e) {} ptEnv = null; }
+  ptEnvPrev = null;
+  if (renderer && cam && scene) renderer.render(scene, cam);
+}
+function ptCameraMoved() {
+  const moved = !_ptInit || cam.position.distanceToSquared(_ptP) > 1e-8 || Math.abs(cam.quaternion.dot(_ptQ)) < 0.9999999;
+  _ptP.copy(cam.position); _ptQ.copy(cam.quaternion); _ptInit = true;
+  return moved;
+}
+async function togglePhotoMode() { if (photoMode) { exitPhotoMode(); return false; } return await enterPhotoMode(); }
+function photoState() { return { on: photoMode, samples: (pathTracer && pathTracer.samples) || 0, compiling: !!(pathTracer && pathTracer.isCompiling) }; }
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };

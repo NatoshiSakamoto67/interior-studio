@@ -378,6 +378,8 @@
             Noch keine Welt geladen.<br>Bau ein Maß-Modell aus Grundriss/CAD/IFC — oder öffne eine Splat-Datei.
           </div>
           <div class="vp-bar">
+            <button class="btn btn-ghost" id="ptBtn" title="Path-Tracing: echtes Raytracing, wird beim Stehen fotoreal (GPU nötig)"><span class="ic" data-icon="sparkles"></span> Foto-Modus</button>
+            <span class="pt-status" id="ptStatus" hidden></span>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
           <div class="foto-overlay" id="fotoOverlay" hidden></div>
@@ -560,7 +562,8 @@
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
       "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
       "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm",
-      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js"
+      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js",
+      "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.24/+esm"
     }
   }
   </script>

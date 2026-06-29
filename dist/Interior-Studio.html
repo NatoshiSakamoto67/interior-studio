@@ -1048,6 +1048,10 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
 .chk input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--accent);cursor:pointer}
 .chk em{color:var(--muted);font-style:normal;font-size:12px}
 
+/* Path-Tracing-Foto-Modus: Sample-Zähler in der Viewport-Leiste */
+.pt-status{font-family:var(--font-mono);font-size:12px;color:var(--accent);background:rgb(var(--accent-rgb) / .12);
+  border:1px solid rgb(var(--accent-rgb) / .3);border-radius:var(--r-sm);padding:5px 9px;white-space:nowrap}
+
 </style>
   <!-- PWA / Handy: installierbar via „Zum Home-Bildschirm", Offline im sicheren Kontext -->
   <meta name="theme-color" content="#0c0c0f" />
@@ -1418,6 +1422,8 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
             Noch keine Welt geladen.<br>Bau ein Maß-Modell aus Grundriss/CAD/IFC — oder öffne eine Splat-Datei.
           </div>
           <div class="vp-bar">
+            <button class="btn btn-ghost" id="ptBtn" title="Path-Tracing: echtes Raytracing, wird beim Stehen fotoreal (GPU nötig)"><span class="ic" data-icon="sparkles"></span> Foto-Modus</button>
+            <span class="pt-status" id="ptStatus" hidden></span>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
           <div class="foto-overlay" id="fotoOverlay" hidden></div>
@@ -3118,6 +3124,30 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
   // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
   function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
+
+  /* ---------- Foto-Modus (Path-Tracing, Stufe B) ---------- */
+  let ptTimer = null;
+  function ptTick() {
+    const P = window.Parametric; const el = $("#ptStatus"), btn = $("#ptBtn");
+    const s = (P && P.photoState) ? P.photoState() : { on: false };
+    if (!s.on) { if (el) el.hidden = true; if (btn) { btn.classList.remove("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("sparkles") : "") + " Foto-Modus"; } if (ptTimer) { clearInterval(ptTimer); ptTimer = null; } return; }
+    if (btn) { btn.classList.add("on"); btn.innerHTML = (window.Icons ? window.Icons.svg("circle-check") : "") + " Foto-Modus aus"; }
+    if (el) { const n = Math.floor(s.samples || 0); el.hidden = false; el.textContent = (s.compiling || n < 1) ? "rechnet …" : ("Sample " + n + (n >= 150 ? " · fertig ✓" : "")); }
+  }
+  async function togglePt() {
+    const P = window.Parametric;
+    if (!(P && P.togglePhotoMode && P.hasModel && P.hasModel())) { if (window.toast) toast("Erst ein Modell laden (CAD, IFC oder Demo).", "err"); return; }
+    const btn = $("#ptBtn"); if (btn) btn.disabled = true;
+    const wasOn = P.photoState().on;
+    try {
+      await P.togglePhotoMode();
+      const s = P.photoState();
+      if (s.on) { if (!ptTimer) ptTimer = setInterval(ptTick, 400); }
+      else if (ptTimer) { clearInterval(ptTimer); ptTimer = null; }
+      ptTick();
+      if (!wasOn && !s.on) { if (window.toast) toast("Foto-Modus nicht verfügbar — Internet nötig (Path-Tracing-Modul) bzw. WebGL2-GPU.", "err"); }
+    } finally { if (btn) btn.disabled = false; }
+  }
   function unitLabel(res) {
     const m = res && res.unitMeters;
     const name = m === 0.001 ? "mm" : m === 0.01 ? "cm" : m === 1 ? "m" : (Math.abs(m - 0.0254) < 1e-6 ? "inch" : (m + " m/Einh."));
@@ -3445,6 +3475,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const di = $("#demoIfcBtn"); if (di) di.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
+    const ptb = $("#ptBtn"); if (ptb) ptb.onclick = togglePt;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
     wired = true;
   }
@@ -3466,7 +3497,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
       "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js",
       "dxf-parser": "https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm",
-      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js"
+      "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.77/web-ifc-api.js",
+      "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.24/+esm"
     }
   }
   </script>
@@ -3649,6 +3681,7 @@ const EYE = 1.6, SPEED = 2.8;
 let renderer, scene, cam, host, group = null;
 let raf = 0, running = false, mounted = false, lastT = 0;
 let liveComposer = null, liveGtao = null;   // Echtzeit-Post: GTAO (Kontaktschatten) + Bloom (Archviz-Look)
+let pathTracer = null, photoMode = false, ptEnv = null, ptEnvPrev = null, _ptInit = false;   // Stufe B: Path-Tracing-Foto-Modus
 let lastAssumptions = [];   // angenommene (nicht gemessene) Maße dieses Baus — Ehrlichkeits-Ledger
 let walked = false;         // erst beim ersten Gehen auf Augenhöhe wechseln (sonst: Übersicht)
 let lastKind = "interior";  // "interior" (Maß-Modell/Räume) | "building" (IFC-Gebäude) → steuert den Fotoreal-Prompt
@@ -3762,6 +3795,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
+  if (photoMode) exitPhotoMode();   // neues Modell → Foto-Modus verlassen (BVH gilt nicht mehr)
   lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
@@ -3993,7 +4027,14 @@ function step(dt) {
   if (walked) cam.position.y = EYE;   // beim Begehen auf Augenhöhe; in der Übersicht frei
   applyLook();
 }
-function frame(t) { if (!running) return; const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt); if (liveComposer) liveComposer.render(); else renderer.render(scene, cam); raf = requestAnimationFrame(frame); }
+function frame(t) {
+  if (!running) return;
+  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
+  if (photoMode && pathTracer) { if (ptCameraMoved()) pathTracer.updateCamera(); try { pathTracer.renderSample(); } catch (e) {} }
+  else if (liveComposer) liveComposer.render();
+  else renderer.render(scene, cam);
+  raf = requestAnimationFrame(frame);
+}
 function makeDpad(hostEl, keyObj) {
   if (!hostEl || hostEl.querySelector(".dpad")) return;
   const pad = document.createElement("div"); pad.className = "dpad";
@@ -4010,7 +4051,7 @@ function makeDpad(hostEl, keyObj) {
 
 function start() { if (!mounted || running) return; running = true; lastT = performance.now(); resize(); raf = requestAnimationFrame(frame); }
 function stop() { running = false; if (raf) cancelAnimationFrame(raf); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
-function dispose() { stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
+function dispose() { exitPhotoMode(); stop(); if (group) { scene.remove(group); disposeGroup(group); group = null; } }
 function mountDemo(container) { if (!window.Measure) return; build(window.Measure.DEMO, container); start(); }
 
 // Fertige three.js-Gruppe (z. B. echte IFC-Geometrie) übernehmen und begehbar machen
@@ -4018,6 +4059,7 @@ function buildGroup(extGroup, container) {
   if (container) mount(container);
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
+  if (photoMode) exitPhotoMode();
   group = extGroup; scene.add(group);
   lastAssumptions = []; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
@@ -4027,7 +4069,63 @@ function buildGroup(extGroup, container) {
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+/* ---------- Stufe B: Path-Tracing-Foto-Modus (three-gpu-pathtracer) ----------
+   Echtes Raytracing mit globaler Beleuchtung auf DERSELBEN exakten Geometrie.
+   Beim Stehen akkumuliert es bis fotoreal; bei Bewegung Reset (Vorschau). Nur online
+   (CDN-Modul). PMREM ist als Tracer-Env FALSCH → equirect-HDRI (CC0), sonst Gradient. */
+const _ptP = (() => new THREE.Vector3())(), _ptQ = (() => new THREE.Quaternion())();
+async function buildPtEnv() {
+  try {
+    const { RGBELoader } = await import("three/addons/loaders/RGBELoader.js");
+    const tex = await new Promise((res, rej) => new RGBELoader().load("examples/lythwood_room_1k.hdr", res, undefined, rej));
+    tex.mapping = THREE.EquirectangularReflectionMapping; return tex;
+  } catch (e) {
+    try {
+      const { GradientEquirectTexture } = await import("three-gpu-pathtracer");
+      const g = new GradientEquirectTexture(); g.topColor.set(0xbfc7d6); g.bottomColor.set(0x4a463f); g.exponent = 1.4; g.update();
+      return g;
+    } catch (e2) { return null; }
+  }
+}
+async function enterPhotoMode() {
+  if (!mounted || photoMode || !group) return false;
+  let WebGLPathTracer;
+  try { ({ WebGLPathTracer } = await import("three-gpu-pathtracer")); }
+  catch (e) { return false; }   // Modul nicht ladbar (z. B. file://)
+  try {
+    if (group) group.traverse(o => { if (o.isSprite) o.visible = false; });   // Maßlabels: Sprites kann der Tracer nicht
+    ptEnvPrev = scene.environment;
+    const env = await buildPtEnv(); if (env) { scene.environment = env; ptEnv = env; }
+    pathTracer = new WebGLPathTracer(renderer);
+    pathTracer.renderToCanvas = true;
+    pathTracer.bounces = 5; pathTracer.transmissiveBounces = 4;
+    pathTracer.filterGlossyFactor = 0.5; pathTracer.multipleImportanceSampling = true;   // MIS: nötig, damit das Sonnenlicht zählt
+    pathTracer.dynamicLowRes = true; pathTracer.lowResScale = 0.25; pathTracer.minSamples = 3;
+    pathTracer.tiles.set(3, 3);
+    pathTracer.setScene(scene, cam);            // baut BVH (kurzer Freeze bei großen IFC)
+    pathTracer.updateEnvironment();
+    _ptInit = false; photoMode = true; return true;
+  } catch (e) { exitPhotoMode(); return false; }
+}
+function exitPhotoMode() {
+  if (!photoMode && !pathTracer) return;
+  photoMode = false;
+  if (group) group.traverse(o => { if (o.isSprite) o.visible = true; });
+  if (pathTracer) { try { pathTracer.dispose(); } catch (e) {} pathTracer = null; }
+  if (scene && ptEnvPrev !== null) scene.environment = ptEnvPrev;
+  if (ptEnv) { try { ptEnv.dispose(); } catch (e) {} ptEnv = null; }
+  ptEnvPrev = null;
+  if (renderer && cam && scene) renderer.render(scene, cam);
+}
+function ptCameraMoved() {
+  const moved = !_ptInit || cam.position.distanceToSquared(_ptP) > 1e-8 || Math.abs(cam.quaternion.dot(_ptQ)) < 0.9999999;
+  _ptP.copy(cam.position); _ptQ.copy(cam.quaternion); _ptInit = true;
+  return moved;
+}
+async function togglePhotoMode() { if (photoMode) { exitPhotoMode(); return false; } return await enterPhotoMode(); }
+function photoState() { return { on: photoMode, samples: (pathTracer && pathTracer.samples) || 0, compiling: !!(pathTracer && pathTracer.isCompiling) }; }
+
+window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, togglePhotoMode, photoState, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
 
 </script>
   <script type="module">
