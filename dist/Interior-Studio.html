@@ -1039,6 +1039,12 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
   .foto-img{max-height:54vh}
 }
 
+/* Fotoreal-Optionen (Möbliert · Materialien konstant) */
+.foto-opts{display:flex;flex-direction:column;gap:var(--sp-2);margin:var(--sp-1) 0}
+.chk{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.3}
+.chk input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--accent);cursor:pointer}
+.chk em{color:var(--muted);font-style:normal;font-size:12px}
+
 </style>
   <!-- PWA / Handy: installierbar via „Zum Home-Bildschirm", Offline im sicheren Kontext -->
   <meta name="theme-color" content="#0c0c0f" />
@@ -1386,6 +1392,10 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
               <span class="eyebrow">Fotoreal-Ansicht · KI, geometrie-treu</span>
               <input type="text" id="fotoStyle" placeholder="Stil/Material (optional), z. B. „matter Kalkputz, Eiche, warmes Nordlicht“" />
               <label class="btn btn-ghost foto-ref-btn"><span class="ic" data-icon="image"></span> <span id="fotoRefLabel">Stil-Referenzbild (optional)</span><input type="file" id="fotoRef" accept="image/png,image/jpeg,image/webp" hidden /></label>
+              <div class="foto-opts">
+                <label class="chk"><input type="checkbox" id="fotoFurnish" /> <span>Möbliert <em>(KI ergänzt Einrichtung)</em></span></label>
+                <label class="chk"><input type="checkbox" id="fotoConsistent" checked /> <span>Materialien konstant <em>(über mehrere Ansichten)</em></span></label>
+              </div>
               <button class="btn btn-accent btn-lg" id="fotoBtn"><span class="ic" data-icon="sparkles"></span> Aktuelle Ansicht fotoreal rendern</button>
               <p class="hint">Nimmt die <b>exakte Geometrie</b> aus dem 3D-Viewer (aktuelle Kamera, exakt 16:9, gebackenes AO) und lässt Gemini/OpenAI nur Material &amp; Licht ergänzen — Maße &amp; Perspektive bleiben. 4K. Key nötig.</p>
             </div>
@@ -3102,6 +3112,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   let wired = false;
+  let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
 
   function setMode(m) {
     $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
@@ -3118,6 +3129,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
 
   // Maß-Modell (parametrisch, mm-genau) im eigenen Host mounten
   function mountMeasure() {
+    lastFotoResult = null;
     if (!(window.Parametric && window.Parametric.available())) { if (window.toast) toast("Maß-Modell nicht verfügbar.", "err"); return; }
     if (window.SplatViewer) window.SplatViewer.stop();
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
@@ -3202,6 +3214,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   }
 
   function mountModel(model, v) {
+    lastFotoResult = null;   // neues Modell → Material-Anker zurücksetzen
     if (window.SplatViewer) window.SplatViewer.stop();
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
@@ -3243,6 +3256,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   }
   async function loadDemoIfc() {
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    lastFotoResult = null;
     report('<span class="muted small">Demo-IFC (Haus) wird geladen — WASM + ~2,5 MB, einige Sekunden …</span>', false);
     try {
       const r = await fetch("examples/fzk-haus.ifc", { cache: "force-cache" });
@@ -3269,6 +3283,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const inp = $("#ifcFile"); const file = inp && inp.files[0];
     if (!file) return;
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    lastFotoResult = null;
     report('<span class="muted small">IFC wird geladen (WASM, beim 1. Mal etwas größer) …</span>', false);
     try {
       const buf = await file.arrayBuffer();
@@ -3300,7 +3315,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
-  function fotoPrompt(style, hasRef, kind) {
+  function fotoPrompt(o) {
+    const { style, hasRef, kind, furnish } = o;
     const building = kind === "building";
     const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
     const dfltMat = building
@@ -3309,6 +3325,12 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const enclosure = building
       ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
       : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
+    // Möbliert: KI darf Einrichtung/Umfeld ergänzen, aber die ARCHITEKTUR bleibt fix.
+    const objects = furnish
+      ? (building
+        ? "You MAY add realistic, tasteful landscaping and entourage appropriate to the setting (planting, garden, path, low hedges), but keep the BUILDING geometry, all openings and the camera unchanged. No people, no vehicles. "
+        : "Furnish the room tastefully and realistically with style-appropriate furniture, rugs, lighting and a little decor — but keep ALL architecture unchanged: wall positions, every window and door opening, proportions, ceiling height and the exact camera/perspective must stay identical. No people. ")
+      : "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. ";
     return "Photorealistic " + subject + " generated FROM the provided architectural render. "
       + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall/element positions and thicknesses, proportions, heights, "
       + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
@@ -3316,10 +3338,9 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       + "Keep the existing light direction and shadows. "
       + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
       + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
-      + enclosure
+      + enclosure + objects
       + "Materials & mood: " + (style || dfltMat) + ". "
-      + "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. "
-      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
+      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference to keep materials and lighting CONSISTENT — never copy its geometry, layout, objects, framing or perspective. " : "")
       + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
       + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
   }
@@ -3336,12 +3357,19 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const shot = await window.Parametric.snapshot({ aspectRatio: 16 / 9 });   // exakt 16:9 → kein Recompose-Drift
       if (!shot) { fotoOverlay("error", null, null, "Konnte die Ansicht nicht erfassen."); return; }
       const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
+      const furnish = !!($("#fotoFurnish") && $("#fotoFurnish").checked);
+      const consistent = !($("#fotoConsistent") && !$("#fotoConsistent").checked);   // Default: an
       const refInp = $("#fotoRef"); const refFile = refInp && refInp.files[0];
       const images = [];
       const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
-      if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
+      // Stil-Referenz: explizite Datei hat Vorrang; sonst (für Rundgang-Konsistenz) das letzte Foto-Ergebnis
+      let refInline = null;
+      if (refFile) { try { refInline = await window.ImageGen.fileToInline(refFile); } catch (e) {} }
+      else if (consistent && lastFotoResult) refInline = window.ImageGen.dataUrlToInline(lastFotoResult);
+      if (refInline) images.push(refInline);
       const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1, kind), aspect: "16:9", resolution: "4K", images });
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish }), aspect: "16:9", resolution: "4K", images });
+      lastFotoResult = res.url;   // nächste Ansicht referenziert dieses → konsistente Materialien
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
@@ -3828,6 +3856,25 @@ async function ensureAO() {
     _composer.addPass(new OP.OutputPass());
   } catch (e) { _composer = null; }   // SSAO nicht verfügbar → planer Render-Fallback
 }
+// Kanten-Overlay (EdgesGeometry je Mesh, im Weltraum) — dünne dunkle Linien schärfen
+// Öffnungen/Wandkanten, was die fehlende MLSD/Canny-Konditionierung emuliert. One-shot.
+function makeEdges(g) {
+  if (!g) return null;
+  let count = 0; g.traverse(o => { if (o.isMesh) count++; });
+  if (!count || count > 600) return null;   // zu viel Geometrie → überspringen (Perf)
+  const grp = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color: 0x2e2a25, transparent: true, opacity: 0.45 });
+  g.traverse(o => {
+    if (o.isMesh && o.geometry) {
+      try {
+        const ls = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 28), mat);
+        o.updateWorldMatrix(true, false); ls.applyMatrix4(o.matrixWorld);
+        grp.add(ls);
+      } catch (e) {}
+    }
+  });
+  return grp.children.length ? grp : null;
+}
 async function snapshot(opts = {}) {
   if (!renderer || !mounted || !cam) return null;
   const ar = opts.aspectRatio || (16 / 9), W = 1600, H = Math.round(W / ar);
@@ -3843,6 +3890,8 @@ async function snapshot(opts = {}) {
   // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
   // lässt aber die gerichteten Schatten als Tiefencue stehen.
   const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
+  const edges = (opts.edges === false) ? null : makeEdges(group);   // MLSD/Canny-Ersatz: scharfe Linien an Wänden/Öffnungen
+  if (edges) scene.add(edges);
   renderer.setPixelRatio(1); renderer.setSize(W, H, false); cam.aspect = ar; cam.updateProjectionMatrix();
   let url = null;
   try {
@@ -3855,6 +3904,7 @@ async function snapshot(opts = {}) {
   }
   // Zustand wiederherstellen
   scene.remove(fill);
+  if (edges) { scene.remove(edges); disposeGroup(edges); }
   scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";

@@ -232,6 +232,25 @@ async function ensureAO() {
     _composer.addPass(new OP.OutputPass());
   } catch (e) { _composer = null; }   // SSAO nicht verfügbar → planer Render-Fallback
 }
+// Kanten-Overlay (EdgesGeometry je Mesh, im Weltraum) — dünne dunkle Linien schärfen
+// Öffnungen/Wandkanten, was die fehlende MLSD/Canny-Konditionierung emuliert. One-shot.
+function makeEdges(g) {
+  if (!g) return null;
+  let count = 0; g.traverse(o => { if (o.isMesh) count++; });
+  if (!count || count > 600) return null;   // zu viel Geometrie → überspringen (Perf)
+  const grp = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color: 0x2e2a25, transparent: true, opacity: 0.45 });
+  g.traverse(o => {
+    if (o.isMesh && o.geometry) {
+      try {
+        const ls = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 28), mat);
+        o.updateWorldMatrix(true, false); ls.applyMatrix4(o.matrixWorld);
+        grp.add(ls);
+      } catch (e) {}
+    }
+  });
+  return grp.children.length ? grp : null;
+}
 async function snapshot(opts = {}) {
   if (!renderer || !mounted || !cam) return null;
   const ar = opts.aspectRatio || (16 / 9), W = 1600, H = Math.round(W / ar);
@@ -247,6 +266,8 @@ async function snapshot(opts = {}) {
   // Fülllicht NUR fürs Foto: hebt Decke/Schattenseiten an (Recherche: nie flach/dunkel),
   // lässt aber die gerichteten Schatten als Tiefencue stehen.
   const fill = new THREE.AmbientLight(0xfff3e6, 0.5); scene.add(fill);
+  const edges = (opts.edges === false) ? null : makeEdges(group);   // MLSD/Canny-Ersatz: scharfe Linien an Wänden/Öffnungen
+  if (edges) scene.add(edges);
   renderer.setPixelRatio(1); renderer.setSize(W, H, false); cam.aspect = ar; cam.updateProjectionMatrix();
   let url = null;
   try {
@@ -259,6 +280,7 @@ async function snapshot(opts = {}) {
   }
   // Zustand wiederherstellen
   scene.remove(fill);
+  if (edges) { scene.remove(edges); disposeGroup(edges); }
   scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";

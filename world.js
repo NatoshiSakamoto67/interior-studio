@@ -7,6 +7,7 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   let wired = false;
+  let lastFotoResult = null;   // letztes Fotoreal-Ergebnis → Stil-Anker für konsistente Mehransichten (pro Modell)
 
   function setMode(m) {
     $$("#worldMode .seg-b").forEach(b => { const on = b.dataset.wmode === m; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
@@ -23,6 +24,7 @@
 
   // Maß-Modell (parametrisch, mm-genau) im eigenen Host mounten
   function mountMeasure() {
+    lastFotoResult = null;
     if (!(window.Parametric && window.Parametric.available())) { if (window.toast) toast("Maß-Modell nicht verfügbar.", "err"); return; }
     if (window.SplatViewer) window.SplatViewer.stop();
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
@@ -107,6 +109,7 @@
   }
 
   function mountModel(model, v) {
+    lastFotoResult = null;   // neues Modell → Material-Anker zurücksetzen
     if (window.SplatViewer) window.SplatViewer.stop();
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
@@ -148,6 +151,7 @@
   }
   async function loadDemoIfc() {
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    lastFotoResult = null;
     report('<span class="muted small">Demo-IFC (Haus) wird geladen — WASM + ~2,5 MB, einige Sekunden …</span>', false);
     try {
       const r = await fetch("examples/fzk-haus.ifc", { cache: "force-cache" });
@@ -174,6 +178,7 @@
     const inp = $("#ifcFile"); const file = inp && inp.files[0];
     if (!file) return;
     if (!(window.IFC && window.Parametric && window.Parametric.available())) { if (window.toast) toast("IFC-Modul lädt noch — kurz warten.", "err"); return; }
+    lastFotoResult = null;
     report('<span class="muted small">IFC wird geladen (WASM, beim 1. Mal etwas größer) …</span>', false);
     try {
       const buf = await file.arrayBuffer();
@@ -205,7 +210,8 @@
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
-  function fotoPrompt(style, hasRef, kind) {
+  function fotoPrompt(o) {
+    const { style, hasRef, kind, furnish } = o;
     const building = kind === "building";
     const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
     const dfltMat = building
@@ -214,6 +220,12 @@
     const enclosure = building
       ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
       : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
+    // Möbliert: KI darf Einrichtung/Umfeld ergänzen, aber die ARCHITEKTUR bleibt fix.
+    const objects = furnish
+      ? (building
+        ? "You MAY add realistic, tasteful landscaping and entourage appropriate to the setting (planting, garden, path, low hedges), but keep the BUILDING geometry, all openings and the camera unchanged. No people, no vehicles. "
+        : "Furnish the room tastefully and realistically with style-appropriate furniture, rugs, lighting and a little decor — but keep ALL architecture unchanged: wall positions, every window and door opening, proportions, ceiling height and the exact camera/perspective must stay identical. No people. ")
+      : "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. ";
     return "Photorealistic " + subject + " generated FROM the provided architectural render. "
       + "CRITICAL — PRESERVE EXACTLY: keep the geometry, wall/element positions and thicknesses, proportions, heights, "
       + "every window and door opening, and the exact camera position, framing, perspective and field of view identical to the input. "
@@ -221,10 +233,9 @@
       + "Keep the existing light direction and shadows. "
       + "ONLY change surface realism and lighting: apply photorealistic PBR materials, physically correct global illumination, "
       + "soft contact shadows, realistic light falloff, subtle micro-texture and natural imperfections. "
-      + enclosure
+      + enclosure + objects
       + "Materials & mood: " + (style || dfltMat) + ". "
-      + "Do NOT add furniture, people, vehicles, plants, signage or any object that is not present in the input. "
-      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference — never copy its geometry, layout, objects or perspective. " : "")
+      + (hasRef ? "Use the SECOND image ONLY as a material/colour/mood reference to keep materials and lighting CONSISTENT — never copy its geometry, layout, objects, framing or perspective. " : "")
       + "Shot on a 24mm architectural lens, neutral white balance, straight verticals, ultra realistic, high detail. "
       + "Everything else, especially all structural lines and the camera, must stay aligned to the input.";
   }
@@ -241,12 +252,19 @@
       const shot = await window.Parametric.snapshot({ aspectRatio: 16 / 9 });   // exakt 16:9 → kein Recompose-Drift
       if (!shot) { fotoOverlay("error", null, null, "Konnte die Ansicht nicht erfassen."); return; }
       const styleEl = $("#fotoStyle"); const style = styleEl ? styleEl.value.trim() : "";
+      const furnish = !!($("#fotoFurnish") && $("#fotoFurnish").checked);
+      const consistent = !($("#fotoConsistent") && !$("#fotoConsistent").checked);   // Default: an
       const refInp = $("#fotoRef"); const refFile = refInp && refInp.files[0];
       const images = [];
       const sInline = window.ImageGen.dataUrlToInline(shot); if (sInline) images.push(sInline);
-      if (refFile) { try { const ri = await window.ImageGen.fileToInline(refFile); if (ri) images.push(ri); } catch (e) {} }
+      // Stil-Referenz: explizite Datei hat Vorrang; sonst (für Rundgang-Konsistenz) das letzte Foto-Ergebnis
+      let refInline = null;
+      if (refFile) { try { refInline = await window.ImageGen.fileToInline(refFile); } catch (e) {} }
+      else if (consistent && lastFotoResult) refInline = window.ImageGen.dataUrlToInline(lastFotoResult);
+      if (refInline) images.push(refInline);
       const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt(style, images.length > 1, kind), aspect: "16:9", resolution: "4K", images });
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish }), aspect: "16:9", resolution: "4K", images });
+      lastFotoResult = res.url;   // nächste Ansicht referenziert dieses → konsistente Materialien
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
     } catch (e) { fotoOverlay("error", null, null, e.message || "Fehler"); }
