@@ -140,7 +140,16 @@ function resize() {
 
 // IBL (prozedurale RoomEnvironment = realistisches Licht/Reflexe, ohne Asset, offline) +
 // Echtzeit-Post (GTAO-Kontaktschatten + dezenter Bloom). Beides lazy + defensiv → Fallback = planer Render.
-async function setupRender() {
+async function setupEnvironment() {
+  // Echtes CC0-Interieur-HDRI = realistisches Licht + Reflexionen (Archviz). Fallback: prozedurale RoomEnvironment.
+  try {
+    const { RGBELoader } = await import("three/addons/loaders/RGBELoader.js");
+    const hdr = await new Promise((res, rej) => new RGBELoader().load("examples/lythwood_room_1k.hdr", res, undefined, rej));
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromEquirectangular(hdr).texture;
+    if ("environmentIntensity" in scene) scene.environmentIntensity = 1.0;
+    hdr.dispose(); pm.dispose(); return;
+  } catch (e) { /* HDRI nicht ladbar (z. B. Single-File) → RoomEnvironment */ }
   try {
     const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
     const pm = new THREE.PMREMGenerator(renderer);
@@ -148,6 +157,9 @@ async function setupRender() {
     if ("environmentIntensity" in scene) scene.environmentIntensity = 0.85;
     pm.dispose();
   } catch (e) { /* ohne IBL trotzdem nutzbar */ }
+}
+async function setupRender() {
+  await setupEnvironment();
   try {
     const [EC, RP, GT, BL, OP] = await Promise.all([
       import("three/addons/postprocessing/EffectComposer.js"),
@@ -169,31 +181,60 @@ async function setupRender() {
   } catch (e) { liveComposer = null; }
 }
 
-/* ---------- Fotoreal v1: prozedurale Material-Texturen (offline, geometrie-treu) ---------- */
+/* ---------- Archviz-Materialien: prozedurale PBR-Texturen mit Normal-/Roughness-Maps (offline) ---------- */
 let _tex = null;
-function noiseTex(base, amt) {
-  const c = document.createElement("canvas"); c.width = c.height = 256;
-  const g = c.getContext("2d"); g.fillStyle = base; g.fillRect(0, 0, 256, 256);
-  const im = g.getImageData(0, 0, 256, 256), d = im.data;
-  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
-  g.putImageData(im, 0, 0);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+function mkCanvas(s) { const c = document.createElement("canvas"); c.width = c.height = s; return c; }
+function toTex(canvas, srgb, rep) {
+  const t = new THREE.CanvasTexture(canvas); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  try { t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); } catch (e) {}
+  if (rep) t.repeat.set(rep, rep); return t;
 }
-function woodTex() {
-  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
-  g.fillStyle = "#8a6f4f"; g.fillRect(0, 0, 256, 256);
-  for (let y = 0; y < 256; y += 30) {
-    g.fillStyle = "rgba(40,26,12,0.28)"; g.fillRect(0, y, 256, 1.5);   // Dielenfuge
-    for (let k = 0; k < 24; k++) {
-      g.strokeStyle = "rgba(" + (120 + (Math.random() * 40 | 0)) + "," + (95 + (Math.random() * 26 | 0)) + "," + (60 + (Math.random() * 26 | 0)) + ",0.22)";
-      g.beginPath(); const yy = y + 3 + Math.random() * 24; g.moveTo(0, yy); g.bezierCurveTo(85, yy + (Math.random() - 0.5) * 3, 170, yy + (Math.random() - 0.5) * 3, 256, yy); g.stroke();
-    }
+// Graustufen-Höhe → Tangent-Space-Normalmap (Sobel) — gibt Oberflächen echtes Relief unterm Licht.
+function normalFromHeight(heightCanvas, strength) {
+  const s = heightCanvas.width, src = heightCanvas.getContext("2d").getImageData(0, 0, s, s).data;
+  const out = mkCanvas(s), od = out.getContext("2d"), img = od.createImageData(s, s), d = img.data;
+  const H = (x, y) => src[(((y + s) % s) * s + ((x + s) % s)) * 4] / 255;
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const dx = (H(x - 1, y) - H(x + 1, y)) * strength, dy = (H(x, y - 1) - H(x, y + 1)) * strength;
+    const l = Math.hypot(dx, dy, 1), i = (y * s + x) * 4;
+    d[i] = (dx / l * 0.5 + 0.5) * 255; d[i + 1] = (dy / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l) * 255; d[i + 3] = 255;
   }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(0.6, 0.6); return t;
+  od.putImageData(img, 0, 0); return toTex(out, false);
+}
+function plasterMaps(base) {
+  const s = 512, alb = mkCanvas(s), ga = alb.getContext("2d"); ga.fillStyle = base; ga.fillRect(0, 0, s, s);
+  const im = ga.getImageData(0, 0, s, s), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 9; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  ga.putImageData(im, 0, 0);
+  const ht = mkCanvas(s), gh = ht.getContext("2d"); const hi = gh.createImageData(s, s), hd = hi.data;
+  for (let i = 0; i < hd.length; i += 4) { const n = 128 + (Math.random() - 0.5) * 56; hd[i] = hd[i + 1] = hd[i + 2] = n; hd[i + 3] = 255; }
+  gh.putImageData(hi, 0, 0);
+  return { map: toTex(alb, true), normalMap: normalFromHeight(ht, 0.5) };
+}
+function woodFloorMaps() {
+  const s = 512, alb = mkCanvas(s), g = alb.getContext("2d");
+  const ht = mkCanvas(s), gh = ht.getContext("2d"); gh.fillStyle = "#808080"; gh.fillRect(0, 0, s, s);
+  const rgh = mkCanvas(s), gr = rgh.getContext("2d"); gr.fillStyle = "#707070"; gr.fillRect(0, 0, s, s);
+  const planks = 5, ph = s / planks;
+  for (let p = 0; p < planks; p++) {
+    const y0 = p * ph, tone = 118 + (Math.random() * 38 | 0);
+    g.fillStyle = `rgb(${tone + 22},${tone - 8},${tone - 46})`; g.fillRect(0, y0, s, ph);
+    for (let k = 0; k < 46; k++) {
+      const yy = y0 + Math.random() * ph;
+      g.strokeStyle = `rgba(${58 + (Math.random() * 40 | 0)},${38 + (Math.random() * 26 | 0)},${18 + (Math.random() * 20 | 0)},0.16)`;
+      g.beginPath(); g.moveTo(0, yy); g.bezierCurveTo(s * 0.33, yy + (Math.random() - 0.5) * 6, s * 0.66, yy + (Math.random() - 0.5) * 6, s, yy); g.stroke();
+      gh.strokeStyle = "rgba(120,120,120,0.5)"; gh.beginPath(); gh.moveTo(0, yy); gh.lineTo(s, yy); gh.stroke();
+    }
+    g.fillStyle = "rgba(24,15,7,0.5)"; g.fillRect(0, y0, s, 2);          // Dielenfuge
+    gh.fillStyle = "#1e1e1e"; gh.fillRect(0, y0, s, 3);                   // Fuge vertieft
+    gr.fillStyle = "#b0b0b0"; gr.fillRect(0, y0, s, 3);                   // Fuge matter
+  }
+  return { map: toTex(alb, true, 0.7), normalMap: normalFromHeight(ht, 1.0), roughnessMap: toTex(rgh, false, 0.7) };
 }
 function textures() {
   if (_tex) return _tex;
-  _tex = { wall: noiseTex("#e9e5dd", 14), wallA: noiseTex("#b9c0cc", 14), floor: woodTex(), ceil: noiseTex("#f2efe9", 8) };
+  _tex = { wall: plasterMaps("#e9e5dd"), wallA: plasterMaps("#b9c0cc"), floor: woodFloorMaps(), ceil: plasterMaps("#f2efe9") };
   return _tex;
 }
 
@@ -208,13 +249,16 @@ function build(model, container) {
 
   lastAssumptions = [];
   const exactModel = ((model.provenance || {}).precision === "exact");
-  // PBR + IBL: matte Wände, leicht reflektierender Boden (geben dem RoomEnvironment-Licht Reflexe).
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dd, roughness: 0.94, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide });
-  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.94, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4f, roughness: 0.42, metalness: 0, envMapIntensity: 1.1, side: THREE.DoubleSide });
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.97, metalness: 0, envMapIntensity: 0.85, side: THREE.DoubleSide });
-  const TX = textures();   // Fotoreal v1: Putz/Holz-Texturen auf die exakte Geometrie
-  wallMat.map = TX.wall; wallAssumedMat.map = TX.wallA; floorMat.map = TX.floor; ceilMat.map = TX.ceil;
+  // Archviz-PBR: Putzwände mit feinem Relief, halbglänzender Holzboden (spiegelt das HDRI-Licht).
+  const TX = textures();
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: TX.wall.map, normalMap: TX.wall.normalMap, roughness: 0.93, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide });
+  wallMat.normalScale = new THREE.Vector2(0.5, 0.5);
+  const wallAssumedMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: TX.wallA.map, normalMap: TX.wallA.normalMap, roughness: 0.93, metalness: 0, envMapIntensity: 1.0, side: THREE.DoubleSide }); // bläulich = Maß angenommen
+  wallAssumedMat.normalScale = new THREE.Vector2(0.5, 0.5);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: TX.floor.map, normalMap: TX.floor.normalMap, roughnessMap: TX.floor.roughnessMap, roughness: 0.5, metalness: 0, envMapIntensity: 1.35, side: THREE.DoubleSide });
+  floorMat.normalScale = new THREE.Vector2(0.6, 0.6);
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: TX.ceil.map, normalMap: TX.ceil.normalMap, roughness: 0.96, metalness: 0, envMapIntensity: 0.8, side: THREE.DoubleSide });
+  ceilMat.normalScale = new THREE.Vector2(0.35, 0.35);
 
   const st = (model.storeys || [])[0]; if (!st) return;
   const byWall = {}; (st.openings || []).forEach(o => { (byWall[o.wallId] = byWall[o.wallId] || []).push(o); });
