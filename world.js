@@ -212,6 +212,15 @@
      respektiert. „Fotoreal UND maßstabstreu", ohne Backend/GPU. */
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
+  // Manifest der platzierten Möbel (echte Arten aus dem Katalog) → KI rendert das Sofa als Sofa.
+  function furnishManifest() {
+    if (!(window.Furnish && window.Furnish.list)) return "";
+    const rows = window.Furnish.list(); if (!rows.length) return "";
+    const KIND = { sofa: "a fabric sofa", table: "a wooden coffee table", side: "a sideboard cabinet", chair: "a lounge chair", lamp: "a floor lamp", plant: "a potted plant", rug: "a floor rug" };
+    const cnt = {};
+    rows.forEach(r => { const it = (window.CATALOG || []).find(c => c.id === r.id) || {}; const k = KIND[it.kind] || "a furniture piece"; cnt[k] = (cnt[k] || 0) + 1; });
+    return Object.entries(cnt).map(([k, n]) => (n > 1 ? n + "× " : "") + k).join(", ");
+  }
   function fotoPrompt(o) {
     const { style, hasRef, kind, furnish, hasPlaced } = o;
     const building = kind === "building";
@@ -225,7 +234,8 @@
     // Drei Fälle: (1) eigene Möbel platziert → exakt erhalten, nur fotoreal machen;
     //   (2) KI darf möblieren; (3) nichts hinzufügen. (1) hat Vorrang (mm-Platzierung ist verbindlich).
     const objects = hasPlaced
-      ? "The image ALREADY contains furniture placed as simple massing blocks. Render each of them as photorealistic, real furniture in the EXACT same position, footprint, size, height, orientation and count — do NOT add, remove, move, resize or rearrange any piece, and keep the camera identical. Refine only their materials, textures and realism so they read as real furniture. No people. "
+      ? "The image ALREADY contains furniture placed as simple massing blocks" + (o.manifest ? " representing (each block IS one of these): " + o.manifest + "." : ".")
+        + " Render each block as a photorealistic, REAL piece of exactly that kind, at the EXACT same position, footprint, size, height, orientation and count — do NOT add, remove, move, resize or rearrange any piece, and keep the camera identical. Refine only materials, textures and realism. No people. "
       : furnish
       ? (building
         ? "You MAY add realistic, tasteful landscaping and entourage appropriate to the setting (planting, garden, path, low hedges), but keep the BUILDING geometry, all openings and the camera unchanged. No people, no vehicles. "
@@ -269,7 +279,8 @@
       if (refInline) images.push(refInline);
       const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
       const hasPlaced = !!(window.Furnish && window.Furnish.count && window.Furnish.count() > 0);
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish, hasPlaced }), aspect: "16:9", resolution: "4K", images });
+      const manifest = hasPlaced ? furnishManifest() : "";
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish, hasPlaced, manifest }), aspect: "16:9", resolution: "4K", images });
       lastFotoResult = res.url;   // nächste Ansicht referenziert dieses → konsistente Materialien
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
