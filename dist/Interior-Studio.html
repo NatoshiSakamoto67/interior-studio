@@ -1,4 +1,4 @@
-<!-- Interior Studio — Einzeldatei-Build, generiert 2026-06-29 von tools/build-single.py. Selbsttragend: per Doppelklick (file://) lauffähig, über WhatsApp/USB verschickbar. Quelle: github-Repo. -->
+<!-- Interior Studio — Einzeldatei-Build, generiert 2026-06-30 von tools/build-single.py. Selbsttragend: per Doppelklick (file://) lauffähig, über WhatsApp/USB verschickbar. Quelle: github-Repo. -->
 <!doctype html>
 <html lang="de">
 <head>
@@ -1036,6 +1036,29 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
 /* „Datei öffnen — egal welche": klare Ablagefläche statt nacktem Input */
 .world-drop{border:1px dashed var(--line-strong);border-radius:12px;padding:12px;background:rgba(255,255,255,.025);transition:border-color var(--dur-1,.15s) ease}
 .world-drop:hover{border-color:var(--accent)}
+
+/* ---------- Möblierung (Welt 3D) ---------- */
+#furnishPanel{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-2);padding-top:var(--sp-3);border-top:1px solid var(--line)}
+.furnish-cat{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.furnish-chip{display:flex;align-items:center;gap:8px;text-align:left;background:var(--bg-inset,rgba(255,255,255,.04));border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 9px;cursor:pointer;font:inherit;color:var(--text);transition:border-color .15s ease,transform .05s ease}
+.furnish-chip:hover{border-color:var(--accent)}
+.furnish-chip:active{transform:translateY(1px)}
+.fc-sw{width:16px;height:16px;flex:none;border-radius:5px;border:1px solid rgba(0,0,0,.25)}
+.fc-t{display:flex;flex-direction:column;min-width:0}
+.fc-n{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc-d{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.furnish-list{display:flex;flex-direction:column;gap:3px;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin-top:2px}
+.furnish-list .fl-h{font-size:12px;font-weight:700;color:var(--muted)}
+.fl-row{display:flex;align-items:center;gap:8px;font-size:13px}
+.fl-row .fl-n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl-row .fl-p{font-family:var(--font-mono);color:var(--muted);font-size:12px}
+.fl-x{flex:none;width:20px;height:20px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:5px;font-size:15px;line-height:1}
+.fl-x:hover{background:rgba(224,101,79,.18);color:#f0b8ac}
+.fl-sum{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:4px;padding-top:5px;border-top:1px solid var(--line)}
+.fl-sum b{color:var(--text);font-family:var(--font-mono)}
+.vp-seg{max-width:230px}
+.vp-seg .seg-b{padding:6px 10px;font-size:12px}
+.furnish-inspector{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:6;background:rgb(var(--accent-rgb) / .16);border:1px solid rgb(var(--accent-rgb) / .38);color:var(--text);border-radius:999px;padding:6px 13px;font-size:12.5px;font-family:var(--font-mono);white-space:nowrap;pointer-events:none;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .foto-overlay{position:absolute;inset:0;z-index:14;display:flex;align-items:center;justify-content:center;
   background:oklch(0% 0 0 / .6);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);padding:var(--sp-5)}
 .foto-card{position:relative;max-width:min(92%,1024px);max-height:92%;display:flex;flex-direction:column;gap:var(--sp-3);
@@ -1375,6 +1398,13 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
           <div class="world-measure-report" id="measureReport" hidden></div>
           <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Modell gegen Plan prüfen</button>
 
+          <div id="furnishPanel" hidden>
+            <span class="eyebrow">Möbel platzieren</span>
+            <p class="muted small">Katalog-Stück wählen → erscheint <b>maßgenau</b> im Raum. Unten auf <b>Plan von oben</b> umschalten: ziehen zum Setzen, <b>Q/E</b> drehen, Pfeiltasten = mm-Feinschub. Rastet an Wänden ein.</p>
+            <div class="furnish-cat" id="furnishCatalog"></div>
+            <div class="furnish-list" id="furnishList" hidden></div>
+          </div>
+
           <details class="foto-block">
             <summary><span class="ic" data-icon="sparkles"></span> Foto-Optionen <span class="muted">(Stil &amp; Möblierung)</span></summary>
             <div class="foto-opts-body">
@@ -1399,7 +1429,12 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
             <div class="empty-ic" data-icon="house"></div>
             Noch keine Welt geladen.<br>Lade links eine Datei (Grundriss, CAD, IFC oder Splat) — oder „Beispiel begehen".
           </div>
+          <div class="furnish-inspector" id="furnishInspector" hidden></div>
           <div class="vp-bar">
+            <div class="seg vp-seg" id="viewSeg" hidden>
+              <button class="seg-b is-active" data-view="walk" aria-pressed="true">Begehen</button>
+              <button class="seg-b" data-view="plan" aria-pressed="false">Plan von oben</button>
+            </div>
             <button class="btn btn-accent" id="fotoBtn" disabled title="Macht aus der aktuellen Ansicht ein fotorealistisches, maßtreues Standbild (KI, ~15 s)"><span class="ic" data-icon="sparkles"></span> Foto dieser Ansicht</button>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
@@ -3211,7 +3246,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
-    fotoEnable(true);
+    fotoEnable(true); showFurnish(true);
     report(summary(model, v), false);
     revealViewport();
   }
@@ -3252,7 +3287,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      fotoEnable(true);
+      fotoEnable(true); showFurnish(true);
       report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
@@ -3278,7 +3313,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      fotoEnable(true);
+      fotoEnable(true); showFurnish(true);
       report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
@@ -3304,7 +3339,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
   function fotoPrompt(o) {
-    const { style, hasRef, kind, furnish } = o;
+    const { style, hasRef, kind, furnish, hasPlaced } = o;
     const building = kind === "building";
     const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
     const dfltMat = building
@@ -3313,8 +3348,11 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     const enclosure = building
       ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
       : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
-    // Möbliert: KI darf Einrichtung/Umfeld ergänzen, aber die ARCHITEKTUR bleibt fix.
-    const objects = furnish
+    // Drei Fälle: (1) eigene Möbel platziert → exakt erhalten, nur fotoreal machen;
+    //   (2) KI darf möblieren; (3) nichts hinzufügen. (1) hat Vorrang (mm-Platzierung ist verbindlich).
+    const objects = hasPlaced
+      ? "The image ALREADY contains furniture placed as simple massing blocks. Render each of them as photorealistic, real furniture in the EXACT same position, footprint, size, height, orientation and count — do NOT add, remove, move, resize or rearrange any piece, and keep the camera identical. Refine only their materials, textures and realism so they read as real furniture. No people. "
+      : furnish
       ? (building
         ? "You MAY add realistic, tasteful landscaping and entourage appropriate to the setting (planting, garden, path, low hedges), but keep the BUILDING geometry, all openings and the camera unchanged. No people, no vehicles. "
         : "Furnish the room tastefully and realistically with style-appropriate furniture, rugs, lighting and a little decor — but keep ALL architecture unchanged: wall positions, every window and door opening, proportions, ceiling height and the exact camera/perspective must stay identical. No people. ")
@@ -3356,7 +3394,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
       else if (consistent && lastFotoResult) refInline = window.ImageGen.dataUrlToInline(lastFotoResult);
       if (refInline) images.push(refInline);
       const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish }), aspect: "16:9", resolution: "4K", images });
+      const hasPlaced = !!(window.Furnish && window.Furnish.count && window.Furnish.count() > 0);
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish, hasPlaced }), aspect: "16:9", resolution: "4K", images });
       lastFotoResult = res.url;   // nächste Ansicht referenziert dieses → konsistente Materialien
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");
@@ -3389,7 +3428,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
 
   async function loadSplat(urlOrFile) {
     if (!ensureViewer()) return;
-    fotoEnable(false);                                  // Splat hat keine Parametric-Geometrie → kein „Foto dieser Ansicht"
+    fotoEnable(false); showFurnish(false);              // Splat hat keine Parametric-Geometrie → kein „Foto"/Möblieren
     if (window.Parametric) window.Parametric.stop();    // ggf. laufendes Maß-/IFC-Modell anhalten
     const ph = $("#paramHost"); if (ph) ph.hidden = true;
     const host = $("#splatHost"); if (host) host.hidden = false;
@@ -3406,9 +3445,54 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     }
   }
 
+  /* ---------- Möblierung (Katalog → mm-genau platzieren) ---------- */
+  function showFurnish(on) {
+    const panel = $("#furnishPanel"), seg = $("#viewSeg");
+    if (panel) panel.hidden = !on;
+    if (seg) seg.hidden = !on;
+    if (!window.Furnish) return;
+    if (on) {
+      window.Furnish._onChange = renderFurnishList;
+      window.Furnish.clear();                 // neues Modell → frische Möblierung
+      renderCatalog(); renderFurnishList(); setView3D("walk");
+    } else {
+      window.Furnish.clear();
+      const insp = $("#furnishInspector"); if (insp) insp.hidden = true;
+    }
+  }
+  function renderCatalog() {
+    const host = $("#furnishCatalog"); if (!host) return;
+    const items = window.CATALOG || [];
+    host.innerHTML = items.map(it => '<button class="furnish-chip" data-fid="' + esc(it.id) + '" title="' + esc(it.name) + ' · ' + it.w + '×' + it.d + '×' + it.h + ' cm">'
+      + '<span class="fc-sw" style="background:' + esc(it.color || '#b9b2a6') + '"></span>'
+      + '<span class="fc-t"><span class="fc-n">' + esc(it.name) + '</span><span class="fc-d">' + it.w + '×' + it.d + ' cm</span></span></button>').join("");
+    $$(".furnish-chip", host).forEach(b => b.onclick = () => {
+      if (!(window.Furnish && window.Furnish.placeFromCatalog)) return;
+      const o = window.Furnish.placeFromCatalog(b.dataset.fid);
+      if (!o) { if (window.toast) toast("Erst ein Modell laden (CAD/IFC/Demo).", "err"); return; }
+      if (window.toast) toast('Platziert — unten „Plan von oben" zum mm-genauen Setzen.');
+    });
+  }
+  function renderFurnishList() {
+    const el = $("#furnishList"); if (!el || !(window.Furnish && window.Furnish.list)) return;
+    const rows = window.Furnish.list();
+    if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
+    const sum = rows.reduce((a, r) => a + (r.price || 0), 0);
+    el.hidden = false;
+    el.innerHTML = '<div class="fl-h">Platziert · ' + rows.length + '</div>'
+      + rows.map(r => '<div class="fl-row"><span class="fl-n">' + esc(r.name) + '</span><span class="fl-p">' + (r.price ? r.price + ' €' : '') + '</span><button class="fl-x" data-uid="' + r.uid + '" aria-label="entfernen">×</button></div>').join("")
+      + '<div class="fl-sum">Summe <b>' + sum.toLocaleString("de-DE") + ' €</b></div>';
+    $$(".fl-x", el).forEach(b => b.onclick = () => { if (window.Furnish) window.Furnish.removeByUid(+b.dataset.uid); });
+  }
+  function setView3D(v) {
+    if (window.Parametric && window.Parametric.setView) window.Parametric.setView(v);
+    $$("#viewSeg .seg-b").forEach(b => { const on = b.dataset.view === v; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
+  }
+
   function wire() {
     if (wired) return;
     const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
+    $$("#viewSeg .seg-b").forEach(b => b.onclick = () => setView3D(b.dataset.view));
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
@@ -3417,7 +3501,7 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     wired = true;
   }
 
-  function enter() { wire(); fotoEnable(false); }
+  function enter() { wire(); fotoEnable(false); showFurnish(false); }
   function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); if (window.Parametric) window.Parametric.stop(); } catch (e) {} }
 
   window.World = { enter, leave };
@@ -3625,6 +3709,81 @@ const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
 
+// ---------- Möblierung: zweite (Plan-)Kamera + Welt-Zugriff für furnish.js ----------
+let orthoCam = null, view = "walk", lastModel = null, _viewCb = null;
+let orthoHalf = 6, orthoCx = 0, orthoCz = 0, planZoom = 1, planPanX = 0, planPanZ = 0, _panGrab = null;
+let planPanning = false, _pinch = 0;   // Plan-Ansicht: Pan + Pinch-Zoom (große Büroflächen sauber navigierbar)
+const _ray = new THREE.Raycaster(), _ndcV = new THREE.Vector2(), _floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function activeCamera() { return (view === "plan" && orthoCam) ? orthoCam : cam; }
+function toNdc(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  _ndcV.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  return _ndcV;
+}
+function pointerToFloor(clientX, clientY) {
+  _ray.setFromCamera(toNdc(clientX, clientY), activeCamera());
+  const hit = new THREE.Vector3();
+  return _ray.ray.intersectPlane(_floorPlane, hit) ? { x: hit.x, z: hit.z } : null;
+}
+function frontFloorPoint() {   // Boden-Punkt ~1,4 m vor der Blickrichtung der Begeh-Kamera
+  const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd); fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1); fwd.normalize();
+  return { x: cam.position.x + fwd.x * 1.4, z: cam.position.z + fwd.z * 1.4 };
+}
+function pickObjects(clientX, clientY, objs) {
+  if (!objs || !objs.length) return null;
+  _ray.setFromCamera(toNdc(clientX, clientY), activeCamera());
+  const hits = _ray.intersectObjects(objs, true);
+  if (!hits.length) return null;
+  let o = hits[0].object; while (o && !o.userData.furnitureRoot && o.parent) o = o.parent;
+  return (o && o.userData.furnitureRoot) ? o : null;
+}
+function addObject(o) { if (group) group.add(o); else if (scene) scene.add(o); }
+function removeObject(o) { if (o && o.parent) o.parent.remove(o); }
+function fitOrtho() {   // ganze Fläche einpassen + Zoom/Pan zurücksetzen
+  if (!orthoCam) return;
+  const b = new THREE.Box3(); if (group) b.setFromObject(group);
+  const c = b.isEmpty() ? new THREE.Vector3() : b.getCenter(new THREE.Vector3());
+  const sx = b.isEmpty() ? 6 : (b.max.x - b.min.x), sz = b.isEmpty() ? 6 : (b.max.z - b.min.z);
+  orthoHalf = Math.max(sx, sz, 2) * 0.6 + 0.5; orthoCx = c.x; orthoCz = c.z;
+  planZoom = 1; planPanX = 0; planPanZ = 0;
+  applyOrtho();
+}
+function applyOrtho() {   // Zoom/Pan auf die Ortho-Kamera anwenden (große Flächen: weit raus, präzise rein)
+  if (!orthoCam) return;
+  const half = orthoHalf / planZoom, asp = aspect();
+  orthoCam.left = -half * asp; orthoCam.right = half * asp; orthoCam.top = half; orthoCam.bottom = -half;
+  const cx = orthoCx + planPanX, cz = orthoCz + planPanZ;
+  orthoCam.position.set(cx, 30, cz); orthoCam.up.set(0, 0, -1); orthoCam.lookAt(cx, 0, cz); orthoCam.updateProjectionMatrix();
+}
+function zoomPlanAt(clientX, clientY, factor) {   // um den Cursor-Weltpunkt zoomen (bleibt unter dem Cursor)
+  if (view !== "plan") return;
+  const before = pointerToFloor(clientX, clientY);
+  planZoom = Math.max(0.04, Math.min(80, planZoom * factor));
+  applyOrtho();
+  const after = pointerToFloor(clientX, clientY);
+  if (before && after) { planPanX += before.x - after.x; planPanZ += before.z - after.z; applyOrtho(); }
+}
+function planPanStart(clientX, clientY) { _panGrab = pointerToFloor(clientX, clientY); }
+function planPanMove(clientX, clientY) {
+  if (!_panGrab) return;
+  const cur = pointerToFloor(clientX, clientY); if (!cur) return;
+  planPanX += _panGrab.x - cur.x; planPanZ += _panGrab.z - cur.z; applyOrtho();
+}
+function planPanEnd() { _panGrab = null; }
+function pinchDist(e) { const a = e.touches[0], b = e.touches[1]; return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function pinchCenter(e) { const a = e.touches[0], b = e.touches[1]; return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }; }
+function setView(v) {
+  view = (v === "plan") ? "plan" : "walk";
+  const dp = host && host.querySelector(".dpad"); if (dp) dp.style.display = view === "plan" ? "none" : "";
+  // Plan = Grundriss-Schnitt auf 1,4 m: Decke (und Wand-/Möbel-Teile darüber) weg, Boden+Wände+Möbel sichtbar.
+  if (renderer) renderer.clippingPlanes = (view === "plan") ? [new THREE.Plane(new THREE.Vector3(0, -1, 0), 1.4)] : [];
+  if (view === "plan") { fitOrtho(); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
+  if (_viewCb) { try { _viewCb(view); } catch (e) {} }
+}
+function getView() { return view; }
+function onViewChange(cb) { _viewCb = cb; }
+
 function mount(container) {
   if (mounted) { if (container && renderer && renderer.domElement.parentNode !== container) container.appendChild(renderer.domElement); return; }
   host = container;
@@ -3642,6 +3801,8 @@ function mount(container) {
   scene.background = new THREE.Color(0x4a463f);   // weiches Neutralgrau statt Schwarz (Außenkontext / Lücken)
   cam = new THREE.PerspectiveCamera(64, aspect(), 0.05, 400);
   cam.position.set(0, EYE, 0);
+  orthoCam = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.01, 200);   // „Plan von oben"
+  orthoCam.up.set(0, 0, -1); orthoCam.position.set(0, 30, 0); orthoCam.lookAt(0, 0, 0);
 
   // Sonne (Schlagschatten) + dezente Fülle; das große Ambiente liefert das IBL (RoomEnvironment).
   scene.add(new THREE.HemisphereLight(0xffe9d6, 0x2a2026, 0.35));
@@ -3665,6 +3826,7 @@ function resize() {
   if (cam) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
   if (liveComposer) liveComposer.setSize(w, h);
   if (liveGtao && liveGtao.setSize) liveGtao.setSize(w, h);
+  if (orthoCam) applyOrtho();   // Zoom/Pan beim Resize behalten (nicht zurücksetzen)
 }
 
 // IBL (prozedurale RoomEnvironment = realistisches Licht/Reflexe, ohne Asset, offline) +
@@ -3730,7 +3892,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
-  lastKind = "interior";
+  lastModel = model; lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
@@ -3818,6 +3980,7 @@ function build(model, container) {
     look.yaw = Math.atan2(-dir.x, -dir.z); look.pitch = -0.05;
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; }
   walked = true; applyLook();
+  if (view === "plan") fitOrtho();
 }
 
 // Kamera schräg von außen-oben auf das Modell richten (Übersicht); Innen-Startpunkt fürs Begehen merken.
@@ -3900,6 +4063,7 @@ async function snapshot(opts = {}) {
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
   const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio(), prevBg = scene.background;
+  const prevClip = renderer.clippingPlanes; renderer.clippingPlanes = [];   // Foto nie als Plan-Schnitt rendern
   const sz = new THREE.Vector2(); renderer.getSize(sz);
   scene.fog = null; renderer.toneMappingExposure = 1.32;
   // Heller Hintergrund: Lücken (über Wänden / durch Öffnungen) lesen als hell statt schwarz →
@@ -3923,7 +4087,7 @@ async function snapshot(opts = {}) {
   // Zustand wiederherstellen
   scene.remove(fill);
   if (edges) { scene.remove(edges); disposeGroup(edges); }
-  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp; renderer.clippingPlanes = prevClip;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
   if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
@@ -3933,18 +4097,50 @@ async function snapshot(opts = {}) {
 /* ---------- First-Person ---------- */
 function bindControls() {
   const cv = renderer.domElement;
-  cv.addEventListener("click", () => { if (cv.requestPointerLock) cv.requestPointerLock(); });
+  const F = () => window.Furnish;
+  const grabFurniture = (x, y) => { const f = F(); return !!(f && f._pointer && f._pointer("down", x, y)); };
+  const moveFurniture = (x, y) => { const f = F(); if (f && f._pointer) f._pointer("move", x, y); };
+  const upFurniture = () => { const f = F(); if (f && f._pointer) f._pointer("up"); };
+  cv.addEventListener("click", () => { if (view === "walk" && cv.requestPointerLock) cv.requestPointerLock(); });
   document.addEventListener("pointerlockchange", () => { locked = document.pointerLockElement === cv; });
+
   document.addEventListener("mousemove", e => {
+    if (view === "plan") { if (planPanning) planPanMove(e.clientX, e.clientY); else moveFurniture(e.clientX, e.clientY); return; }
     if (locked) { look.yaw -= e.movementX * 0.0023; look.pitch -= e.movementY * 0.0023; clampPitch(); }
     else if (dragging) { look.yaw -= (e.clientX - lastX) * 0.005; look.pitch -= (e.clientY - lastY) * 0.005; lastX = e.clientX; lastY = e.clientY; clampPitch(); }
   });
-  cv.addEventListener("mousedown", e => { if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; } });
-  window.addEventListener("mouseup", () => { dragging = false; });
-  cv.addEventListener("touchstart", e => { const t = e.touches[0]; dragging = true; lastX = t.clientX; lastY = t.clientY; }, { passive: true });
-  cv.addEventListener("touchmove", e => { const t = e.touches[0]; look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch(); }, { passive: true });
-  cv.addEventListener("touchend", () => { dragging = false; });
-  window.addEventListener("keydown", e => { if (running) keys[e.key.toLowerCase()] = true; });
+  cv.addEventListener("mousedown", e => {
+    if (view === "plan") { if (!grabFurniture(e.clientX, e.clientY)) { planPanning = true; planPanStart(e.clientX, e.clientY); } return; }
+    if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
+  });
+  window.addEventListener("mouseup", () => { if (view === "plan") { planPanning = false; planPanEnd(); upFurniture(); } dragging = false; });
+  cv.addEventListener("wheel", e => { if (view === "plan") { e.preventDefault(); zoomPlanAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89); } }, { passive: false });
+
+  cv.addEventListener("touchstart", e => {
+    if (view === "plan") {
+      if (e.touches.length === 2) { _pinch = pinchDist(e); planPanning = false; return; }
+      const t = e.touches[0]; if (!grabFurniture(t.clientX, t.clientY)) { planPanning = true; planPanStart(t.clientX, t.clientY); }
+      return;
+    }
+    const t = e.touches[0]; dragging = true; lastX = t.clientX; lastY = t.clientY;
+  }, { passive: true });
+  cv.addEventListener("touchmove", e => {
+    if (view === "plan") {
+      if (e.touches.length === 2 && _pinch) { const d = pinchDist(e), c = pinchCenter(e); zoomPlanAt(c.x, c.y, d / _pinch); _pinch = d; return; }
+      const t = e.touches[0]; if (planPanning) planPanMove(t.clientX, t.clientY); else moveFurniture(t.clientX, t.clientY);
+      return;
+    }
+    const t = e.touches[0]; look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch();
+  }, { passive: true });
+  cv.addEventListener("touchend", e => {
+    if (view === "plan") { _pinch = 0; if (e.touches.length === 0) { planPanning = false; planPanEnd(); upFurniture(); } }
+    else dragging = false;
+  });
+
+  window.addEventListener("keydown", e => {
+    if (view === "plan" && window.Furnish && window.Furnish._key && window.Furnish._key(e.key)) { e.preventDefault(); return; }
+    if (running) keys[e.key.toLowerCase()] = true;
+  });
   window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 }
 function clampPitch() { const L = Math.PI / 2 - 0.05; look.pitch = Math.max(-L, Math.min(L, look.pitch)); applyLook(); }
@@ -3963,10 +4159,12 @@ function step(dt) {
 }
 function frame(t) {
   if (!running) return;
-  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
+  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t;
+  if (view === "walk") step(dt);   // Gehen nur im Begehen; im Plan steht die Kamera fest oben
   // Echtzeit-Render (sofort, glatt, nie pixelig, kein Neurechnen beim Gehen).
-  if (liveComposer) liveComposer.render();
-  else renderer.render(scene, cam);
+  // Post-Stack (GTAO/Bloom) hängt an der Begeh-Kamera → im Plan plan rendern.
+  if (liveComposer && view === "walk") liveComposer.render();
+  else renderer.render(scene, activeCamera());
   raf = requestAnimationFrame(frame);
 }
 function makeDpad(hostEl, keyObj) {
@@ -3994,15 +4192,300 @@ function buildGroup(extGroup, container) {
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
   group = extGroup; scene.add(group);
-  lastAssumptions = []; lastKind = "building";
+  lastAssumptions = []; lastModel = null; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
     frameView(box, c.x, c.z);                 // Übersicht über das ganze Gebäude, dann begehbar
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
+  if (view === "plan") fitOrtho();
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+window.Parametric = {
+  available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot,
+  hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice(),
+  // Möblierung
+  currentModel: () => lastModel, addObject, removeObject, pointerToFloor, frontFloorPoint, pickObjects,
+  activeCamera, setView, getView, onViewChange
+};
+
+</script>
+  <script type="module">
+/* furnish-place.js — reine Platzierungs-Mathematik für die Möblierung.
+   Kein THREE, kein DOM → in node unit-testbar. Alles in METER, Welt-Koordinaten x,z.
+   Möbel-Footprint: w=Breite, d=Tiefe (Meter), ry=Drehung (Radiant). */
+
+// measure-Modell → Wand-Segmente in Welt-Metern. mm() = Measure.mm (mm → Meter).
+export function wallSegments(model, mm) {
+  const st = (model && model.storeys && model.storeys[0]) || {};
+  return (st.walls || []).map(w => ({
+    x1: mm(w.start.x), z1: mm(w.start.y), x2: mm(w.end.x), z2: mm(w.end.y),
+    th: mm(w.thicknessMm || (w.type === "partition" ? 115 : 240)),
+  })).filter(s => (s.x1 !== s.x2 || s.z1 !== s.z2));
+}
+
+// Raum-Polygone in Welt-Metern.
+export function roomPolys(model, mm) {
+  const st = (model && model.storeys && model.storeys[0]) || {};
+  return (st.rooms || []).map(r => (r.polygon || []).map(p => ({ x: mm(p.x), z: mm(p.y) })))
+    .filter(poly => poly.length >= 3);
+}
+
+export function boundsOf(segs) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  segs.forEach(s => {
+    minX = Math.min(minX, s.x1, s.x2); maxX = Math.max(maxX, s.x1, s.x2);
+    minZ = Math.min(minZ, s.z1, s.z2); maxZ = Math.max(maxZ, s.z1, s.z2);
+  });
+  return { minX, maxX, minZ, maxZ };
+}
+
+function pointSeg(px, pz, s) {
+  const dx = s.x2 - s.x1, dz = s.z2 - s.z1, L2 = dx * dx + dz * dz || 1e-9;
+  let t = ((px - s.x1) * dx + (pz - s.z1) * dz) / L2; t = Math.max(0, Math.min(1, t));
+  const qx = s.x1 + t * dx, qz = s.z1 + t * dz;
+  return { d: Math.hypot(px - qx, pz - qz), qx, qz };
+}
+
+// Wandabstände aufsteigend: [{d, qx, qz, seg}].
+export function nearestWallDistances(p, segs) {
+  return segs.map(seg => ({ ...pointSeg(p.x, p.z, seg), seg })).sort((a, b) => a.d - b.d);
+}
+
+// Rücken bündig an nächste Wand (< snapM) einrasten; dreht auf die Wandrichtung.
+export function snapToWalls(pos, size, segs, snapM) {
+  const nd = nearestWallDistances(pos, segs);
+  if (!nd.length) return { x: pos.x, z: pos.z, ry: size.ry || 0, snapped: false };
+  const n = nd[0];
+  // Einrasten, wenn der RÜCKEN (halbe Tiefe) in Snap-Reichweite der Wand ist — nicht der Mittelpunkt.
+  if (n.d > size.d / 2 + snapM) return { x: pos.x, z: pos.z, ry: size.ry || 0, snapped: false };
+  const s = n.seg;
+  const ang = Math.atan2(s.z2 - s.z1, s.x2 - s.x1);
+  let nx = -(s.z2 - s.z1), nz = (s.x2 - s.x1);
+  const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+  // Normale zur Möbelseite zeigen lassen (weg von der Wand, Richtung pos)
+  if ((pos.x - n.qx) * nx + (pos.z - n.qz) * nz < 0) { nx = -nx; nz = -nz; }
+  const off = size.d / 2 + (s.th || 0) / 2;
+  return { x: n.qx + nx * off, z: n.qz + nz * off, ry: ang, snapped: true };
+}
+
+function pointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, zi = poly[i].z, xj = poly[j].x, zj = poly[j].z;
+    if (((zi > z) !== (zj > z)) && (x < (xj - xi) * (z - zi) / (zj - zi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// Möbel-Mittelpunkt so verschieben, dass der Footprint im Raum-Polygon bleibt (Bounds-Klemmung).
+export function clampToPolys(pos, size, polys) {
+  const hw = size.w / 2, hd = size.d / 2;
+  const poly = polys.find(p => pointInPoly(pos.x, pos.z, p)) || polys[0];
+  if (!poly) return { x: pos.x, z: pos.z };
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  poly.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); });
+  const x = Math.max(minX + hw, Math.min(maxX - hw, pos.x));
+  const z = Math.max(minZ + hd, Math.min(maxZ - hd, pos.z));
+  return { x, z };
+}
+
+export function footprint(o) { return { cx: o.x, cz: o.z, hw: o.w / 2, hd: o.d / 2, ry: o.ry || 0 }; }
+
+// Im Browser zusätzlich als Global bereitstellen (bundle-sicher: kein relativer Import in furnish.js,
+// damit das Single-File-Bundle ohne Datei-Auflösung funktioniert). In node (Test) bleibt es bei den Exports.
+if (typeof window !== "undefined") {
+  window.FurnishPlace = { wallSegments, roomPolys, boundsOf, nearestWallDistances, snapToWalls, clampToPolys, footprint };
+}
+
+</script>
+  <script type="module">
+/* furnish.js — Möblierung der mm-genauen Welt: Katalog-Möbel als Maßkörper platzieren,
+   auswählen, ziehen (Plan), drehen, am Grundriss einrasten. THREE + DOM; reine Mathematik
+   liegt in furnish-place.js. Globale API: window.Furnish. */
+import * as THREE from "three";
+// furnish-place.js stellt sich als window.FurnishPlace bereit (bundle-sicher, kein relativer Import).
+const Place = window.FurnishPlace;
+
+const M = () => window.Measure;
+const P = () => window.Parametric;
+const SNAP_M = 0.15;          // Rücken rastet < 15 cm an die Wand
+const NUDGE_M = 0.01;         // Pfeiltasten = 10 mm
+const ROT_STEP = Math.PI / 12; // q/e = 15°
+
+let _uid = 0;
+const placed = [];            // { uid, obj, item }
+let selected = null;          // Möbel-Root (Group) oder null
+let drag = null;              // { obj, grab:{x,z}, start:{x,z} }
+
+const cm = (v) => (v || 0) / 100;
+const $id = (id) => document.getElementById(id);
+
+/* ---------- Maßkörper je kind (echte B×T×H in Metern, Katalogfarbe) ---------- */
+function mat(color) { return new THREE.MeshStandardMaterial({ color: new THREE.Color(color || "#b9b2a6"), roughness: 0.7, metalness: 0.02 }); }
+function box(w, h, d, m, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 0.01), Math.max(h, 0.01), Math.max(d, 0.01)), m);
+  mesh.castShadow = mesh.receiveShadow = true; mesh.position.set(0, y, z || 0); return mesh;
+}
+function buildProxy(item) {
+  const w = cm(item.w), d = cm(item.d), h = cm(item.h), m = mat(item.color);
+  const root = new THREE.Group();
+  root.userData.furnitureRoot = true; root.userData.cat = item; root.userData.size = { w, d, h };
+  const k = item.kind;
+  if (k === "sofa") {
+    root.add(box(w, h * 0.55, d, m, h * 0.275));
+    root.add(box(w, h * 0.45, d * 0.28, m, h * 0.55 + h * 0.225, -d / 2 + d * 0.14));
+  } else if (k === "table" || k === "side") {
+    root.add(box(w, h * 0.1, d, m, h - h * 0.05));
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => {
+      const leg = box(w * 0.06, h * 0.9, d * 0.06, m, h * 0.45, sz * (d / 2 - d * 0.05));
+      leg.position.x = sx * (w / 2 - w * 0.05); root.add(leg);
+    });
+  } else if (k === "chair") {
+    const seatY = cm(45);
+    root.add(box(w, h * 0.08, d, m, seatY));
+    root.add(box(w, h * 0.5, d * 0.12, m, seatY + h * 0.25, -d / 2 + d * 0.06));
+  } else if (k === "lamp") {
+    root.add(box(w * 0.12, h * 0.85, d * 0.12, m, h * 0.425));
+    root.add(box(w, h * 0.12, d, m, h * 0.93));
+  } else if (k === "plant") {
+    root.add(box(w * 0.5, h * 0.3, d * 0.5, m, h * 0.15));
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(Math.max(w, d) * 0.5, 14, 10), mat("#3f7d4f"));
+    crown.position.y = h * 0.62; crown.castShadow = true; root.add(crown);
+  } else {   // rug / default: flache Platte
+    const hh = Math.max(h, 0.02); root.add(box(w, hh, d, m, hh / 2));
+  }
+  return root;
+}
+
+/* ---------- Welt-Geometrie des aktuellen Modells (für Einrasten/Grenzen) ---------- */
+function mm() { return (M() && M().mm) ? M().mm : (v) => v / 1000; }
+function modelGeom() {
+  const model = P() && P().currentModel ? P().currentModel() : null;
+  if (!model) return { segs: [], polys: [] };
+  return { segs: Place.wallSegments(model, mm()), polys: Place.roomPolys(model, mm()) };
+}
+// Achsenausgerichtete Hülle eines um ry gedrehten Rechtecks (für korrektes Klemmen nach dem Drehen).
+function rotatedExtents(w, d, ry) { const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); return { w: c * w + s * d, d: s * w + c * d }; }
+function applyConstraints(obj) {
+  const sz = obj.userData.size, g = modelGeom();
+  let p = { x: obj.position.x, z: obj.position.z }, ry = obj.rotation.y;
+  // 1) Erst an die nächste Wand einrasten (setzt Drehung + bündige Position) …
+  if (g.segs.length) {
+    const s = Place.snapToWalls(p, { w: sz.w, d: sz.d, ry }, g.segs, SNAP_M);
+    if (s.snapped) { ry = s.ry; obj.rotation.y = ry; p = { x: s.x, z: s.z }; }
+  }
+  // 2) … dann im Raum halten — mit der GEDREHTEN Grundfläche.
+  if (g.polys.length) { const e = rotatedExtents(sz.w, sz.d, ry); p = Place.clampToPolys(p, { w: e.w, d: e.d }, g.polys); }
+  obj.position.x = p.x; obj.position.z = p.z;
+}
+
+/* ---------- Platzieren ---------- */
+function defaultPoint() {
+  const v = (P() && P().getView) ? P().getView() : "walk";
+  if (v === "walk" && P().frontFloorPoint) { const p = P().frontFloorPoint(); if (p) return p; }
+  const g = modelGeom();
+  if (g.segs.length) { const b = Place.boundsOf(g.segs); return { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 }; }
+  return { x: 0, z: 0 };
+}
+function placeFromCatalog(id, atPoint) {
+  if (!(P() && P().hasModel && P().hasModel())) return null;
+  const item = (window.CATALOG || []).find((i) => i.id === id);
+  if (!item) return null;
+  const obj = buildProxy(item);
+  const pt = atPoint || defaultPoint();
+  obj.position.set(pt.x, 0, pt.z);
+  applyConstraints(obj);
+  P().addObject(obj);
+  placed.push({ uid: ++_uid, obj, item });
+  select(obj); fireChange();
+  return obj;
+}
+
+/* ---------- Liste / entfernen / wiederherstellen ---------- */
+function toMm(meters) { return Math.round(meters * 1000); }
+function list() {
+  return placed.map(({ uid, obj, item }) => ({
+    uid, id: item.id, name: item.name, price: item.price || 0,
+    x_mm: toMm(obj.position.x), z_mm: toMm(obj.position.z), ry: +obj.rotation.y.toFixed(4),
+  }));
+}
+function removeByUid(uid) {
+  const i = placed.findIndex((p) => p.uid === uid); if (i < 0) return;
+  const { obj } = placed[i];
+  if (selected === obj) select(null);
+  P().removeObject(obj); disposeObj(obj); placed.splice(i, 1); fireChange();
+}
+function clear() { placed.splice(0).forEach(({ obj }) => { P().removeObject(obj); disposeObj(obj); }); select(null); fireChange(); }
+function restore(arr) {
+  clear();
+  (arr || []).forEach((r) => { const o = placeFromCatalog(r.id, { x: (r.x_mm || 0) / 1000, z: (r.z_mm || 0) / 1000 }); if (o && r.ry != null) { o.rotation.y = r.ry; applyConstraints(o); } });
+  select(null);
+}
+function disposeObj(obj) { obj.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+
+/* ---------- Auswahl + Hervorhebung (emissive, transform-unabhängig) ---------- */
+function setEmissive(obj, hex) { obj.traverse((o) => { if (o.isMesh && o.material && "emissive" in o.material) { if (o.userData._em == null) o.userData._em = o.material.emissive.getHex(); o.material.emissive.setHex(hex); } }); }
+function clearEmissive(obj) { obj.traverse((o) => { if (o.isMesh && o.material && o.userData._em != null) { o.material.emissive.setHex(o.userData._em); } }); }
+function select(o) {
+  if (selected && selected !== o) clearEmissive(selected);
+  selected = o || null;
+  if (selected) setEmissive(selected, 0x3a2a12);
+  updateInspector(selected);
+  if (window.Furnish && window.Furnish._onSelect) window.Furnish._onSelect(selected);
+}
+
+/* ---------- mm-Inspektor ---------- */
+function m2(v) { return v.toFixed(2).replace(".", ","); }
+function updateInspector(obj) {
+  const el = $id("furnishInspector"); if (!el) return;
+  if (!obj) { el.hidden = true; el.textContent = ""; return; }
+  const g = modelGeom();
+  const nd = g.segs.length ? Place.nearestWallDistances({ x: obj.position.x, z: obj.position.z }, g.segs) : [];
+  let s = (obj.userData.cat.name || "Möbel") + " · x " + m2(obj.position.x) + " m · z " + m2(obj.position.z) + " m";
+  if (nd[0]) s += " · Wand " + m2(nd[0].d) + " m";
+  if (nd[1]) s += " · " + m2(nd[1].d) + " m";
+  el.textContent = s; el.hidden = false;
+}
+
+/* ---------- Zeiger (nur Plan-Ansicht; von parametric.js geroutet) ---------- */
+function objs() { return placed.map((p) => p.obj); }
+function _pointer(type, x, y) {
+  if (!(P() && P().pointerToFloor)) return false;
+  if (type === "down") {
+    const hit = P().pickObjects(x, y, objs());
+    if (hit) { const fp = P().pointerToFloor(x, y) || { x: hit.position.x, z: hit.position.z }; select(hit); drag = { obj: hit, grab: fp, start: { x: hit.position.x, z: hit.position.z } }; return true; }
+    select(null); return false;     // nichts getroffen → Aufrufer darf den Plan schwenken
+  } else if (type === "move") {
+    if (!drag) return false;
+    const p = P().pointerToFloor(x, y); if (!p) return true;
+    drag.obj.position.x = drag.start.x + (p.x - drag.grab.x);
+    drag.obj.position.z = drag.start.z + (p.z - drag.grab.z);
+    applyConstraints(drag.obj); updateInspector(drag.obj); return true;
+  } else if (type === "up") {
+    if (drag) { drag = null; fireChange(); }
+    return false;
+  }
+  return false;
+}
+function _key(key) {
+  if (!selected) return false;
+  if (key === "q" || key === "Q") { selected.rotation.y += ROT_STEP; applyConstraints(selected); updateInspector(selected); fireChange(); return true; }
+  if (key === "e" || key === "E") { selected.rotation.y -= ROT_STEP; applyConstraints(selected); updateInspector(selected); fireChange(); return true; }
+  if (key === "Delete" || key === "Backspace") { const e = placed.find((p) => p.obj === selected); if (e) removeByUid(e.uid); return true; }
+  const d = { ArrowUp: [0, -NUDGE_M], ArrowDown: [0, NUDGE_M], ArrowLeft: [-NUDGE_M, 0], ArrowRight: [NUDGE_M, 0] }[key];
+  if (d) { selected.position.x += d[0]; selected.position.z += d[1]; applyConstraints(selected); updateInspector(selected); fireChange(); return true; }
+  return false;
+}
+
+function fireChange() { if (window.Furnish && window.Furnish._onChange) window.Furnish._onChange(); }
+
+window.Furnish = {
+  init: () => {},
+  placeFromCatalog, list, removeByUid, clear, restore,
+  select: (o) => select(o), selected: () => selected, count: () => placed.length,
+  _pointer, _key, _onChange: null, _onSelect: null,
+};
 
 </script>
   <script type="module">
