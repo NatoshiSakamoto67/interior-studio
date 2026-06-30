@@ -20,6 +20,8 @@ const M = () => window.Measure;
 
 // ---------- Möblierung: zweite (Plan-)Kamera + Welt-Zugriff für furnish.js ----------
 let orthoCam = null, view = "walk", lastModel = null, _viewCb = null;
+let orthoHalf = 6, orthoCx = 0, orthoCz = 0, planZoom = 1, planPanX = 0, planPanZ = 0, _panGrab = null;
+let planPanning = false, _pinch = 0;   // Plan-Ansicht: Pan + Pinch-Zoom (große Büroflächen sauber navigierbar)
 const _ray = new THREE.Raycaster(), _ndcV = new THREE.Vector2(), _floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function activeCamera() { return (view === "plan" && orthoCam) ? orthoCam : cam; }
 function toNdc(clientX, clientY) {
@@ -47,15 +49,39 @@ function pickObjects(clientX, clientY, objs) {
 }
 function addObject(o) { if (group) group.add(o); else if (scene) scene.add(o); }
 function removeObject(o) { if (o && o.parent) o.parent.remove(o); }
-function fitOrtho() {
+function fitOrtho() {   // ganze Fläche einpassen + Zoom/Pan zurücksetzen
   if (!orthoCam) return;
   const b = new THREE.Box3(); if (group) b.setFromObject(group);
   const c = b.isEmpty() ? new THREE.Vector3() : b.getCenter(new THREE.Vector3());
   const sx = b.isEmpty() ? 6 : (b.max.x - b.min.x), sz = b.isEmpty() ? 6 : (b.max.z - b.min.z);
-  const half = Math.max(sx, sz, 2) * 0.6 + 0.5, asp = aspect();
-  orthoCam.left = -half * asp; orthoCam.right = half * asp; orthoCam.top = half; orthoCam.bottom = -half;
-  orthoCam.position.set(c.x, 30, c.z); orthoCam.up.set(0, 0, -1); orthoCam.lookAt(c.x, 0, c.z); orthoCam.updateProjectionMatrix();
+  orthoHalf = Math.max(sx, sz, 2) * 0.6 + 0.5; orthoCx = c.x; orthoCz = c.z;
+  planZoom = 1; planPanX = 0; planPanZ = 0;
+  applyOrtho();
 }
+function applyOrtho() {   // Zoom/Pan auf die Ortho-Kamera anwenden (große Flächen: weit raus, präzise rein)
+  if (!orthoCam) return;
+  const half = orthoHalf / planZoom, asp = aspect();
+  orthoCam.left = -half * asp; orthoCam.right = half * asp; orthoCam.top = half; orthoCam.bottom = -half;
+  const cx = orthoCx + planPanX, cz = orthoCz + planPanZ;
+  orthoCam.position.set(cx, 30, cz); orthoCam.up.set(0, 0, -1); orthoCam.lookAt(cx, 0, cz); orthoCam.updateProjectionMatrix();
+}
+function zoomPlanAt(clientX, clientY, factor) {   // um den Cursor-Weltpunkt zoomen (bleibt unter dem Cursor)
+  if (view !== "plan") return;
+  const before = pointerToFloor(clientX, clientY);
+  planZoom = Math.max(0.04, Math.min(80, planZoom * factor));
+  applyOrtho();
+  const after = pointerToFloor(clientX, clientY);
+  if (before && after) { planPanX += before.x - after.x; planPanZ += before.z - after.z; applyOrtho(); }
+}
+function planPanStart(clientX, clientY) { _panGrab = pointerToFloor(clientX, clientY); }
+function planPanMove(clientX, clientY) {
+  if (!_panGrab) return;
+  const cur = pointerToFloor(clientX, clientY); if (!cur) return;
+  planPanX += _panGrab.x - cur.x; planPanZ += _panGrab.z - cur.z; applyOrtho();
+}
+function planPanEnd() { _panGrab = null; }
+function pinchDist(e) { const a = e.touches[0], b = e.touches[1]; return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+function pinchCenter(e) { const a = e.touches[0], b = e.touches[1]; return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }; }
 function setView(v) {
   view = (v === "plan") ? "plan" : "walk";
   const dp = host && host.querySelector(".dpad"); if (dp) dp.style.display = view === "plan" ? "none" : "";
@@ -109,7 +135,7 @@ function resize() {
   if (cam) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
   if (liveComposer) liveComposer.setSize(w, h);
   if (liveGtao && liveGtao.setSize) liveGtao.setSize(w, h);
-  if (orthoCam) fitOrtho();
+  if (orthoCam) applyOrtho();   // Zoom/Pan beim Resize behalten (nicht zurücksetzen)
 }
 
 // IBL (prozedurale RoomEnvironment = realistisches Licht/Reflexe, ohne Asset, offline) +
@@ -380,19 +406,46 @@ async function snapshot(opts = {}) {
 /* ---------- First-Person ---------- */
 function bindControls() {
   const cv = renderer.domElement;
-  const FP = (type, x, y) => { const F = window.Furnish; if (F && F._pointer) F._pointer(type, x, y); };
+  const F = () => window.Furnish;
+  const grabFurniture = (x, y) => { const f = F(); return !!(f && f._pointer && f._pointer("down", x, y)); };
+  const moveFurniture = (x, y) => { const f = F(); if (f && f._pointer) f._pointer("move", x, y); };
+  const upFurniture = () => { const f = F(); if (f && f._pointer) f._pointer("up"); };
   cv.addEventListener("click", () => { if (view === "walk" && cv.requestPointerLock) cv.requestPointerLock(); });
   document.addEventListener("pointerlockchange", () => { locked = document.pointerLockElement === cv; });
+
   document.addEventListener("mousemove", e => {
-    if (view === "plan") { FP("move", e.clientX, e.clientY); return; }
+    if (view === "plan") { if (planPanning) planPanMove(e.clientX, e.clientY); else moveFurniture(e.clientX, e.clientY); return; }
     if (locked) { look.yaw -= e.movementX * 0.0023; look.pitch -= e.movementY * 0.0023; clampPitch(); }
     else if (dragging) { look.yaw -= (e.clientX - lastX) * 0.005; look.pitch -= (e.clientY - lastY) * 0.005; lastX = e.clientX; lastY = e.clientY; clampPitch(); }
   });
-  cv.addEventListener("mousedown", e => { if (view === "plan") { FP("down", e.clientX, e.clientY); return; } if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; } });
-  window.addEventListener("mouseup", () => { if (view === "plan") FP("up"); dragging = false; });
-  cv.addEventListener("touchstart", e => { const t = e.touches[0]; if (view === "plan") { FP("down", t.clientX, t.clientY); return; } dragging = true; lastX = t.clientX; lastY = t.clientY; }, { passive: true });
-  cv.addEventListener("touchmove", e => { const t = e.touches[0]; if (view === "plan") { FP("move", t.clientX, t.clientY); return; } look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch(); }, { passive: true });
-  cv.addEventListener("touchend", () => { if (view === "plan") FP("up"); dragging = false; });
+  cv.addEventListener("mousedown", e => {
+    if (view === "plan") { if (!grabFurniture(e.clientX, e.clientY)) { planPanning = true; planPanStart(e.clientX, e.clientY); } return; }
+    if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
+  });
+  window.addEventListener("mouseup", () => { if (view === "plan") { planPanning = false; planPanEnd(); upFurniture(); } dragging = false; });
+  cv.addEventListener("wheel", e => { if (view === "plan") { e.preventDefault(); zoomPlanAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89); } }, { passive: false });
+
+  cv.addEventListener("touchstart", e => {
+    if (view === "plan") {
+      if (e.touches.length === 2) { _pinch = pinchDist(e); planPanning = false; return; }
+      const t = e.touches[0]; if (!grabFurniture(t.clientX, t.clientY)) { planPanning = true; planPanStart(t.clientX, t.clientY); }
+      return;
+    }
+    const t = e.touches[0]; dragging = true; lastX = t.clientX; lastY = t.clientY;
+  }, { passive: true });
+  cv.addEventListener("touchmove", e => {
+    if (view === "plan") {
+      if (e.touches.length === 2 && _pinch) { const d = pinchDist(e), c = pinchCenter(e); zoomPlanAt(c.x, c.y, d / _pinch); _pinch = d; return; }
+      const t = e.touches[0]; if (planPanning) planPanMove(t.clientX, t.clientY); else moveFurniture(t.clientX, t.clientY);
+      return;
+    }
+    const t = e.touches[0]; look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch();
+  }, { passive: true });
+  cv.addEventListener("touchend", e => {
+    if (view === "plan") { _pinch = 0; if (e.touches.length === 0) { planPanning = false; planPanEnd(); upFurniture(); } }
+    else dragging = false;
+  });
+
   window.addEventListener("keydown", e => {
     if (view === "plan" && window.Furnish && window.Furnish._key && window.Furnish._key(e.key)) { e.preventDefault(); return; }
     if (running) keys[e.key.toLowerCase()] = true;

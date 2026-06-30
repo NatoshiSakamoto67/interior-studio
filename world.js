@@ -213,7 +213,7 @@
   // Recherche-basiert: harte Erhaltungs-Sperre (PRESERVE) → erlaubte Änderungen (nur Material/Licht)
   // → Verbote (nichts hinzufügen). Die Wortwahl IST die „Struktur-Stärke" (kein Denoise-Regler).
   function fotoPrompt(o) {
-    const { style, hasRef, kind, furnish } = o;
+    const { style, hasRef, kind, furnish, hasPlaced } = o;
     const building = kind === "building";
     const subject = building ? "exterior architectural photograph of the building" : "interior photograph";
     const dfltMat = building
@@ -222,8 +222,11 @@
     const enclosure = building
       ? "Show the building on its plot with a natural, softly clouded daylight sky and simple ground/grass context; realistic outdoor lighting. "
       : "This is a FULLY ENCLOSED interior room: render a solid matte plaster CEILING overhead and solid walls — never an open sky, skylight, black void or night above; keep it bright and evenly daylit with no pure-black areas. ";
-    // Möbliert: KI darf Einrichtung/Umfeld ergänzen, aber die ARCHITEKTUR bleibt fix.
-    const objects = furnish
+    // Drei Fälle: (1) eigene Möbel platziert → exakt erhalten, nur fotoreal machen;
+    //   (2) KI darf möblieren; (3) nichts hinzufügen. (1) hat Vorrang (mm-Platzierung ist verbindlich).
+    const objects = hasPlaced
+      ? "The image ALREADY contains furniture placed as simple massing blocks. Render each of them as photorealistic, real furniture in the EXACT same position, footprint, size, height, orientation and count — do NOT add, remove, move, resize or rearrange any piece, and keep the camera identical. Refine only their materials, textures and realism so they read as real furniture. No people. "
+      : furnish
       ? (building
         ? "You MAY add realistic, tasteful landscaping and entourage appropriate to the setting (planting, garden, path, low hedges), but keep the BUILDING geometry, all openings and the camera unchanged. No people, no vehicles. "
         : "Furnish the room tastefully and realistically with style-appropriate furniture, rugs, lighting and a little decor — but keep ALL architecture unchanged: wall positions, every window and door opening, proportions, ceiling height and the exact camera/perspective must stay identical. No people. ")
@@ -265,7 +268,8 @@
       else if (consistent && lastFotoResult) refInline = window.ImageGen.dataUrlToInline(lastFotoResult);
       if (refInline) images.push(refInline);
       const kind = (window.Parametric.kind && window.Parametric.kind()) || "interior";
-      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish }), aspect: "16:9", resolution: "4K", images });
+      const hasPlaced = !!(window.Furnish && window.Furnish.count && window.Furnish.count() > 0);
+      const res = await window.ImageGen.generate({ prompt: fotoPrompt({ style, hasRef: images.length > 1, kind, furnish, hasPlaced }), aspect: "16:9", resolution: "4K", images });
       lastFotoResult = res.url;   // nächste Ansicht referenziert dieses → konsistente Materialien
       fotoOverlay("done", res.url, shot);
       if (window.Studio && window.Studio.addToGallery) window.Studio.addToGallery(res.url, "fotoreal", style || "Fotoreal-Ansicht");

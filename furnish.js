@@ -2,7 +2,8 @@
    auswählen, ziehen (Plan), drehen, am Grundriss einrasten. THREE + DOM; reine Mathematik
    liegt in furnish-place.js. Globale API: window.Furnish. */
 import * as THREE from "three";
-import * as Place from "./furnish-place.js";
+// furnish-place.js stellt sich als window.FurnishPlace bereit (bundle-sicher, kein relativer Import).
+const Place = window.FurnishPlace;
 
 const M = () => window.Measure;
 const P = () => window.Parametric;
@@ -62,14 +63,18 @@ function modelGeom() {
   if (!model) return { segs: [], polys: [] };
   return { segs: Place.wallSegments(model, mm()), polys: Place.roomPolys(model, mm()) };
 }
+// Achsenausgerichtete Hülle eines um ry gedrehten Rechtecks (für korrektes Klemmen nach dem Drehen).
+function rotatedExtents(w, d, ry) { const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); return { w: c * w + s * d, d: s * w + c * d }; }
 function applyConstraints(obj) {
   const sz = obj.userData.size, g = modelGeom();
-  let p = { x: obj.position.x, z: obj.position.z };
-  if (g.polys.length) p = Place.clampToPolys(p, sz, g.polys);
+  let p = { x: obj.position.x, z: obj.position.z }, ry = obj.rotation.y;
+  // 1) Erst an die nächste Wand einrasten (setzt Drehung + bündige Position) …
   if (g.segs.length) {
-    const s = Place.snapToWalls(p, { w: sz.w, d: sz.d, ry: obj.rotation.y }, g.segs, SNAP_M);
-    if (s.snapped) { obj.rotation.y = s.ry; p = { x: s.x, z: s.z }; }
+    const s = Place.snapToWalls(p, { w: sz.w, d: sz.d, ry }, g.segs, SNAP_M);
+    if (s.snapped) { ry = s.ry; obj.rotation.y = ry; p = { x: s.x, z: s.z }; }
   }
+  // 2) … dann im Raum halten — mit der GEDREHTEN Grundfläche.
+  if (g.polys.length) { const e = rotatedExtents(sz.w, sz.d, ry); p = Place.clampToPolys(p, { w: e.w, d: e.d }, g.polys); }
   obj.position.x = p.x; obj.position.z = p.z;
 }
 
@@ -144,20 +149,22 @@ function updateInspector(obj) {
 /* ---------- Zeiger (nur Plan-Ansicht; von parametric.js geroutet) ---------- */
 function objs() { return placed.map((p) => p.obj); }
 function _pointer(type, x, y) {
-  if (!(P() && P().pointerToFloor)) return;
+  if (!(P() && P().pointerToFloor)) return false;
   if (type === "down") {
     const hit = P().pickObjects(x, y, objs());
-    if (hit) { const fp = P().pointerToFloor(x, y) || { x: hit.position.x, z: hit.position.z }; select(hit); drag = { obj: hit, grab: fp, start: { x: hit.position.x, z: hit.position.z } }; }
-    else select(null);
+    if (hit) { const fp = P().pointerToFloor(x, y) || { x: hit.position.x, z: hit.position.z }; select(hit); drag = { obj: hit, grab: fp, start: { x: hit.position.x, z: hit.position.z } }; return true; }
+    select(null); return false;     // nichts getroffen → Aufrufer darf den Plan schwenken
   } else if (type === "move") {
-    if (!drag) return;
-    const p = P().pointerToFloor(x, y); if (!p) return;
+    if (!drag) return false;
+    const p = P().pointerToFloor(x, y); if (!p) return true;
     drag.obj.position.x = drag.start.x + (p.x - drag.grab.x);
     drag.obj.position.z = drag.start.z + (p.z - drag.grab.z);
-    applyConstraints(drag.obj); updateInspector(drag.obj);
+    applyConstraints(drag.obj); updateInspector(drag.obj); return true;
   } else if (type === "up") {
     if (drag) { drag = null; fireChange(); }
+    return false;
   }
+  return false;
 }
 function _key(key) {
   if (!selected) return false;
