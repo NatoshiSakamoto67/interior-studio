@@ -86,10 +86,12 @@ function defaultPoint() {
   if (g.segs.length) { const b = Place.boundsOf(g.segs); return { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 }; }
   return { x: 0, z: 0 };
 }
+const FURNITURE_KINDS = ["sofa", "table", "chair", "lamp", "plant", "rug", "side"];
+function isFurniture(it) { return !!it && FURNITURE_KINDS.indexOf(it.kind) >= 0 && it.w > 0 && it.d > 0 && it.h > 0; }
 function placeFromCatalog(id, atPoint) {
   if (!(P() && P().hasModel && P().hasModel())) return null;
   const item = (window.CATALOG || []).find((i) => i.id === id);
-  if (!item) return null;
+  if (!isFurniture(item)) return null;   // nur echte Möbel mit gültigen Maßen (keine Fische/Oberflächen aus anderen Katalogen)
   const obj = buildProxy(item);
   const pt = atPoint || defaultPoint();
   obj.position.set(pt.x, 0, pt.z);
@@ -182,5 +184,6 @@ window.Furnish = {
   init: () => {},
   placeFromCatalog, list, removeByUid, clear, restore,
   select: (o) => select(o), selected: () => selected, count: () => placed.length,
+  furnitureList: () => (window.CATALOG || []).filter(isFurniture),   // nur echte Möbel für den Picker
   _pointer, _key, _onChange: null, _onSelect: null,
 };

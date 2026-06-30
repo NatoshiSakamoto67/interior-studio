@@ -336,7 +336,7 @@
   }
   function renderCatalog() {
     const host = $("#furnishCatalog"); if (!host) return;
-    const items = window.CATALOG || [];
+    const items = (window.Furnish && window.Furnish.furnitureList) ? window.Furnish.furnitureList() : (window.CATALOG || []);
     host.innerHTML = items.map(it => '<button class="furnish-chip" data-fid="' + esc(it.id) + '" title="' + esc(it.name) + ' · ' + it.w + '×' + it.d + '×' + it.h + ' cm">'
       + '<span class="fc-sw" style="background:' + esc(it.color || '#b9b2a6') + '"></span>'
       + '<span class="fc-t"><span class="fc-n">' + esc(it.name) + '</span><span class="fc-d">' + it.w + '×' + it.d + ' cm</span></span></button>').join("");
