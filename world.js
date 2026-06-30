@@ -11,8 +11,8 @@
   // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
   function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
 
-  // „Foto dieser Ansicht" erst aktiv, wenn eine begehbare (Parametric-)Geometrie steht.
-  function fotoEnable(on) { const b = $("#fotoBtn"); if (b) b.disabled = !on; }
+  // „Foto dieser Ansicht" + „Ganze Wohnung fotorealistisch" erst aktiv, wenn eine begehbare (Parametric-)Geometrie steht.
+  function fotoEnable(on) { const b = $("#fotoBtn"); if (b) b.disabled = !on; const t = $("#tourBtn"); if (t) t.disabled = !on; }
 
   function unitLabel(res) {
     const m = res && res.unitMeters;
@@ -387,9 +387,75 @@
     } catch (e) { report('Demo nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
 
+  /* ---------- AUTOMATISCHE fotorealistische Tour der ganzen Wohnung ----------
+     Ein Klick: an mehreren Standpunkten je ein 360°-Bild der EXAKTEN Geometrie aufnehmen (Echtzeit),
+     jedes fotoreal machen (konsistent), als begehbare Tour in die Begehung laden. Kein Klicken pro Foto. */
+  let tourStyleRef = null;
+  function panoPrompt(hasRef) {
+    return "This image is a 360° EQUIRECTANGULAR panorama (2:1) of an interior, rendered from exact geometry. "
+      + "Re-render it PHOTOREALISTIC while keeping it a valid 2:1 equirectangular panorama: keep every wall position, opening, proportion and the ceiling and floor exactly where they are; keep the horizon straight and the left/right edges seamless. "
+      + "Apply photorealistic materials and soft natural daylight: matte plaster walls, warm oak plank floor, plaster ceiling. "
+      + "Turn any plain massing blocks into real, tasteful furniture sitting exactly where the blocks are. No people, no text. Keep it full 360° equirectangular. "
+      + (hasRef ? "Use the SECOND image ONLY as a style/material/lighting reference so all panoramas of this home look CONSISTENT — never copy its layout or geometry. " : "");
+  }
+  function normalizeEquirect(url) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => { const W = 2048, H = 1024; const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(img, 0, 0, W, H); resolve(c.toDataURL("image/jpeg", 0.92)); };
+      img.onerror = () => resolve(url);
+      img.src = url;
+    });
+  }
+  async function photorealizePano(rawUrl) {
+    const images = [window.ImageGen.dataUrlToInline(rawUrl)];
+    if (tourStyleRef) { const r = window.ImageGen.dataUrlToInline(tourStyleRef); if (r) images.push(r); }
+    const res = await window.ImageGen.generate({ prompt: panoPrompt(images.length > 1), images, aspect: "16:9", resolution: "4K" });
+    if (!tourStyleRef) tourStyleRef = res.url;   // erstes Ergebnis = Stil-Anker für die übrigen
+    return await normalizeEquirect(res.url);
+  }
+  function tourViewpoints() {
+    const m = window.Parametric && window.Parametric.currentModel ? window.Parametric.currentModel() : null;
+    if (!m || !window.FurnishPlace || !window.Measure) return [];
+    const mm = window.Measure.mm;
+    const polys = window.FurnishPlace.roomPolys(m, mm);
+    if (polys.length) {
+      return polys.slice(0, 8).map((poly, i) => { let cx = 0, cz = 0; poly.forEach(p => { cx += p.x; cz += p.z; }); return { x: cx / poly.length, z: cz / poly.length, label: "Raum " + (i + 1) }; });
+    }
+    const segs = window.FurnishPlace.wallSegments(m, mm);
+    if (!segs.length) return [{ x: 0, z: 0, label: "Standort 1" }];
+    const b = window.FurnishPlace.boundsOf(segs), w = b.maxX - b.minX, d = b.maxZ - b.minZ, mx = (b.minX + b.maxX) / 2, mz = (b.minZ + b.maxZ) / 2;
+    const pts = (w >= d)
+      ? [{ x: b.minX + w * 0.30, z: mz }, { x: b.minX + w * 0.70, z: mz }]
+      : [{ x: mx, z: b.minZ + d * 0.30 }, { x: mx, z: b.minZ + d * 0.70 }];
+    return pts.map((p, i) => ({ x: p.x, z: p.z, label: "Standort " + (i + 1) }));
+  }
+  async function generateApartmentTour() {
+    if (!(window.Parametric && window.Parametric.hasModel && window.Parametric.hasModel() && window.Parametric.capturePanoEquirect)) { if (window.toast) toast("Erst ein Modell laden (Demo, CAD, IFC).", "err"); return; }
+    if (!(window.ImageGen && window.ImageGen.activeKeyOk())) { if (window.toast) toast((window.ImageGen ? window.ImageGen.activeLabel() : "Bild") + "-Key fehlt — in Einstellungen eintragen.", "err"); if (window.showPanel) window.showPanel("settings"); return; }
+    if (!(window.Studio && window.Studio.addPanorama)) { if (window.toast) toast("Begehung nicht verfügbar.", "err"); return; }
+    const vps = tourViewpoints(); if (!vps.length) { if (window.toast) toast("Keine Standpunkte gefunden.", "err"); return; }
+    const btn = $("#tourBtn"); if (btn) btn.disabled = true;
+    tourStyleRef = null;
+    const panos = [];
+    try {
+      for (let i = 0; i < vps.length; i++) {
+        report('<div class="mr-h">Fotorealistische Tour wird erzeugt …</div><div class="muted small">Standort ' + (i + 1) + ' / ' + vps.length + ' wird fotoreal gerendert (~15 s) — du musst nichts tun.</div>', false);
+        const raw = window.Parametric.capturePanoEquirect({ at: vps[i], width: 2048, face: 768 });
+        if (!raw) continue;
+        const photo = await photorealizePano(raw);
+        panos.push({ url: photo, label: vps[i].label });
+      }
+      if (!panos.length) { report('Konnte keine Panoramen erzeugen — Internet + Bild-Key nötig.', true); return; }
+      panos.forEach(p => window.Studio.addPanorama(p.url, p.label));   // baut verlinkte Tour + wechselt in die Begehung
+      report('<div class="mr-h">✓ Fotorealistische Tour erzeugt · ' + panos.length + ' Standorte</div><div class="muted small">In der Begehung — ziehen zum Umsehen, Boden-Pfeile = weiter.</div>', false);
+    } catch (e) { report('Tour fehlgeschlagen: ' + esc(e.message || "Fehler"), true); }
+    finally { if (btn) btn.disabled = false; }
+  }
+
   function wire() {
     if (wired) return;
     const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
+    const tb = $("#tourBtn"); if (tb) tb.onclick = generateApartmentTour;
     $$("#viewSeg .seg-b").forEach(b => b.onclick = () => setView3D(b.dataset.view));
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoApartment;

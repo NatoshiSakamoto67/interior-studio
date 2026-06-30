@@ -301,7 +301,7 @@
     <section class="panel" data-panel="world">
       <div class="world-grid">
         <aside class="world-side">
-          <span class="eyebrow">Welt 3D · Beta · Build 30.06b (Möbel-Picker gefixt)</span>
+          <span class="eyebrow">Welt 3D · Beta · Build 30.06c (Auto-Foto-Tour)</span>
           <h2>Maßgenaues 3D — frei begehbar</h2>
           <p class="muted small">Lade <b>eine Datei</b> — der Typ wird automatisch erkannt und daraus entsteht eine glatte, sofort begehbare Welt. Alles läuft offline im Browser.</p>
 
@@ -319,6 +319,7 @@
           </div>
 
           <button class="btn btn-accent" id="worldDemoBtn"><span class="ic" data-icon="play"></span> Möblierte Demo-Wohnung begehen</button>
+          <button class="btn btn-lg world-tour-btn" id="tourBtn" disabled title="Erzeugt automatisch eine begehbare, fotorealistische Tour der ganzen Wohnung — du musst nichts pro Foto klicken"><span class="ic" data-icon="sparkles"></span> Ganze Wohnung fotorealistisch (automatisch)</button>
 
           <div class="world-measure-report" id="measureReport" hidden></div>
           <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Modell gegen Plan prüfen</button>
@@ -361,7 +362,7 @@
               <button class="seg-b" data-view="plan" aria-pressed="false">Plan von oben</button>
             </div>
             <button class="btn btn-accent" id="fotoBtn" disabled title="Macht aus der aktuellen Ansicht ein fotorealistisches, maßtreues Standbild (KI, ~15 s)"><span class="ic" data-icon="sparkles"></span> Foto dieser Ansicht</button>
-            <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
+            <span class="vp-hint">Ziehen = umsehen · WASD/Pfeile = gehen</span>
           </div>
           <div class="foto-overlay" id="fotoOverlay" hidden></div>
         </div>

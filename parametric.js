@@ -368,6 +368,71 @@ function addDimLabel(w, exact) {
 
 function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }); }
 
+/* ---------- 360°-Panorama der EXAKTEN Geometrie in ECHTZEIT (kein Path-Tracing) ----------
+   6 Cube-Flächen (Perspektive 90°, tonemapped vom Canvas gelesen) → CPU-Equirect-2:1.
+   Standpunkt = aktuelle Begeh-Position auf Augenhöhe. Für die fotoreale Begehungs-Tour. */
+function capturePanoEquirect(opts = {}) {
+  if (!mounted || !group) return null;
+  const F = opts.face || 768, W = opts.width || 2048, H = W / 2;
+  const hidden = []; group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
+  const prevClip = renderer.clippingPlanes; renderer.clippingPlanes = [];
+  const prevExp = renderer.toneMappingExposure; renderer.toneMappingExposure = 1.05;
+  const sz = new THREE.Vector2(); renderer.getSize(sz); const prevPR = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(F, F, false);
+  const pc = new THREE.PerspectiveCamera(90, 1, 0.03, 400);
+  pc.position.set(opts.at ? opts.at.x : cam.position.x, EYE, opts.at ? opts.at.z : cam.position.z);
+  // Flächen-Definitionen: Blickrichtung + up (an three.js-Cube-Konvention angelehnt)
+  const faces = {
+    px: { dir: [1, 0, 0], up: [0, 1, 0] }, nx: { dir: [-1, 0, 0], up: [0, 1, 0] },
+    py: { dir: [0, 1, 0], up: [0, 0, 1] }, ny: { dir: [0, -1, 0], up: [0, 0, -1] },
+    pz: { dir: [0, 0, 1], up: [0, 1, 0] }, nz: { dir: [0, 0, -1], up: [0, 1, 0] },
+  };
+  const data = {};
+  for (const k in faces) {
+    const f = faces[k]; pc.up.set(f.up[0], f.up[1], f.up[2]);
+    pc.lookAt(pc.position.x + f.dir[0], pc.position.y + f.dir[1], pc.position.z + f.dir[2]);
+    renderer.render(scene, pc);
+    const c = document.createElement("canvas"); c.width = c.height = F;
+    const g = c.getContext("2d"); g.drawImage(renderer.domElement, 0, 0, F, F);
+    data[k] = g.getImageData(0, 0, F, F).data;
+  }
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false);
+  renderer.clippingPlanes = prevClip; renderer.toneMappingExposure = prevExp;
+  hidden.forEach(o => o.visible = true);
+  if (running) renderer.render(scene, activeCamera());
+
+  // CPU: für jeden Equirect-Pixel die Richtung → Cube-Fläche + uv (bilinear)
+  const out = document.createElement("canvas"); out.width = W; out.height = H;
+  const od = out.getContext("2d"), oi = od.createImageData(W, H), D = oi.data;
+  function samp(face, u, v) {
+    u = Math.min(0.99999, Math.max(0, u)) * (F - 1); v = Math.min(0.99999, Math.max(0, v)) * (F - 1);
+    const x = u | 0, y = v | 0, d = data[face], i = (y * F + x) * 4; return [d[i], d[i + 1], d[i + 2]];
+  }
+  for (let y = 0; y < H; y++) {
+    const lat = (0.5 - (y + 0.5) / H) * Math.PI;
+    const cl = Math.cos(lat), sl = Math.sin(lat);
+    for (let x = 0; x < W; x++) {
+      const lon = ((x + 0.5) / W - 0.5) * 2 * Math.PI;
+      const dx = cl * Math.sin(lon), dy = sl, dz = -cl * Math.cos(lon);
+      const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+      let col;
+      if (ax >= ay && ax >= az) {
+        if (dx > 0) col = samp("px", 0.5 - dz / ax * 0.5, 0.5 - dy / ax * 0.5);
+        else col = samp("nx", 0.5 + dz / ax * 0.5, 0.5 - dy / ax * 0.5);
+      } else if (ay >= ax && ay >= az) {
+        if (dy > 0) col = samp("py", 0.5 + dx / ay * 0.5, 0.5 + dz / ay * 0.5);
+        else col = samp("ny", 0.5 + dx / ay * 0.5, 0.5 - dz / ay * 0.5);
+      } else {
+        if (dz > 0) col = samp("pz", 0.5 + dx / az * 0.5, 0.5 - dy / az * 0.5);
+        else col = samp("nz", 0.5 - dx / az * 0.5, 0.5 - dy / az * 0.5);
+      }
+      const i = (y * W + x) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255;
+    }
+  }
+  od.putImageData(oi, 0, 0);
+  return out.toDataURL("image/jpeg", 0.92);
+}
+
 // Struktur-Vorlage für den Fotoreal-Pass (Recherche: bake ControlNet-Cues in EIN RGB-Bild).
 // → exaktes Seitenverhältnis (kein Recompose-Drift), KEIN Nebel, helleres Licht, gebackenes AO
 //   (SSAO best-effort), Maßlabels/D-Pad aus. async wegen optionalem SSAO-Lazy-Import.
@@ -454,7 +519,7 @@ function bindControls() {
   const grabFurniture = (x, y) => { const f = F(); return !!(f && f._pointer && f._pointer("down", x, y)); };
   const moveFurniture = (x, y) => { const f = F(); if (f && f._pointer) f._pointer("move", x, y); };
   const upFurniture = () => { const f = F(); if (f && f._pointer) f._pointer("up"); };
-  cv.addEventListener("click", () => { if (view === "walk" && cv.requestPointerLock) cv.requestPointerLock(); });
+  // Kein Pointer-Lock mehr (das verlangte 2× Escape + verkleinerte den Tab). Umsehen = ziehen.
   document.addEventListener("pointerlockchange", () => { locked = document.pointerLockElement === cv; });
 
   document.addEventListener("mousemove", e => {
@@ -559,5 +624,5 @@ window.Parametric = {
   hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice(),
   // Möblierung
   currentModel: () => lastModel, addObject, removeObject, pointerToFloor, frontFloorPoint, pickObjects,
-  activeCamera, setView, getView, onViewChange
+  activeCamera, setView, getView, onViewChange, capturePanoEquirect
 };
