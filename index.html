@@ -323,6 +323,13 @@
           <div class="world-measure-report" id="measureReport" hidden></div>
           <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Modell gegen Plan prüfen</button>
 
+          <div id="furnishPanel" hidden>
+            <span class="eyebrow">Möbel platzieren</span>
+            <p class="muted small">Katalog-Stück wählen → erscheint <b>maßgenau</b> im Raum. Unten auf <b>Plan von oben</b> umschalten: ziehen zum Setzen, <b>Q/E</b> drehen, Pfeiltasten = mm-Feinschub. Rastet an Wänden ein.</p>
+            <div class="furnish-cat" id="furnishCatalog"></div>
+            <div class="furnish-list" id="furnishList" hidden></div>
+          </div>
+
           <details class="foto-block">
             <summary><span class="ic" data-icon="sparkles"></span> Foto-Optionen <span class="muted">(Stil &amp; Möblierung)</span></summary>
             <div class="foto-opts-body">
@@ -347,7 +354,12 @@
             <div class="empty-ic" data-icon="house"></div>
             Noch keine Welt geladen.<br>Lade links eine Datei (Grundriss, CAD, IFC oder Splat) — oder „Beispiel begehen".
           </div>
+          <div class="furnish-inspector" id="furnishInspector" hidden></div>
           <div class="vp-bar">
+            <div class="seg vp-seg" id="viewSeg" hidden>
+              <button class="seg-b is-active" data-view="walk" aria-pressed="true">Begehen</button>
+              <button class="seg-b" data-view="plan" aria-pressed="false">Plan von oben</button>
+            </div>
             <button class="btn btn-accent" id="fotoBtn" disabled title="Macht aus der aktuellen Ansicht ein fotorealistisches, maßtreues Standbild (KI, ~15 s)"><span class="ic" data-icon="sparkles"></span> Foto dieser Ansicht</button>
             <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
           </div>
@@ -537,6 +549,8 @@
   </script>
   <script type="module" src="splatviewer.js"></script>
   <script type="module" src="parametric.js"></script>
+  <script type="module" src="furnish-place.js"></script>
+  <script type="module" src="furnish.js"></script>
   <script type="module" src="cad.js"></script>
   <script type="module" src="ifc.js"></script>
   <script src="app.js"></script>

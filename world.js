@@ -120,7 +120,7 @@
     const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
     const sh = $("#splatHost"); if (sh) sh.hidden = true;
     const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.build(model, ph); window.Parametric.start(); }
-    fotoEnable(true);
+    fotoEnable(true); showFurnish(true);
     report(summary(model, v), false);
     revealViewport();
   }
@@ -161,7 +161,7 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      fotoEnable(true);
+      fotoEnable(true); showFurnish(true);
       report('<div class="mr-h">✓ IFC-Demo · ' + res.meshCount + ' Bauteile</div><div class="muted small">FZK-Haus (öffentliches IFC-Beispiel) — echte CAD-Geometrie · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('Demo-IFC nicht ladbar: ' + esc(e.message || "Fehler"), true); }
@@ -187,7 +187,7 @@
       const empty = $("#worldEmpty"); if (empty) empty.hidden = true;
       const sh = $("#splatHost"); if (sh) sh.hidden = true;
       const ph = $("#paramHost"); if (ph) { ph.hidden = false; window.Parametric.buildGroup(res.group, ph); window.Parametric.start(); }
-      fotoEnable(true);
+      fotoEnable(true); showFurnish(true);
       report('<div class="mr-h">✓ IFC geladen · ' + res.meshCount + ' Bauteile</div><div class="muted small">Echte CAD-Geometrie (Wände, Türen, Fenster, Räume) · ' + esc(unitLabel(res)) + '. Reinklicken + WASD = begehen.</div>', false);
       revealViewport();
     } catch (e) { report('IFC konnte nicht geladen werden: ' + esc(e.message || "Fehler"), true); }
@@ -298,7 +298,7 @@
 
   async function loadSplat(urlOrFile) {
     if (!ensureViewer()) return;
-    fotoEnable(false);                                  // Splat hat keine Parametric-Geometrie → kein „Foto dieser Ansicht"
+    fotoEnable(false); showFurnish(false);              // Splat hat keine Parametric-Geometrie → kein „Foto"/Möblieren
     if (window.Parametric) window.Parametric.stop();    // ggf. laufendes Maß-/IFC-Modell anhalten
     const ph = $("#paramHost"); if (ph) ph.hidden = true;
     const host = $("#splatHost"); if (host) host.hidden = false;
@@ -315,9 +315,54 @@
     }
   }
 
+  /* ---------- Möblierung (Katalog → mm-genau platzieren) ---------- */
+  function showFurnish(on) {
+    const panel = $("#furnishPanel"), seg = $("#viewSeg");
+    if (panel) panel.hidden = !on;
+    if (seg) seg.hidden = !on;
+    if (!window.Furnish) return;
+    if (on) {
+      window.Furnish._onChange = renderFurnishList;
+      window.Furnish.clear();                 // neues Modell → frische Möblierung
+      renderCatalog(); renderFurnishList(); setView3D("walk");
+    } else {
+      window.Furnish.clear();
+      const insp = $("#furnishInspector"); if (insp) insp.hidden = true;
+    }
+  }
+  function renderCatalog() {
+    const host = $("#furnishCatalog"); if (!host) return;
+    const items = window.CATALOG || [];
+    host.innerHTML = items.map(it => '<button class="furnish-chip" data-fid="' + esc(it.id) + '" title="' + esc(it.name) + ' · ' + it.w + '×' + it.d + '×' + it.h + ' cm">'
+      + '<span class="fc-sw" style="background:' + esc(it.color || '#b9b2a6') + '"></span>'
+      + '<span class="fc-t"><span class="fc-n">' + esc(it.name) + '</span><span class="fc-d">' + it.w + '×' + it.d + ' cm</span></span></button>').join("");
+    $$(".furnish-chip", host).forEach(b => b.onclick = () => {
+      if (!(window.Furnish && window.Furnish.placeFromCatalog)) return;
+      const o = window.Furnish.placeFromCatalog(b.dataset.fid);
+      if (!o) { if (window.toast) toast("Erst ein Modell laden (CAD/IFC/Demo).", "err"); return; }
+      if (window.toast) toast('Platziert — unten „Plan von oben" zum mm-genauen Setzen.');
+    });
+  }
+  function renderFurnishList() {
+    const el = $("#furnishList"); if (!el || !(window.Furnish && window.Furnish.list)) return;
+    const rows = window.Furnish.list();
+    if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
+    const sum = rows.reduce((a, r) => a + (r.price || 0), 0);
+    el.hidden = false;
+    el.innerHTML = '<div class="fl-h">Platziert · ' + rows.length + '</div>'
+      + rows.map(r => '<div class="fl-row"><span class="fl-n">' + esc(r.name) + '</span><span class="fl-p">' + (r.price ? r.price + ' €' : '') + '</span><button class="fl-x" data-uid="' + r.uid + '" aria-label="entfernen">×</button></div>').join("")
+      + '<div class="fl-sum">Summe <b>' + sum.toLocaleString("de-DE") + ' €</b></div>';
+    $$(".fl-x", el).forEach(b => b.onclick = () => { if (window.Furnish) window.Furnish.removeByUid(+b.dataset.uid); });
+  }
+  function setView3D(v) {
+    if (window.Parametric && window.Parametric.setView) window.Parametric.setView(v);
+    $$("#viewSeg .seg-b").forEach(b => { const on = b.dataset.view === v; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
+  }
+
   function wire() {
     if (wired) return;
     const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
+    $$("#viewSeg .seg-b").forEach(b => b.onclick = () => setView3D(b.dataset.view));
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoIfc;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
@@ -326,7 +371,7 @@
     wired = true;
   }
 
-  function enter() { wire(); fotoEnable(false); }
+  function enter() { wire(); fotoEnable(false); showFurnish(false); }
   function leave() { try { if (window.SplatViewer) window.SplatViewer.stop(); if (window.Parametric) window.Parametric.stop(); } catch (e) {} }
 
   window.World = { enter, leave };
