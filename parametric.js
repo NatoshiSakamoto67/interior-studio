@@ -32,10 +32,10 @@ function pointerToFloor(clientX, clientY) {
   const hit = new THREE.Vector3();
   return _ray.ray.intersectPlane(_floorPlane, hit) ? { x: hit.x, z: hit.z } : null;
 }
-function frontFloorPoint() {   // Boden-Punkt, auf den die Begeh-Kamera schaut (Bildmitte → y=0)
-  _ray.setFromCamera(_ndcV.set(0, 0), cam);
-  const hit = new THREE.Vector3();
-  return _ray.ray.intersectPlane(_floorPlane, hit) ? { x: hit.x, z: hit.z } : null;
+function frontFloorPoint() {   // Boden-Punkt ~1,4 m vor der Blickrichtung der Begeh-Kamera
+  const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd); fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1); fwd.normalize();
+  return { x: cam.position.x + fwd.x * 1.4, z: cam.position.z + fwd.z * 1.4 };
 }
 function pickObjects(clientX, clientY, objs) {
   if (!objs || !objs.length) return null;
@@ -59,6 +59,8 @@ function fitOrtho() {
 function setView(v) {
   view = (v === "plan") ? "plan" : "walk";
   const dp = host && host.querySelector(".dpad"); if (dp) dp.style.display = view === "plan" ? "none" : "";
+  // Plan = Grundriss-Schnitt auf 1,4 m: Decke (und Wand-/Möbel-Teile darüber) weg, Boden+Wände+Möbel sichtbar.
+  if (renderer) renderer.clippingPlanes = (view === "plan") ? [new THREE.Plane(new THREE.Vector3(0, -1, 0), 1.4)] : [];
   if (view === "plan") { fitOrtho(); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
   if (_viewCb) { try { _viewCb(view); } catch (e) {} }
 }
@@ -344,6 +346,7 @@ async function snapshot(opts = {}) {
   if (group) group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
   const dp = host && host.querySelector(".dpad"); const dpPrev = dp ? dp.style.display : null; if (dp) dp.style.display = "none";
   const prevFog = scene.fog, prevExp = renderer.toneMappingExposure, prevAspect = cam.aspect, prevPR = renderer.getPixelRatio(), prevBg = scene.background;
+  const prevClip = renderer.clippingPlanes; renderer.clippingPlanes = [];   // Foto nie als Plan-Schnitt rendern
   const sz = new THREE.Vector2(); renderer.getSize(sz);
   scene.fog = null; renderer.toneMappingExposure = 1.32;
   // Heller Hintergrund: Lücken (über Wänden / durch Öffnungen) lesen als hell statt schwarz →
@@ -367,7 +370,7 @@ async function snapshot(opts = {}) {
   // Zustand wiederherstellen
   scene.remove(fill);
   if (edges) { scene.remove(edges); disposeGroup(edges); }
-  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp;
+  scene.background = prevBg; scene.fog = prevFog; renderer.toneMappingExposure = prevExp; renderer.clippingPlanes = prevClip;
   renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false); cam.aspect = prevAspect; cam.updateProjectionMatrix();
   hidden.forEach(o => o.visible = true); if (dp) dp.style.display = dpPrev || "";
   if (running) renderer.render(scene, cam);   // Live-Ansicht in alter Größe neu zeichnen
