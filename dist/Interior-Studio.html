@@ -1036,6 +1036,12 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
 /* „Datei öffnen — egal welche": klare Ablagefläche statt nacktem Input */
 .world-drop{border:1px dashed var(--line-strong);border-radius:12px;padding:12px;background:rgba(255,255,255,.025);transition:border-color var(--dur-1,.15s) ease}
 .world-drop:hover{border-color:var(--accent)}
+/* „Ganze Wohnung fotorealistisch" — die Hauptaktion, deutlich hervorgehoben */
+.world-tour-btn{margin-top:8px;width:100%;justify-content:center;color:#fff;border:none;
+  background:linear-gradient(120deg, rgb(var(--accent-rgb)) 0%, oklch(62% 0.20 285) 100%);
+  box-shadow:0 6px 20px -8px rgb(var(--accent-rgb) / .8);font-weight:700}
+.world-tour-btn:hover:not(:disabled){filter:brightness(1.06)}
+.world-tour-btn:disabled{opacity:.45;filter:grayscale(.3)}
 
 /* ---------- Möblierung (Welt 3D) ---------- */
 #furnishPanel{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-2);padding-top:var(--sp-3);border-top:1px solid var(--line)}
@@ -1376,7 +1382,7 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
     <section class="panel" data-panel="world">
       <div class="world-grid">
         <aside class="world-side">
-          <span class="eyebrow">Welt 3D · Beta · Build 30.06b (Möbel-Picker gefixt)</span>
+          <span class="eyebrow">Welt 3D · Beta · Build 30.06c (Auto-Foto-Tour)</span>
           <h2>Maßgenaues 3D — frei begehbar</h2>
           <p class="muted small">Lade <b>eine Datei</b> — der Typ wird automatisch erkannt und daraus entsteht eine glatte, sofort begehbare Welt. Alles läuft offline im Browser.</p>
 
@@ -1394,6 +1400,7 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
           </div>
 
           <button class="btn btn-accent" id="worldDemoBtn"><span class="ic" data-icon="play"></span> Möblierte Demo-Wohnung begehen</button>
+          <button class="btn btn-lg world-tour-btn" id="tourBtn" disabled title="Erzeugt automatisch eine begehbare, fotorealistische Tour der ganzen Wohnung — du musst nichts pro Foto klicken"><span class="ic" data-icon="sparkles"></span> Ganze Wohnung fotorealistisch (automatisch)</button>
 
           <div class="world-measure-report" id="measureReport" hidden></div>
           <button class="btn btn-ghost" id="measureVerifyBtn" hidden><span class="ic" data-icon="circle-check"></span> Modell gegen Plan prüfen</button>
@@ -1436,7 +1443,7 @@ a,.link,.needkey .link,.door .chip-key{color:var(--accent-text)}
               <button class="seg-b" data-view="plan" aria-pressed="false">Plan von oben</button>
             </div>
             <button class="btn btn-accent" id="fotoBtn" disabled title="Macht aus der aktuellen Ansicht ein fotorealistisches, maßtreues Standbild (KI, ~15 s)"><span class="ic" data-icon="sparkles"></span> Foto dieser Ansicht</button>
-            <span class="vp-hint">Ins Bild klicken · WASD/Pfeile = gehen · Maus = umsehen · Esc = Maus frei</span>
+            <span class="vp-hint">Ziehen = umsehen · WASD/Pfeile = gehen</span>
           </div>
           <div class="foto-overlay" id="fotoOverlay" hidden></div>
         </div>
@@ -3137,8 +3144,8 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
   // Nach dem Laden eines Modells das (auf dem Handy oben liegende, große) 3D-Fenster in den Blick holen.
   function revealViewport() { const vp = $(".world-viewport"); if (vp && vp.scrollIntoView) { try { vp.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} } }
 
-  // „Foto dieser Ansicht" erst aktiv, wenn eine begehbare (Parametric-)Geometrie steht.
-  function fotoEnable(on) { const b = $("#fotoBtn"); if (b) b.disabled = !on; }
+  // „Foto dieser Ansicht" + „Ganze Wohnung fotorealistisch" erst aktiv, wenn eine begehbare (Parametric-)Geometrie steht.
+  function fotoEnable(on) { const b = $("#fotoBtn"); if (b) b.disabled = !on; const t = $("#tourBtn"); if (t) t.disabled = !on; }
 
   function unitLabel(res) {
     const m = res && res.unitMeters;
@@ -3513,9 +3520,75 @@ Gib AUSSCHLIESSLICH dieses JSON zurück:
     } catch (e) { report('Demo nicht ladbar: ' + esc(e.message || "Fehler"), true); }
   }
 
+  /* ---------- AUTOMATISCHE fotorealistische Tour der ganzen Wohnung ----------
+     Ein Klick: an mehreren Standpunkten je ein 360°-Bild der EXAKTEN Geometrie aufnehmen (Echtzeit),
+     jedes fotoreal machen (konsistent), als begehbare Tour in die Begehung laden. Kein Klicken pro Foto. */
+  let tourStyleRef = null;
+  function panoPrompt(hasRef) {
+    return "This image is a 360° EQUIRECTANGULAR panorama (2:1) of an interior, rendered from exact geometry. "
+      + "Re-render it PHOTOREALISTIC while keeping it a valid 2:1 equirectangular panorama: keep every wall position, opening, proportion and the ceiling and floor exactly where they are; keep the horizon straight and the left/right edges seamless. "
+      + "Apply photorealistic materials and soft natural daylight: matte plaster walls, warm oak plank floor, plaster ceiling. "
+      + "Turn any plain massing blocks into real, tasteful furniture sitting exactly where the blocks are. No people, no text. Keep it full 360° equirectangular. "
+      + (hasRef ? "Use the SECOND image ONLY as a style/material/lighting reference so all panoramas of this home look CONSISTENT — never copy its layout or geometry. " : "");
+  }
+  function normalizeEquirect(url) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => { const W = 2048, H = 1024; const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(img, 0, 0, W, H); resolve(c.toDataURL("image/jpeg", 0.92)); };
+      img.onerror = () => resolve(url);
+      img.src = url;
+    });
+  }
+  async function photorealizePano(rawUrl) {
+    const images = [window.ImageGen.dataUrlToInline(rawUrl)];
+    if (tourStyleRef) { const r = window.ImageGen.dataUrlToInline(tourStyleRef); if (r) images.push(r); }
+    const res = await window.ImageGen.generate({ prompt: panoPrompt(images.length > 1), images, aspect: "16:9", resolution: "4K" });
+    if (!tourStyleRef) tourStyleRef = res.url;   // erstes Ergebnis = Stil-Anker für die übrigen
+    return await normalizeEquirect(res.url);
+  }
+  function tourViewpoints() {
+    const m = window.Parametric && window.Parametric.currentModel ? window.Parametric.currentModel() : null;
+    if (!m || !window.FurnishPlace || !window.Measure) return [];
+    const mm = window.Measure.mm;
+    const polys = window.FurnishPlace.roomPolys(m, mm);
+    if (polys.length) {
+      return polys.slice(0, 8).map((poly, i) => { let cx = 0, cz = 0; poly.forEach(p => { cx += p.x; cz += p.z; }); return { x: cx / poly.length, z: cz / poly.length, label: "Raum " + (i + 1) }; });
+    }
+    const segs = window.FurnishPlace.wallSegments(m, mm);
+    if (!segs.length) return [{ x: 0, z: 0, label: "Standort 1" }];
+    const b = window.FurnishPlace.boundsOf(segs), w = b.maxX - b.minX, d = b.maxZ - b.minZ, mx = (b.minX + b.maxX) / 2, mz = (b.minZ + b.maxZ) / 2;
+    const pts = (w >= d)
+      ? [{ x: b.minX + w * 0.30, z: mz }, { x: b.minX + w * 0.70, z: mz }]
+      : [{ x: mx, z: b.minZ + d * 0.30 }, { x: mx, z: b.minZ + d * 0.70 }];
+    return pts.map((p, i) => ({ x: p.x, z: p.z, label: "Standort " + (i + 1) }));
+  }
+  async function generateApartmentTour() {
+    if (!(window.Parametric && window.Parametric.hasModel && window.Parametric.hasModel() && window.Parametric.capturePanoEquirect)) { if (window.toast) toast("Erst ein Modell laden (Demo, CAD, IFC).", "err"); return; }
+    if (!(window.ImageGen && window.ImageGen.activeKeyOk())) { if (window.toast) toast((window.ImageGen ? window.ImageGen.activeLabel() : "Bild") + "-Key fehlt — in Einstellungen eintragen.", "err"); if (window.showPanel) window.showPanel("settings"); return; }
+    if (!(window.Studio && window.Studio.addPanorama)) { if (window.toast) toast("Begehung nicht verfügbar.", "err"); return; }
+    const vps = tourViewpoints(); if (!vps.length) { if (window.toast) toast("Keine Standpunkte gefunden.", "err"); return; }
+    const btn = $("#tourBtn"); if (btn) btn.disabled = true;
+    tourStyleRef = null;
+    const panos = [];
+    try {
+      for (let i = 0; i < vps.length; i++) {
+        report('<div class="mr-h">Fotorealistische Tour wird erzeugt …</div><div class="muted small">Standort ' + (i + 1) + ' / ' + vps.length + ' wird fotoreal gerendert (~15 s) — du musst nichts tun.</div>', false);
+        const raw = window.Parametric.capturePanoEquirect({ at: vps[i], width: 2048, face: 768 });
+        if (!raw) continue;
+        const photo = await photorealizePano(raw);
+        panos.push({ url: photo, label: vps[i].label });
+      }
+      if (!panos.length) { report('Konnte keine Panoramen erzeugen — Internet + Bild-Key nötig.', true); return; }
+      panos.forEach(p => window.Studio.addPanorama(p.url, p.label));   // baut verlinkte Tour + wechselt in die Begehung
+      report('<div class="mr-h">✓ Fotorealistische Tour erzeugt · ' + panos.length + ' Standorte</div><div class="muted small">In der Begehung — ziehen zum Umsehen, Boden-Pfeile = weiter.</div>', false);
+    } catch (e) { report('Tour fehlgeschlagen: ' + esc(e.message || "Fehler"), true); }
+    finally { if (btn) btn.disabled = false; }
+  }
+
   function wire() {
     if (wired) return;
     const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
+    const tb = $("#tourBtn"); if (tb) tb.onclick = generateApartmentTour;
     $$("#viewSeg .seg-b").forEach(b => b.onclick = () => setView3D(b.dataset.view));
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
     const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoApartment;
@@ -4083,6 +4156,71 @@ function addDimLabel(w, exact) {
 
 function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }); }
 
+/* ---------- 360°-Panorama der EXAKTEN Geometrie in ECHTZEIT (kein Path-Tracing) ----------
+   6 Cube-Flächen (Perspektive 90°, tonemapped vom Canvas gelesen) → CPU-Equirect-2:1.
+   Standpunkt = aktuelle Begeh-Position auf Augenhöhe. Für die fotoreale Begehungs-Tour. */
+function capturePanoEquirect(opts = {}) {
+  if (!mounted || !group) return null;
+  const F = opts.face || 768, W = opts.width || 2048, H = W / 2;
+  const hidden = []; group.traverse(o => { if (o.isSprite && o.visible) { hidden.push(o); o.visible = false; } });
+  const prevClip = renderer.clippingPlanes; renderer.clippingPlanes = [];
+  const prevExp = renderer.toneMappingExposure; renderer.toneMappingExposure = 1.05;
+  const sz = new THREE.Vector2(); renderer.getSize(sz); const prevPR = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(F, F, false);
+  const pc = new THREE.PerspectiveCamera(90, 1, 0.03, 400);
+  pc.position.set(opts.at ? opts.at.x : cam.position.x, EYE, opts.at ? opts.at.z : cam.position.z);
+  // Flächen-Definitionen: Blickrichtung + up (an three.js-Cube-Konvention angelehnt)
+  const faces = {
+    px: { dir: [1, 0, 0], up: [0, 1, 0] }, nx: { dir: [-1, 0, 0], up: [0, 1, 0] },
+    py: { dir: [0, 1, 0], up: [0, 0, 1] }, ny: { dir: [0, -1, 0], up: [0, 0, -1] },
+    pz: { dir: [0, 0, 1], up: [0, 1, 0] }, nz: { dir: [0, 0, -1], up: [0, 1, 0] },
+  };
+  const data = {};
+  for (const k in faces) {
+    const f = faces[k]; pc.up.set(f.up[0], f.up[1], f.up[2]);
+    pc.lookAt(pc.position.x + f.dir[0], pc.position.y + f.dir[1], pc.position.z + f.dir[2]);
+    renderer.render(scene, pc);
+    const c = document.createElement("canvas"); c.width = c.height = F;
+    const g = c.getContext("2d"); g.drawImage(renderer.domElement, 0, 0, F, F);
+    data[k] = g.getImageData(0, 0, F, F).data;
+  }
+  renderer.setPixelRatio(prevPR); renderer.setSize(sz.x, sz.y, false);
+  renderer.clippingPlanes = prevClip; renderer.toneMappingExposure = prevExp;
+  hidden.forEach(o => o.visible = true);
+  if (running) renderer.render(scene, activeCamera());
+
+  // CPU: für jeden Equirect-Pixel die Richtung → Cube-Fläche + uv (bilinear)
+  const out = document.createElement("canvas"); out.width = W; out.height = H;
+  const od = out.getContext("2d"), oi = od.createImageData(W, H), D = oi.data;
+  function samp(face, u, v) {
+    u = Math.min(0.99999, Math.max(0, u)) * (F - 1); v = Math.min(0.99999, Math.max(0, v)) * (F - 1);
+    const x = u | 0, y = v | 0, d = data[face], i = (y * F + x) * 4; return [d[i], d[i + 1], d[i + 2]];
+  }
+  for (let y = 0; y < H; y++) {
+    const lat = (0.5 - (y + 0.5) / H) * Math.PI;
+    const cl = Math.cos(lat), sl = Math.sin(lat);
+    for (let x = 0; x < W; x++) {
+      const lon = ((x + 0.5) / W - 0.5) * 2 * Math.PI;
+      const dx = cl * Math.sin(lon), dy = sl, dz = -cl * Math.cos(lon);
+      const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+      let col;
+      if (ax >= ay && ax >= az) {
+        if (dx > 0) col = samp("px", 0.5 - dz / ax * 0.5, 0.5 - dy / ax * 0.5);
+        else col = samp("nx", 0.5 + dz / ax * 0.5, 0.5 - dy / ax * 0.5);
+      } else if (ay >= ax && ay >= az) {
+        if (dy > 0) col = samp("py", 0.5 + dx / ay * 0.5, 0.5 + dz / ay * 0.5);
+        else col = samp("ny", 0.5 + dx / ay * 0.5, 0.5 - dz / ay * 0.5);
+      } else {
+        if (dz > 0) col = samp("pz", 0.5 + dx / az * 0.5, 0.5 - dy / az * 0.5);
+        else col = samp("nz", 0.5 - dx / az * 0.5, 0.5 - dy / az * 0.5);
+      }
+      const i = (y * W + x) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255;
+    }
+  }
+  od.putImageData(oi, 0, 0);
+  return out.toDataURL("image/jpeg", 0.92);
+}
+
 // Struktur-Vorlage für den Fotoreal-Pass (Recherche: bake ControlNet-Cues in EIN RGB-Bild).
 // → exaktes Seitenverhältnis (kein Recompose-Drift), KEIN Nebel, helleres Licht, gebackenes AO
 //   (SSAO best-effort), Maßlabels/D-Pad aus. async wegen optionalem SSAO-Lazy-Import.
@@ -4169,7 +4307,7 @@ function bindControls() {
   const grabFurniture = (x, y) => { const f = F(); return !!(f && f._pointer && f._pointer("down", x, y)); };
   const moveFurniture = (x, y) => { const f = F(); if (f && f._pointer) f._pointer("move", x, y); };
   const upFurniture = () => { const f = F(); if (f && f._pointer) f._pointer("up"); };
-  cv.addEventListener("click", () => { if (view === "walk" && cv.requestPointerLock) cv.requestPointerLock(); });
+  // Kein Pointer-Lock mehr (das verlangte 2× Escape + verkleinerte den Tab). Umsehen = ziehen.
   document.addEventListener("pointerlockchange", () => { locked = document.pointerLockElement === cv; });
 
   document.addEventListener("mousemove", e => {
@@ -4274,7 +4412,7 @@ window.Parametric = {
   hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice(),
   // Möblierung
   currentModel: () => lastModel, addObject, removeObject, pointerToFloor, frontFloorPoint, pickObjects,
-  activeCamera, setView, getView, onViewChange
+  activeCamera, setView, getView, onViewChange, capturePanoEquirect
 };
 
 </script>
