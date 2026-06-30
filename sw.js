@@ -1,7 +1,7 @@
 /* Interior Studio — Service Worker (nur im sicheren Kontext: https / localhost).
    NETWORK-FIRST: online immer die frische Version (Updates erscheinen sofort),
    Cache nur als Offline-Fallback. (Cache-first verschluckte sonst Deploys.) */
-const CACHE = "interior-studio-v2";
+const CACHE = "interior-studio-v3";
 const CORE = ["./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 

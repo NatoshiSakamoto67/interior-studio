@@ -362,13 +362,37 @@
     if (window.Parametric && window.Parametric.setView) window.Parametric.setView(v);
     $$("#viewSeg .seg-b").forEach(b => { const on = b.dataset.view === v; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on); });
   }
+  // Demo: möblierte Wohnung über den ARCHVIZ-Pfad (build → echte Materialien/Licht), gleich mit Möbeln.
+  function autoFurnishDemo() {
+    if (!(window.Furnish && window.FurnishPlace && window.Parametric)) return;
+    const m = window.Parametric.currentModel(); if (!m) return;
+    const segs = window.FurnishPlace.wallSegments(m, window.Measure.mm); if (!segs.length) return;
+    const b = window.FurnishPlace.boundsOf(segs), cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    window.Furnish.placeFromCatalog("rug", { x: cx, z: cz });
+    window.Furnish.placeFromCatalog("table", { x: cx, z: cz });
+    window.Furnish.placeFromCatalog("sofa", { x: cx, z: b.maxZ - 0.4 });
+    window.Furnish.placeFromCatalog("plant", { x: b.minX + 0.6, z: b.minZ + 0.6 });
+    window.Furnish.select(null);
+  }
+  async function loadDemoApartment() {
+    if (!(window.CAD && window.Parametric && window.Parametric.available() && window.Measure)) { if (window.toast) toast("Demo lädt noch — kurz warten.", "err"); return; }
+    try {
+      report('<span class="muted small">Möblierte Demo-Wohnung wird geladen …</span>', false);
+      const r = await fetch("examples/demo-grundriss.dxf", { cache: "force-cache" });
+      if (!r.ok) throw new Error("Demo nur in der gehosteten Version (localhost/Pages).");
+      cadAnalysis = window.CAD.analyze(await r.text());
+      populateCadLayers();
+      buildCad();            // → mountModel → Archviz-Materialien/HDRI + Möblierung an
+      autoFurnishDemo();
+    } catch (e) { report('Demo nicht ladbar: ' + esc(e.message || "Fehler"), true); }
+  }
 
   function wire() {
     if (wired) return;
     const wf = $("#worldFile"); if (wf) wf.onchange = () => { if (wf.files[0]) handleWorldFile(wf.files[0]); };
     $$("#viewSeg .seg-b").forEach(b => b.onclick = () => setView3D(b.dataset.view));
     const cb = $("#cadBuildBtn"); if (cb) cb.onclick = buildCad;
-    const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoIfc;
+    const dd = $("#worldDemoBtn"); if (dd) dd.onclick = loadDemoApartment;
     const vb = $("#measureVerifyBtn"); if (vb) vb.onclick = verifyAgainstPlan;
     const fb = $("#fotoBtn"); if (fb) fb.onclick = photorealView;
     const fr = $("#fotoRef"); if (fr) fr.onchange = () => { const l = $("#fotoRefLabel"), f = fr.files[0]; if (l) l.textContent = f ? f.name.slice(0, 28) : "Stil-Referenzbild (optional)"; };
