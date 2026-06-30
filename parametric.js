@@ -18,6 +18,53 @@ const keys = {}, look = { yaw: 0, pitch: 0 };
 let locked = false, dragging = false, lastX = 0, lastY = 0;
 const M = () => window.Measure;
 
+// ---------- Möblierung: zweite (Plan-)Kamera + Welt-Zugriff für furnish.js ----------
+let orthoCam = null, view = "walk", lastModel = null, _viewCb = null;
+const _ray = new THREE.Raycaster(), _ndcV = new THREE.Vector2(), _floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function activeCamera() { return (view === "plan" && orthoCam) ? orthoCam : cam; }
+function toNdc(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  _ndcV.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  return _ndcV;
+}
+function pointerToFloor(clientX, clientY) {
+  _ray.setFromCamera(toNdc(clientX, clientY), activeCamera());
+  const hit = new THREE.Vector3();
+  return _ray.ray.intersectPlane(_floorPlane, hit) ? { x: hit.x, z: hit.z } : null;
+}
+function frontFloorPoint() {   // Boden-Punkt, auf den die Begeh-Kamera schaut (Bildmitte → y=0)
+  _ray.setFromCamera(_ndcV.set(0, 0), cam);
+  const hit = new THREE.Vector3();
+  return _ray.ray.intersectPlane(_floorPlane, hit) ? { x: hit.x, z: hit.z } : null;
+}
+function pickObjects(clientX, clientY, objs) {
+  if (!objs || !objs.length) return null;
+  _ray.setFromCamera(toNdc(clientX, clientY), activeCamera());
+  const hits = _ray.intersectObjects(objs, true);
+  if (!hits.length) return null;
+  let o = hits[0].object; while (o && !o.userData.furnitureRoot && o.parent) o = o.parent;
+  return (o && o.userData.furnitureRoot) ? o : null;
+}
+function addObject(o) { if (group) group.add(o); else if (scene) scene.add(o); }
+function removeObject(o) { if (o && o.parent) o.parent.remove(o); }
+function fitOrtho() {
+  if (!orthoCam) return;
+  const b = new THREE.Box3(); if (group) b.setFromObject(group);
+  const c = b.isEmpty() ? new THREE.Vector3() : b.getCenter(new THREE.Vector3());
+  const sx = b.isEmpty() ? 6 : (b.max.x - b.min.x), sz = b.isEmpty() ? 6 : (b.max.z - b.min.z);
+  const half = Math.max(sx, sz, 2) * 0.6 + 0.5, asp = aspect();
+  orthoCam.left = -half * asp; orthoCam.right = half * asp; orthoCam.top = half; orthoCam.bottom = -half;
+  orthoCam.position.set(c.x, 30, c.z); orthoCam.up.set(0, 0, -1); orthoCam.lookAt(c.x, 0, c.z); orthoCam.updateProjectionMatrix();
+}
+function setView(v) {
+  view = (v === "plan") ? "plan" : "walk";
+  const dp = host && host.querySelector(".dpad"); if (dp) dp.style.display = view === "plan" ? "none" : "";
+  if (view === "plan") { fitOrtho(); if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock(); }
+  if (_viewCb) { try { _viewCb(view); } catch (e) {} }
+}
+function getView() { return view; }
+function onViewChange(cb) { _viewCb = cb; }
+
 function mount(container) {
   if (mounted) { if (container && renderer && renderer.domElement.parentNode !== container) container.appendChild(renderer.domElement); return; }
   host = container;
@@ -35,6 +82,8 @@ function mount(container) {
   scene.background = new THREE.Color(0x4a463f);   // weiches Neutralgrau statt Schwarz (Außenkontext / Lücken)
   cam = new THREE.PerspectiveCamera(64, aspect(), 0.05, 400);
   cam.position.set(0, EYE, 0);
+  orthoCam = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.01, 200);   // „Plan von oben"
+  orthoCam.up.set(0, 0, -1); orthoCam.position.set(0, 30, 0); orthoCam.lookAt(0, 0, 0);
 
   // Sonne (Schlagschatten) + dezente Fülle; das große Ambiente liefert das IBL (RoomEnvironment).
   scene.add(new THREE.HemisphereLight(0xffe9d6, 0x2a2026, 0.35));
@@ -58,6 +107,7 @@ function resize() {
   if (cam) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
   if (liveComposer) liveComposer.setSize(w, h);
   if (liveGtao && liveGtao.setSize) liveGtao.setSize(w, h);
+  if (orthoCam) fitOrtho();
 }
 
 // IBL (prozedurale RoomEnvironment = realistisches Licht/Reflexe, ohne Asset, offline) +
@@ -123,7 +173,7 @@ function textures() {
 function build(model, container) {
   if (container) mount(container);
   if (!mounted) return;
-  lastKind = "interior";
+  lastModel = model; lastKind = "interior";
   if (group) { scene.remove(group); disposeGroup(group); }
   group = new THREE.Group(); scene.add(group);
   const mm = M().mm;
@@ -211,6 +261,7 @@ function build(model, container) {
     look.yaw = Math.atan2(-dir.x, -dir.z); look.pitch = -0.05;
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; }
   walked = true; applyLook();
+  if (view === "plan") fitOrtho();
 }
 
 // Kamera schräg von außen-oben auf das Modell richten (Übersicht); Innen-Startpunkt fürs Begehen merken.
@@ -326,18 +377,23 @@ async function snapshot(opts = {}) {
 /* ---------- First-Person ---------- */
 function bindControls() {
   const cv = renderer.domElement;
-  cv.addEventListener("click", () => { if (cv.requestPointerLock) cv.requestPointerLock(); });
+  const FP = (type, x, y) => { const F = window.Furnish; if (F && F._pointer) F._pointer(type, x, y); };
+  cv.addEventListener("click", () => { if (view === "walk" && cv.requestPointerLock) cv.requestPointerLock(); });
   document.addEventListener("pointerlockchange", () => { locked = document.pointerLockElement === cv; });
   document.addEventListener("mousemove", e => {
+    if (view === "plan") { FP("move", e.clientX, e.clientY); return; }
     if (locked) { look.yaw -= e.movementX * 0.0023; look.pitch -= e.movementY * 0.0023; clampPitch(); }
     else if (dragging) { look.yaw -= (e.clientX - lastX) * 0.005; look.pitch -= (e.clientY - lastY) * 0.005; lastX = e.clientX; lastY = e.clientY; clampPitch(); }
   });
-  cv.addEventListener("mousedown", e => { if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; } });
-  window.addEventListener("mouseup", () => { dragging = false; });
-  cv.addEventListener("touchstart", e => { const t = e.touches[0]; dragging = true; lastX = t.clientX; lastY = t.clientY; }, { passive: true });
-  cv.addEventListener("touchmove", e => { const t = e.touches[0]; look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch(); }, { passive: true });
-  cv.addEventListener("touchend", () => { dragging = false; });
-  window.addEventListener("keydown", e => { if (running) keys[e.key.toLowerCase()] = true; });
+  cv.addEventListener("mousedown", e => { if (view === "plan") { FP("down", e.clientX, e.clientY); return; } if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; } });
+  window.addEventListener("mouseup", () => { if (view === "plan") FP("up"); dragging = false; });
+  cv.addEventListener("touchstart", e => { const t = e.touches[0]; if (view === "plan") { FP("down", t.clientX, t.clientY); return; } dragging = true; lastX = t.clientX; lastY = t.clientY; }, { passive: true });
+  cv.addEventListener("touchmove", e => { const t = e.touches[0]; if (view === "plan") { FP("move", t.clientX, t.clientY); return; } look.yaw -= (t.clientX - lastX) * 0.006; look.pitch -= (t.clientY - lastY) * 0.006; lastX = t.clientX; lastY = t.clientY; clampPitch(); }, { passive: true });
+  cv.addEventListener("touchend", () => { if (view === "plan") FP("up"); dragging = false; });
+  window.addEventListener("keydown", e => {
+    if (view === "plan" && window.Furnish && window.Furnish._key && window.Furnish._key(e.key)) { e.preventDefault(); return; }
+    if (running) keys[e.key.toLowerCase()] = true;
+  });
   window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 }
 function clampPitch() { const L = Math.PI / 2 - 0.05; look.pitch = Math.max(-L, Math.min(L, look.pitch)); applyLook(); }
@@ -356,10 +412,12 @@ function step(dt) {
 }
 function frame(t) {
   if (!running) return;
-  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t; step(dt);
+  const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t;
+  if (view === "walk") step(dt);   // Gehen nur im Begehen; im Plan steht die Kamera fest oben
   // Echtzeit-Render (sofort, glatt, nie pixelig, kein Neurechnen beim Gehen).
-  if (liveComposer) liveComposer.render();
-  else renderer.render(scene, cam);
+  // Post-Stack (GTAO/Bloom) hängt an der Begeh-Kamera → im Plan plan rendern.
+  if (liveComposer && view === "walk") liveComposer.render();
+  else renderer.render(scene, activeCamera());
   raf = requestAnimationFrame(frame);
 }
 function makeDpad(hostEl, keyObj) {
@@ -387,12 +445,19 @@ function buildGroup(extGroup, container) {
   if (!mounted) return;
   if (group) { scene.remove(group); disposeGroup(group); }
   group = extGroup; scene.add(group);
-  lastAssumptions = []; lastKind = "building";
+  lastAssumptions = []; lastModel = null; lastKind = "building";
   const box = new THREE.Box3().setFromObject(group);
   if (!box.isEmpty() && isFinite(box.min.x)) {
     const c = box.getCenter(new THREE.Vector3());
     frameView(box, c.x, c.z);                 // Übersicht über das ganze Gebäude, dann begehbar
   } else { cam.position.set(0, EYE, 0); look.yaw = 0; look.pitch = 0; walked = true; applyLook(); }
+  if (view === "plan") fitOrtho();
 }
 
-window.Parametric = { available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot, hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice() };
+window.Parametric = {
+  available: () => true, mount, build, buildGroup, mountDemo, start, stop, dispose, snapshot,
+  hasModel: () => !!group, kind: () => lastKind, assumptions: () => lastAssumptions.slice(),
+  // Möblierung
+  currentModel: () => lastModel, addObject, removeObject, pointerToFloor, frontFloorPoint, pickObjects,
+  activeCamera, setView, getView, onViewChange
+};
